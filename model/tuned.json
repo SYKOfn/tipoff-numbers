@@ -1,0 +1,6 @@
+{
+ "half_life": 90,
+ "lam": 3.0,
+ "carry": 0.6,
+ "lam_effects": 150.0
+}
