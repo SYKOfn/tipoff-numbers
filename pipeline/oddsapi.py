@@ -31,8 +31,14 @@ PROPS_CSV = DATA / "props" / "lines.csv"
 PROPS_COLS = ["fetched_at", "game_id", "day", "player", "stat", "line", "over", "under", "book", "phase"]
 
 
+def env(name, default):
+    """GitHub passes unset variables as empty strings: treat those as unset."""
+    v = (os.environ.get(name) or "").strip()
+    return v or default
+
+
 def key():
-    return os.environ.get("ODDS_API_KEY", "").strip()
+    return env("ODDS_API_KEY", "").strip().strip('"').strip("'")
 
 
 def _get(path, params):
@@ -116,8 +122,11 @@ def collect(upcoming, now=None):
         return {"enabled": False}
     now = now or datetime.now(timezone.utc)
     st = budget()
-    daily = int(os.environ.get("ODDS_API_DAILY", "15"))
-    books = os.environ.get("ODDS_API_BOOKS", "winamax_fr,pinnacle")
+    try:
+        daily = int(float(env("ODDS_API_DAILY", "15")))
+    except ValueError:
+        daily = 15
+    books = env("ODDS_API_BOOKS", "winamax_fr,pinnacle")
     tips = sorted(datetime.fromisoformat(g["date"].replace("Z", "+00:00")) for g in upcoming if g.get("state") == "pre")
     soon = any(timedelta(0) <= t - now <= timedelta(minutes=75) for t in tips)
     last = datetime.fromisoformat(st["last_games"]) if st.get("last_games") else None
@@ -142,10 +151,12 @@ def collect(upcoming, now=None):
                     snap[g["game_id"]] = {"at": now.isoformat(), "event_id": ev["id"], "books": mk}
                     f.write(json.dumps({"at": now.isoformat(), "game_id": g["game_id"], "books": mk}) + "\n")
         else:
-            status["error"] = data.get("error")
+            err = data.get("error") or ""
+            status["error"] = ("the key was refused (401): check the ODDS_API_KEY secret is exactly the key from the-odds-api.com"
+                               if "401" in err else err)
     write_json(STATE / "odds_latest.json", snap)
     # props (optional): an "open" snapshot when a game is within 12 h, a "close" one within 75 min
-    if os.environ.get("ODDS_API_PROPS") == "1":
+    if env("ODDS_API_PROPS", "0") == "1":
         done = st.setdefault("props_done", {})
         for g in upcoming:
             if g.get("state") != "pre" or g["game_id"] not in snap:
@@ -194,7 +205,7 @@ def attach(upcoming):
     """Put the freshest real prices on each upcoming game: g['odds'] (preferred book, ESPN fallback stays
     if missing) and g['odds_books'] (every book we have)."""
     snap = read_json(STATE / "odds_latest.json", {}) or {}
-    pref = [b.strip() for b in os.environ.get("ODDS_API_BOOKS", "winamax_fr,pinnacle").split(",")]
+    pref = [b.strip() for b in env("ODDS_API_BOOKS", "winamax_fr,pinnacle").split(",")]
     for g in upcoming:
         s = snap.get(g["game_id"])
         if not s:
