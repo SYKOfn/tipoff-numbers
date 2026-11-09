@@ -480,3 +480,8 @@ details.pl[open] > summary td { background: var(--floor); }
 .ticket-foot .you b { font-size: 1.4rem; }
 @media (max-width: 680px) { .legs li { grid-template-columns: 22px 1fr 70px; } .legs li > .oddsbox { grid-column: 2 / -1; align-items: flex-start; } }
 .kind.team_total { background: var(--body-soft); color: var(--body); }
+.oddsbox .ins { display: flex; gap: 4px; }
+.linein { font: inherit; font-size: .9rem; width: 70px; padding: 5px 6px; border: 1px dashed var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); text-align: right; font-stretch: var(--narrow); font-weight: 700; }
+.linein:focus { outline: none; border-color: var(--ball); border-style: solid; }
+.legs li { grid-template-columns: 26px minmax(0, 1fr) 70px 110px 190px; }
+@media (max-width: 680px) { .legs li { grid-template-columns: 22px 1fr 70px; } }

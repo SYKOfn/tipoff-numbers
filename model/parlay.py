@@ -122,24 +122,27 @@ def team_legs(game, est, odds, mind_gap):
     if odds and odds.get("spread_home") is not None:
         L = odds["spread_home"]
         p = norm_cdf((m + L) / sdm)
-        pc = sigmoid(0.5 * logit(p))
+        sp_h, sp_a = odds.get("spread_price_home"), odds.get("spread_price_away")
+        pb = novig(sp_h, sp_a)
+        pc = sigmoid(0.5 * logit(p) + 0.5 * logit(pb)) if pb else sigmoid(0.5 * logit(p))
+        src = odds.get("spread_book") or "market"
         lab = lambda x: f"{x:+.1f}".replace("+0.0", "0")
-        legs.append(_leg(game, "spread", f"{H} {lab(L)}", p, pc, STD_PRICE, team=H, line=L, note="market line, shrunk halfway to 50/50",
-                         mind=mind_gap, sim=("cover", H, L)))
-        legs.append(_leg(game, "spread", f"{A} {lab(-L)}", 1 - p, 1 - pc, STD_PRICE, team=A, line=-L,
-                         note="market line, shrunk halfway to 50/50", mind=-mind_gap, sim=("cover", A, -L)))
-    T = odds.get("total") if odds and odds.get("total") else math.floor(t) + 0.5
-    for line, base in ((T, True), (T - 6, False), (T + 6, False)):
-        po = 1 - norm_cdf((line - t) / sdt)
-        shrink = 0.5 if (odds and odds.get("total")) else 0.75
-        pc = sigmoid(shrink * logit(po))
-        price = STD_PRICE if base and odds and odds.get("total") else None
-        if base or pc >= 0.5:
-            legs.append(_leg(game, "total", f"Over {line:.1f} points", po, pc, price, line=line, side="over",
-                             note="game total", mind=0.0, sim=("total", "over", line)))
-        if base or pc < 0.5:
-            legs.append(_leg(game, "total", f"Under {line:.1f} points", 1 - po, 1 - pc, price, line=line, side="under",
-                             note="game total", mind=0.0, sim=("total", "under", line)))
+        legs.append(_leg(game, "spread", f"{H} {lab(L)}", p, pc, sp_h or STD_PRICE, team=H, line=L, book=src if sp_h else None,
+                         note=f"{src} main line, blended halfway with the market", mind=mind_gap, sim=("cover", H, L),
+                         dist={"mu": round(m, 2), "sd": round(sdm, 2), "alone": 0.5, "model": 1.0}))
+        legs.append(_leg(game, "spread", f"{A} {lab(-L)}", 1 - p, 1 - pc, sp_a or STD_PRICE, team=A, line=-L, book=src if sp_a else None,
+                         note=f"{src} main line, blended halfway with the market", mind=-mind_gap, sim=("cover", A, -L),
+                         dist={"mu": round(-m, 2), "sd": round(sdm, 2), "alone": 0.5, "model": 1.0}))
+    if odds and odds.get("total"):
+        T = odds["total"]
+        po = 1 - norm_cdf((T - t) / sdt)
+        pb = novig(odds.get("over"), odds.get("under"))
+        pc = sigmoid(0.5 * logit(po) + 0.5 * logit(pb)) if pb else sigmoid(0.5 * logit(po))
+        src = odds.get("total_book") or "market"
+        for side, pm, pcs, price in (("over", po, pc, odds.get("over")), ("under", 1 - po, 1 - pc, odds.get("under"))):
+            legs.append(_leg(game, "total", f"{side.capitalize()} {T:.1f} points", pm, pcs, price or STD_PRICE, line=T, side=side,
+                             book=src if price else None, note=f"{src} main total", mind=0.0, sim=("total", side, T),
+                             dist={"mu": round(t, 2), "sd": round(sdt, 2), "alone": 0.5, "model": 1.0}))
     return legs
 
 
@@ -186,12 +189,13 @@ def prop_legs(game, players, calib, avg, disp, real=None):
                                              team=team, player=pl["id"], player_name=pl["name"], stat=st, line=L, side=sd_,
                                              proj=proj, avg=None if av is None or av != av else round(av, 1), price_est=False,
                                              book=rl["book"], market=round(mk, 3),
+                                             dist={"mu": round(proj, 2), "sd": round(sd, 2), "alone": t, "model": t},
                                              note=f"projection {proj:.1f}; real {rl['book']} line, blended 50/50 with its no-margin price",
                                              mind=mind if sd_ == "over" else -mind, spots=[x["label"] for x in spots],
                                              sim=("prop", side, pl["id"], st, sd_, L)))
                     continue
-                if proj is None or av is None or av != av or av < (1.0 if st == "tpm" else 3):
-                    continue
+                if proj is None or av is None or av != av or av < (2.0 if st in ("tpm", "ast", "reb") else 3):
+                    continue  # one-a-game stats: books post 0.5 or 1.5 with very uneven prices, too unreliable to estimate
                 L = math.floor(av) + 0.5
                 # like team legs against the market: blend the projection 50/50 with the line's anchor
                 center = 0.5 * proj + 0.5 * av
@@ -207,6 +211,7 @@ def prop_legs(game, players, calib, avg, disp, real=None):
                     price = round(1 / (pa * 1.05), 2)
                     if 0.5 <= pc <= PROP_MAX and price >= 1.3:
                         legs.append(_leg(game, "prop", f"{pl['name']} {sd_} {L:.1f} {STAT_NAME[st]}", pm, pc, price,
+                                         dist={"mu": round(center, 2), "sd": round(sd, 2), "alone": t, "model": t},
                                          team=team, player=pl["id"], player_name=pl["name"], stat=st, line=L, side=sd_,
                                          proj=proj, avg=round(av, 1), price_est=True,
                                          note=f"projection {proj:.1f} vs season average {av:.1f} {LABEL.get(st, st).lower()} (blended 50/50); line and price estimated",
@@ -257,7 +262,8 @@ def book_legs(game, est, players, odds, offers, calib, disp, mind_gap):
         mt = m if team == H else -m
         pm = norm_cdf((mt + L) / sdm)
         lab = f"{L:+.1f}"
-        add("spread", f"{team} {lab}", pm, pb, price, team=team, line=L, mind=mind_gap if team == H else -mind_gap, sim=("cover", team, L))
+        add("spread", f"{team} {lab}", pm, pb, price, team=team, line=L, mind=mind_gap if team == H else -mind_gap, sim=("cover", team, L),
+            dist={"mu": round(mt, 2), "sd": round(sdm, 2), "alone": 0.5, "model": 1.0})
     totals = []
     if odds and odds.get("total") is not None and odds.get("over") and odds.get("under"):
         pbo = novig(odds["over"], odds["under"])
@@ -272,7 +278,7 @@ def book_legs(game, est, players, odds, offers, calib, disp, mind_gap):
         seen.add((side, L))
         po = 1 - norm_cdf((L - t) / sdt)
         add("total", f"{side.capitalize()} {L:.1f} points", po if side == "over" else 1 - po, pb, price, line=L, side=side,
-            mind=0.0, sim=("total", side, L))
+            mind=0.0, sim=("total", side, L), dist={"mu": round(t, 2), "sd": round(sdt, 2), "alone": 0.5, "model": 1.0})
     sd_team = math.sqrt((sdt ** 2 + sdm ** 2) / 4)
     for o in offers:
         if o["kind"] == "team_total":
@@ -308,7 +314,8 @@ def book_legs(game, est, players, odds, offers, calib, disp, mind_gap):
             pb = (both if sd_ == "over" else 1 - both) if both is not None else min(0.97, 1 / (price * BOOK_MARGIN))
             add("prop", f"{pl['name']} {sd_} {L:.1f} {STAT_NAME[st]}", po if sd_ == "over" else 1 - po, pb, price,
                 team=game[side], player=pl["id"], player_name=pl["name"], stat=st, line=L, side=sd_, proj=proj,
-                mind=mind if sd_ == "over" else -mind, spots=[x["label"] for x in spots], sim=("prop", side, pl["id"], st, sd_, L))
+                mind=mind if sd_ == "over" else -mind, spots=[x["label"] for x in spots], sim=("prop", side, pl["id"], st, sd_, L),
+                dist={"mu": round(proj, 2), "sd": round(sd, 2), "alone": tt, "model": tt})
     return legs
 
 

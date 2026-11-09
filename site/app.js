@@ -757,9 +757,27 @@ const LS = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage unavailable */ } },
 };
 let PAR = null;
+/* line edits: the chance at whatever line Winamax lists */
+function ncdf(x) { const t = 1 / (1 + 0.2316419 * Math.abs(x)), d = 0.3989423 * Math.exp(-x * x / 2); const p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274)))); return x > 0 ? 1 - p : p; }
+const lgt = p => Math.log(Math.max(p, 1e-6) / Math.max(1 - p, 1e-6)), sgm = x => 1 / (1 + Math.exp(-x));
+const lineOf = l => { const v = LS.get(`tipoff.line.${l.id}`, null); return v == null ? l.line : v; };
+function effP(l) {
+  const L = lineOf(l);
+  if (!l.dist || L == null || L === l.line) return l.p;
+  const d = l.dist;
+  let pm;
+  if (l.kind === "spread") pm = ncdf((d.mu + L) / d.sd);
+  else { const po = 1 - ncdf((L - d.mu) / d.sd); pm = l.side === "under" ? 1 - po : po; }
+  const o = oddsOf(l.id);
+  return o ? sgm(0.5 * lgt(sgm(d.model * lgt(pm))) + 0.5 * lgt(1 / (o * 1.05))) : sgm(d.alone * lgt(pm));
+}
+const STATN = { pts: "points", reb: "rebounds", ast: "assists", tpm: "threes", pra: "pts+reb+ast" };
 function legDesc(l) {
+  const L = lineOf(l);
+  if (l.kind === "prop") return `${l.player_name} ${l.side} ${fx(L)} ${STATN[l.stat] || l.stat}`;
+  if (l.kind === "total") return `${l.side === "over" ? "Over" : "Under"} ${fx(L)} points`;
+  if (l.kind === "spread") return `${T(l.team).short} ${L > 0 ? "+" : ""}${fx(L)} handicap`;
   if (l.kind === "ml") return `${T(l.team).short} to win`;
-  if (l.kind === "spread") return `${T(l.team).short} ${l.line > 0 ? "+" : ""}${fx(l.line)} handicap`;
   if (l.kind === "team_total") return `${T(l.team).short} ${l.side} ${fx(l.line)} team points`;
   return l.desc;
 }
@@ -771,8 +789,14 @@ function verdict(p, odds) {
   return ev >= 0.02 ? { cls: "up", txt: `Take: ${sgn(ev * 100, 0)}% value` } : ev >= 0 ? { cls: "flat", txt: `Borderline: ${sgn(ev * 100, 1)}%` } : { cls: "down", txt: `Skip: ${sgn(ev * 100, 0)}% value` };
 }
 function oddsCell(l) {
-  const o = oddsOf(l.id), v = verdict(l.p, o);
-  return `<span class="oddsbox"><input class="oddsin" type="number" inputmode="decimal" step="0.01" min="1.01" placeholder="Winamax" value="${o ?? ""}" data-leg="${l.id}" data-p="${l.p}" aria-label="Winamax odds for ${h(legDesc(l))}"><span class="vd ${v.cls}" data-vd="${l.id}">${v.txt}</span></span>`;
+  const o = oddsOf(l.id), v = verdict(effP(l), o);
+  const line = l.dist && l.line != null ? `<input class="linein" type="number" inputmode="decimal" step="0.5" value="${lineOf(l)}" data-leg="${l.id}" title="Type the line Winamax shows" aria-label="Winamax line">` : "";
+  return `<span class="oddsbox"><span class="ins">${line}<input class="oddsin" type="number" inputmode="decimal" step="0.01" min="1.01" placeholder="Winamax odds" value="${o ?? ""}" data-leg="${l.id}" aria-label="Winamax odds for ${h(legDesc(l))}"></span><span class="vd ${v.cls}" data-vd="${l.id}">${v.txt}</span></span>`;
+}
+function legIndex() {
+  const t = PAR && PAR.today, m = {};
+  if (t) [...(t.parlays || []).flatMap(p => p.legs), ...(t.board || []), ...(t.singles || [])].forEach(l => { m[l.id] = l; });
+  return m;
 }
 function legRow(l, i) {
   const res = l.result ? ` ${l.result}` : "";
@@ -780,25 +804,26 @@ function legRow(l, i) {
   const mkt = l.price && !l.price_est ? `${bookName(l.book || "market")} ${fx(l.price, 2)}${l.edge != null ? ` (${sgn(l.edge * 100, 0)}% value)` : ""}` : (l.price_est ? `check line ${fx(l.line)}` : "no market price");
   const clv = l.clv ? ` · CLV ${l.clv.p != null ? sgn(l.clv.p * 100, 1) + " pts of chance" : sgn(l.clv.pts) + " pts of line"}` : "";
   return `<li class="${res.trim()}"><span class="no">${i + 1}</span>
-    <span class="d"><span class="kind ${l.kind}">${KIND[l.kind] || l.kind}</span><b>${h(legDesc(l))}</b><span class="mflag ${l.mind_flag}">${l.mind_flag === "with" ? "mind with it" : l.mind_flag === "against" ? "mind against" : "mind neutral"}</span>
+    <span class="d"><span class="kind ${l.kind}">${KIND[l.kind] || l.kind}</span><b data-d="${l.id}">${h(legDesc(l))}</b><span class="mflag ${l.mind_flag}">${l.mind_flag === "with" ? "mind with it" : l.mind_flag === "against" ? "mind against" : "mind neutral"}</span>
     <span class="sub"><a href="#/game/${h(l.game)}">${h(T(matchTeams(l)[0]).short)} at ${h(T(matchTeams(l)[1]).short)}</a> · ${tip(l.tip)} · ${h(l.note || "")} · market: ${h(mkt)}${clv}${l.result ? ` · <b class="${l.result === "hit" ? "up" : l.result === "miss" ? "down" : ""}">${l.result}</b>` : ""}</span></span>
-    <span class="c"><b>${pct(l.p)}</b><span>chance</span></span><span class="c"><b>${fx(l.fair, 2)}</b><span>fair · take ≥ ${fx(l.min_odds, 2)}</span></span>${oddsCell(l)}</li>`;
+    <span class="c"><b data-p="${l.id}">${pct(effP(l))}</b><span>chance</span></span><span class="c"><b data-f="${l.id}">${fx(1 / effP(l), 2)}</b><span data-m="${l.id}">fair · take ≥ ${fx(1.05 / effP(l), 2)}</span></span>${oddsCell(l)}</li>`;
 }
 function jointOf(legs) {
   const lifts = (PAR && PAR.today && PAR.today.lifts) || {};
   let p = 1;
-  legs.forEach(l => { p *= l.p; });
+  legs.forEach(l => { p *= effP(l); });
   for (let i = 0; i < legs.length; i++) for (let j = i + 1; j < legs.length; j++) {
     const a = legs[i].id, b = legs[j].id;
     p *= lifts[`${a}|${b}`] || lifts[`${b}|${a}`] || 1;
   }
-  return Math.min(p, Math.min(...legs.map(l => l.p)));
+  return Math.min(p, Math.min(...legs.map(effP)));
 }
 function ticketValue(legs, p) {
+  p = p * legs.reduce((a, l) => a * effP(l) / l.p, 1);
   const odds = legs.map(l => oddsOf(l.id));
   if (odds.some(o => !o)) return `<b>–</b>your combined odds: type Winamax odds for all ${legs.length} legs`;
   const prod = odds.reduce((a, b) => a * b, 1), ev = p * prod - 1;
-  return `<b class="${ev >= 0 ? "up" : "down"}">${fx(prod, 2)}</b>your combined odds · ${ev >= 0 ? "worth it" : "not worth it"}: ${sgn(ev * 100, 0)}% value${(PAR && PAR.today && !PAR.today.frozen) ? "" : ""}`;
+  return `<b class="${ev >= 0 ? "up" : "down"}">${fx(prod, 2)}</b>your combined odds · chance ${pct(p)} · ${ev >= 0 ? "worth it" : "not worth it"}: ${sgn(ev * 100, 0)}% value`;
 }
 function ticketText(pr) {
   return `${pr.name} — Tip-Off Numbers\n` + pr.legs.map((l, i) => `${i + 1}. ${legDesc(l)} (${T(matchTeams(l)[0]).abbr} @ ${T(matchTeams(l)[1]).abbr}) — ${pct(l.p)}, take at ${fx(l.min_odds, 2)}+`).join("\n")
@@ -821,7 +846,7 @@ function recordBet(name, legs, p) {
   const stake = parseFloat((document.getElementById("stake") || {}).value) || null;
   const bets = LS.get(BETS_KEY, []);
   bets.unshift({ at: new Date().toISOString(), name, p, stake, odds: odds.every(Boolean) ? odds.reduce((a, b) => a * b, 1) : null,
-    legs: legs.map((l, i) => ({ id: l.id, desc: legDesc(l), kind: l.kind, line: l.line, side: l.side, team: l.team, game: l.game, p: l.p, odds: odds[i] })) });
+    legs: legs.map((l, i) => ({ id: l.id, desc: legDesc(l), kind: l.kind, line: lineOf(l), side: l.side, team: l.team, game: l.game, p: effP(l), odds: odds[i] })) });
   LS.set(BETS_KEY, bets);
 }
 function betClv(leg) {
@@ -885,12 +910,12 @@ async function parlayPage() {
   const cal = d.calibration || {};
   const calHtml = `<div class="tscroll"><table><tr><th>Stat</th><th class="n">Shrink</th><th class="n">Lines tested</th><th>When we said… it happened</th></tr>${Object.entries(cal).map(([k, c]) => `<tr><td>${h({ pts: "Points", reb: "Rebounds", ast: "Assists", tpm: "Threes", pra: "Pts+Reb+Ast" }[k] || k)}</td><td class="n">${fx(c.t, 2)}</td><td class="n">${(c.n || 0).toLocaleString("en-GB")}</td><td class="small">${(c.bins || []).map(b => `${pct(b.p)} → ${pct(b.hit)}`).join(" · ") || "not enough history yet"}</td></tr>`).join("")}</table></div>`;
   const picked = t ? LS.get("tipoff.pick." + t.day, []) : [];
-  const board = t && t.board ? `<div class="tscroll"><table class="ptable"><tr><th></th><th>Leg</th><th>Game</th><th class="n">Chance</th><th class="n">Fair</th><th class="n">Take at</th><th>Winamax odds</th><th>Mind</th></tr>${t.board.map(l => `<tr><td><input type="checkbox" class="pick" data-leg="${l.id}" ${picked.includes(l.id) ? "checked" : ""} aria-label="Add to my ticket"></td><td><span class="kind ${l.kind}">${KIND[l.kind]}</span>${h(legDesc(l))}</td><td class="small"><a href="#/game/${h(l.game)}">${h(l.matchup)}</a></td><td class="n hl">${pct(l.p)}</td><td class="n">${fx(l.fair, 2)}</td><td class="n">${fx(l.min_odds, 2)}</td><td>${oddsCell(l)}</td><td><span class="mflag ${l.mind_flag}">${l.mind_flag}</span></td></tr>`).join("")}</table></div>` : "";
+  const board = t && t.board ? `<div class="tscroll"><table class="ptable"><tr><th></th><th>Leg</th><th>Game</th><th class="n">Chance</th><th class="n">Fair</th><th class="n">Take at</th><th>Winamax line · odds</th><th>Mind</th></tr>${t.board.map(l => `<tr><td><input type="checkbox" class="pick" data-leg="${l.id}" ${picked.includes(l.id) ? "checked" : ""} aria-label="Add to my ticket"></td><td><span class="kind ${l.kind}">${KIND[l.kind]}</span><span data-d="${l.id}">${h(legDesc(l))}</span></td><td class="small"><a href="#/game/${h(l.game)}">${h(l.matchup)}</a></td><td class="n hl" data-p="${l.id}">${pct(effP(l))}</td><td class="n" data-f="${l.id}">${fx(1 / effP(l), 2)}</td><td class="n">${fx(l.min_odds, 2)}</td><td>${oddsCell(l)}</td><td><span class="mflag ${l.mind_flag}">${l.mind_flag}</span></td></tr>`).join("")}</table></div>` : "";
   const singles = t && t.singles && t.singles.length ? `<div class="ticket"><ul class="legs">${t.singles.map(legRow).join("")}</ul></div>` : `<p class="sub">No single market price is worth taking today.</p>`;
   app.innerHTML = `<section class="hero court"><div class="wrap"><h1>Daily parlay</h1>
     <p class="lede" style="margin-top:10px">${t ? `Slate of ${h(longDay(t.day))} (US date): ${t.games} game${t.games === 1 ? "" : "s"}, ${t.candidates} possible legs checked, ${t.eligible} worth considering. ${t.frozen ? "Frozen at the first tip-off." : `Updates every hour before the first tip-off (${tip(t.first_tip)}).`}` : "No games on the board right now."}</p></div></section>
   <div class="wrap">${demoBanner()}
-    <p class="banner">Type the odds Winamax shows into any leg: the value appears instantly. A leg is worth taking only when its value is positive; if it isn't, leave it out of the ticket. Statistical estimates, not advice; 18+.</p>
+    <p class="banner">Make every leg match Winamax: if Winamax lists a different line, type its line in the first box (the chance recalculates for that line), then type its odds in the second: the value appears instantly. A leg is worth taking only when its value is positive; if Winamax doesn't list the market at all, leave the leg out. Statistical estimates, not advice; 18+.</p>
     <p class="note">${oddsNote}</p>
     ${t && t.book ? `<p class="verdict"><b>Every leg below is listed on ${t.book === "winamax_fr" ? "Winamax" : h(t.book)}</b>, at its own line and price (from the last refresh: prices move, so check the slip). ${t.not_on_book && t.not_on_book.length ? `Not on ${t.book === "winamax_fr" ? "Winamax" : h(t.book)} yet, so left out: ${t.not_on_book.map(x => h(x.split(" at ").map(a => T(a).short).join(" at "))).join(", ")}.` : ""}</p>` : ""}
     <div class="principles">
@@ -918,13 +943,20 @@ async function parlayPage() {
     <section class="section"><h2>Track record</h2>${recHtml}${hist}</section>
     <section class="section"><h2>All strong legs today <span class="sub">tick to build your own ticket</span></h2>${board}</section></div>`;
   app.oninput = e => {
-    const inp = e.target.closest(".oddsin[data-leg]");
+    const inp = e.target.closest(".oddsin[data-leg], .linein[data-leg]");
     if (!inp) return;
-    const v = parseFloat(inp.value);
-    LS.set(`tipoff.odds.${inp.dataset.leg}`, v > 1 ? v : null);
-    const vd = verdict(parseFloat(inp.dataset.p), v > 1 ? v : null);
-    app.querySelectorAll(`[data-vd="${inp.dataset.leg}"]`).forEach(x => { x.className = `vd ${vd.cls}`; x.textContent = vd.txt; });
-    app.querySelectorAll(`.oddsin[data-leg="${inp.dataset.leg}"]`).forEach(x => { if (x !== inp) x.value = inp.value; });
+    const id = inp.dataset.leg, v = parseFloat(inp.value);
+    if (inp.classList.contains("linein")) LS.set(`tipoff.line.${id}`, isNaN(v) ? null : v);
+    else LS.set(`tipoff.odds.${id}`, v > 1 ? v : null);
+    const l = legIndex()[id];
+    if (!l) return;
+    const p = effP(l), vd = verdict(p, oddsOf(id));
+    app.querySelectorAll(`[data-vd="${id}"]`).forEach(x => { x.className = `vd ${vd.cls}`; x.textContent = vd.txt; });
+    app.querySelectorAll(`[data-p="${id}"]`).forEach(x => { x.textContent = pct(p); });
+    app.querySelectorAll(`[data-f="${id}"]`).forEach(x => { x.textContent = fx(1 / p, 2); });
+    app.querySelectorAll(`[data-m="${id}"]`).forEach(x => { x.textContent = `fair · take ≥ ${fx(1.05 / p, 2)}`; });
+    app.querySelectorAll(`[data-d="${id}"]`).forEach(x => { x.textContent = legDesc(l); });
+    app.querySelectorAll(`.${inp.classList.contains("linein") ? "linein" : "oddsin"}[data-leg="${id}"]`).forEach(x => { if (x !== inp) x.value = inp.value; });
     clearTimeout(app._t); app._t = setTimeout(refreshValues, 150);
   };
   app.onchange = e => {
@@ -945,7 +977,7 @@ async function parlayPage() {
     if (r && t) {
       const k = r.dataset.record;
       if (k === "custom") { const picked = LS.get("tipoff.pick." + t.day, []); const legs = (t.board || []).filter(l => picked.includes(l.id)); if (legs.length) recordBet("My ticket", legs, jointOf(legs)); }
-      else { const pr = t.parlays[+k]; recordBet(pr.name, pr.legs, pr.p); }
+      else { const pr = t.parlays[+k]; recordBet(pr.name, pr.legs, pr.p * pr.legs.reduce((a, l) => a * effP(l) / l.p, 1)); }
       document.getElementById("mybets").innerHTML = myBets();
       r.textContent = "Recorded";
     }

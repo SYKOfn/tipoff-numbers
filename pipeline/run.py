@@ -431,9 +431,27 @@ def main(demo=False, now=None, collect_data=True):
                     avg[pid] = {"gp": len(d_), **{k: float(d_[k].mean()) for k in ("pts", "reb", "ast", "tpm", "pra")}}
             from . import oddsapi
             real = oddsapi.latest_props()
-            # with an odds key, tickets are built only from what the betting book (default Winamax) lists
-            bet_book = (oddsapi.env("ODDS_API_BET_BOOK", "winamax_fr") if oddsapi.key() else None)
-            built, cands = parlay.build(pre, pdisp, calib, avg, real_props=real, book_only=bet_book)
+            # winners at the betting book's price (Winamax); handicap and total at the sharp book's main line and price
+            # (Pinnacle) when the betting book's own lines are not in the feed. Tickets use the book-only mode for a
+            # game only when its full menu came through.
+            pre2 = []
+            for g, pay in pre:
+                g = dict(g)
+                books_ = g.get("odds_books") or {}
+                if g.get("odds"):
+                    od = dict(g["odds"])
+                    for bk in ("pinnacle",) + tuple(b for b in books_ if b != "pinnacle"):
+                        b = books_.get(bk) or {}
+                        if od.get("spread_price_home") is None and b.get("spread_price_home"):
+                            od.update({"spread_home": b["spread_home"], "spread_price_home": b["spread_price_home"],
+                                       "spread_price_away": b.get("spread_price_away"), "spread_book": bk})
+                        if od.get("over") is None and b.get("over"):
+                            od.update({"total": b["total"], "over": b["over"], "under": b.get("under"), "total_book": bk})
+                    g["odds"] = od
+                pre2.append((g, pay))
+            full_menu = any((g.get("offers") or {}).get("offers") for g, _ in pre2)
+            bet_book = oddsapi.env("ODDS_API_BET_BOOK", "winamax_fr") if (oddsapi.key() and full_menu) else None
+            built, cands = parlay.build(pre2, pdisp, calib, avg, real_props=real, book_only=bet_book)
             bl, lifts = parlay.board(cands)
             odds_by_game = {str(g["game_id"]): g.get("odds") for g, _ in slate}
             first_seen = dict((old or {}).get("first_seen", {}))
