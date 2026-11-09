@@ -9,10 +9,12 @@ from datetime import date, datetime, timedelta
 import pandas as pd
 
 from . import espn
-from .store import (BOX, STATE, load_games, load_players, read_json, save_games, save_players, write_json)
+from .store import (BOX, STATE, load_games, load_players, load_stints, read_json, save_games, save_players, save_stints,
+                    write_json)
 
 MAX_SUMMARIES = int(os.environ.get("MAX_SUMMARIES", "1000"))
 AHEAD_DAYS = 14
+STINT_BACKFILL = int(os.environ.get("STINT_BACKFILL", "300"))
 REF_BACKFILL = int(os.environ.get("REF_BACKFILL", "900"))
 HIST_SEASONS = int(os.environ.get("HIST_SEASONS", "5"))  # full seasons kept before the current one
 
@@ -93,12 +95,14 @@ def collect(today=None):
     # box scores, newest first
     need = games[(games["box"].fillna(0).astype(int) == 0) & (games["season"].astype(int) >= cur - HIST_SEASONS)]
     need = need.sort_values("date", ascending=False).head(MAX_SUMMARIES)
-    new_players = []
+    new_players, new_stints = [], []
     games = games.set_index("game_id")
     for gid in need["game_id"]:
         s = espn.summary(gid)
         if not s or not s["teams"]:
             continue
+        if int(games.loc[gid, "season"]) == cur and s.get("stint_cov", 0) >= 0.9:
+            new_stints += s["stints"]
         h, a = games.loc[gid, "home"], games.loc[gid, "away"]
         for side, ab in (("h", h), ("a", a)):
             for c in BOX:
@@ -117,6 +121,22 @@ def collect(today=None):
             games.loc[gid, "refs"] = ";".join(s["officials"])
         elif s is not None:
             games.loc[gid, "refs"] = "-"  # none listed: do not ask again
+    # lineup stints for this season's games stored before stints were kept (STINT_BACKFILL per run);
+    # older seasons come from the one-off history job (tools/backfill.py)
+    st_old = load_stints(min_season=cur)
+    have_st = set(st_old["game_id"].astype(str)) | {x["game_id"] for x in new_stints}
+    tried = set((read_json(STATE / "stints_tried.json", {}) or {}).get("ids", []))
+    todo = [gid for gid in games.index[(games["box"].fillna(0).astype(int) == 1) & (games["season"].astype(int) == cur)]
+            if str(gid) not in have_st and str(gid) not in tried][:STINT_BACKFILL]
+    for gid in todo:
+        s = espn.summary(gid)
+        if s and s.get("stint_cov", 0) >= 0.9:
+            new_stints += s["stints"]
+        else:
+            tried.add(str(gid))
+    write_json(STATE / "stints_tried.json", {"ids": sorted(tried)})
+    if new_stints:
+        save_stints(pd.concat([st_old, pd.DataFrame(new_stints)], ignore_index=True), cur)
     games = games.reset_index()
     save_games(games)
     if new_players:

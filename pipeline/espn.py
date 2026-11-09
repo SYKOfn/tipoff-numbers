@@ -207,7 +207,16 @@ LABEL_KEYS = {"FG": ("fgm", "fga"), "3PT": ("tpm", "tpa"), "FT": ("ftm", "fta"),
 
 def summary(game_id):
     data = fetch(f"{BASE}/summary?event={game_id}")
-    return parse_summary(data) if data else None
+    if not data:
+        return None
+    out = parse_summary(data)
+    try:
+        from .stints import build
+        out["stints"], out["stint_cov"] = build(data, game_id)
+    except Exception as e:  # play-by-play never breaks a box score
+        CALLS["errors"].append(f"stints {game_id}: {e}")
+        out["stints"], out["stint_cov"] = [], 0.0
+    return out
 
 
 def _split(display, keys):

@@ -32,20 +32,60 @@ def _read(path, cols):
     return pd.DataFrame(columns=cols)
 
 
-def load_games():
-    df = _read(HIST / "games.csv", GAME_COLS)
+def load_games(min_season=None):
+    """Live seasons from games.csv plus older seasons kept in games_archive_<season>.csv (written once by
+    the history backfill and never touched by the regular runs). min_season: drop older seasons."""
+    parts = [_read(f, GAME_COLS) for f in sorted(HIST.glob("games_archive_*.csv"))] + [_read(HIST / "games.csv", GAME_COLS)]
+    parts = [x for x in parts if len(x)]
+    df = pd.concat(parts, ignore_index=True) if parts else pd.DataFrame(columns=GAME_COLS)
     if len(df):
+        df = df.drop_duplicates("game_id", keep="last")
         df["season"] = df["season"].astype(int)
         df["stype"] = df["stype"].astype(int)
         df["box"] = df["box"].fillna(0).astype(int)
         df["q"] = df["q"].fillna(0).astype(int)
+        if min_season is not None:
+            df = df[df["season"] >= int(min_season)]
     return df.sort_values(["date", "game_id"]).reset_index(drop=True)
+
+
+def archived_seasons():
+    return {int(f.stem.rsplit("_", 1)[1]) for f in HIST.glob("games_archive_*.csv")}
 
 
 def save_games(df):
     HIST.mkdir(parents=True, exist_ok=True)
     df = df.drop_duplicates("game_id", keep="last").sort_values(["date", "game_id"])
+    old = archived_seasons()
+    if old:
+        df = df[~df["season"].astype(int).isin(old)]
     df[GAME_COLS].to_csv(HIST / "games.csv", index=False)
+
+
+def save_archive(df, season):
+    """Older seasons (history backfill only)."""
+    HIST.mkdir(parents=True, exist_ok=True)
+    df = df.drop_duplicates("game_id", keep="last").sort_values(["date", "game_id"])
+    df[GAME_COLS].to_csv(HIST / f"games_archive_{season}.csv", index=False)
+
+
+STINT_COLS = ["game_id", "period", "start", "dur", "h_pts", "a_pts", "home_ids", "away_ids"]
+
+
+def load_stints(min_season=None):
+    parts = []
+    for f in sorted(HIST.glob("stints_*.csv")):
+        s_ = int(f.stem.rsplit("_", 1)[1])
+        if min_season is None or s_ >= min_season:
+            parts.append(pd.read_csv(f, dtype={"game_id": str, "home_ids": str, "away_ids": str}))
+    parts = [x for x in parts if len(x)]
+    return pd.concat(parts, ignore_index=True) if parts else pd.DataFrame(columns=STINT_COLS)
+
+
+def save_stints(df, season):
+    HIST.mkdir(parents=True, exist_ok=True)
+    df = df.drop_duplicates(["game_id", "period", "start"], keep="last").sort_values(["game_id", "period", "start"])
+    df[STINT_COLS].to_csv(HIST / f"stints_{season}.csv", index=False)
 
 
 def load_players():
@@ -63,10 +103,12 @@ def load_players():
 def save_players(df):
     HIST.mkdir(parents=True, exist_ok=True)
     df = df.drop_duplicates(["game_id", "team", "player_id"], keep="last").sort_values(["game_id", "team"])
-    g = _read(HIST / "games.csv", ["game_id", "season"])
+    g = load_games()
     season = df["game_id"].astype(str).map(dict(zip(g["game_id"].astype(str), g["season"])))
     season = pd.to_numeric(season, errors="coerce").fillna(0).astype(int)
     for s, part in df.groupby(season):
+        if int(s) <= 0:
+            continue  # a line whose game is unknown is not stored
         part[PLAYER_COLS].to_csv(HIST / f"players_{s}.csv", index=False)
     old = HIST / "players.csv"
     if old.exists():

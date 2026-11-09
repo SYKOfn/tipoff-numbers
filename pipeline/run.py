@@ -33,6 +33,7 @@ def season_label(s):
 BLEND_W = 0.4  # model weight in the Pinnacle blend (log-odds), from the 1,368-game test
 
 
+MODEL_HIST = int(os.environ.get("MODEL_HIST", "5"))  # full seasons before the current one used by the model
 LOCK_HOURS = float(os.environ.get("LOCK_HOURS", "3"))  # the day's tickets are chosen this long before the first tip
 
 
@@ -84,7 +85,11 @@ def main(demo=False, now=None, collect_data=True):
         print("collect:", collect.collect(today))
 
     games = load_games()
+    # seasons the model learns from (older archived seasons are kept for research until a test says they help)
+    cur_s = int(games["season"].max()) if len(games) else espn.season_of(today.isoformat())
+    games = games[games["season"] >= cur_s - MODEL_HIST].reset_index(drop=True)
     players = load_players()
+    players = players[players["game_id"].astype(str).isin(set(games["game_id"].astype(str)))].reset_index(drop=True)
     upcoming = [g for g in (read_json(STATE / "upcoming.json", []) or [])]
     inj_raw = read_json(STATE / "injuries.json", {}) or {}
     injuries = inj_raw.get("teams", {}) or {}

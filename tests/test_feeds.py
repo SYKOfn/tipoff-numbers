@@ -125,6 +125,8 @@ def test_collect_end_to_end(meta, tmp_path, monkeypatch):
     assert any(u.get("refs") for u in ups) or not refs.parse((FX / "referees.html").read_text())
     inj = json.loads((tmp_path / "state" / "injuries.json").read_text())
     assert inj["teams"]
+    st = store.load_stints()
+    assert len(st) > 10 and set(st["game_id"]) <= set(g["game_id"].astype(str))
     co = json.loads((tmp_path / "state" / "coaches.json").read_text())
     assert len(co[str(espn.season_of(meta["today"]))]) == 30
 
@@ -153,3 +155,22 @@ def test_odds_feed_parsing(tmp_path, monkeypatch):
     lines = pd.read_csv(tmp_path / "props" / "lines.csv")
     row = lines[(lines["stat"] == "pts")].iloc[0]
     assert row["line"] == 21.5 and row["over"] == 1.9 and row["under"] == 1.83 and row["book"] == "pinnacle"
+
+
+def test_stints_rebuild_real_game():
+    """Lineups from play-by-play: time adds up, points add up to the final score, minutes match the box."""
+    from collections import Counter
+    from pipeline.stints import build
+    d = fx("summary_finished.json")
+    st, cov = build(d, "g")
+    assert cov > 0.95 and len(st) > 10
+    comp = {c["homeAway"]: int(c["score"]) for c in d["header"]["competitions"][0]["competitors"]}
+    assert sum(x["h_pts"] for x in st) == comp["home"] and sum(x["a_pts"] for x in st) == comp["away"]
+    assert abs(sum(x["dur"] for x in st) - 2880) < 1 or sum(x["dur"] for x in st) > 2880
+    mins = Counter()
+    for x in st:
+        for pid in x["home_ids"].split(";") + x["away_ids"].split(";"):
+            mins[pid] += x["dur"] / 60
+    box = {a["athlete"]["id"]: float(a["stats"][0]) for t in d["boxscore"]["players"] for b in t["statistics"]
+           for a in b["athletes"] if a.get("stats") and str(a["stats"][0]).replace(".", "").isdigit()}
+    assert all(abs(mins[p] - m) <= 1.5 for p, m in box.items() if m > 0)

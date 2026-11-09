@@ -1,0 +1,36 @@
+name: backfill
+on:
+  workflow_dispatch:
+    inputs:
+      jobs:
+        description: 'JSON list of "season mode" pairs, e.g. ["2026 stints","2019 full"]'
+        required: true
+permissions:
+  contents: write
+jobs:
+  season:
+    runs-on: ubuntu-latest
+    timeout-minutes: 58
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        job: ${{ fromJSON(github.event.inputs.jobs) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install -r requirements.txt
+      - run: python -m tools.backfill ${{ matrix.job }}
+      - name: Save (only this job's own season files)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          set -- ${{ matrix.job }}
+          git add data/history/stints_$1.csv data/history/games_archive_$1.csv data/history/players_$1.csv 2>/dev/null || true
+          git commit -q -m "History backfill: season $1 ($2)" || { echo "nothing new"; exit 0; }
+          for i in 1 2 3 4 5 6; do
+            git pull -q --rebase origin main && git push -q && exit 0
+            sleep $((RANDOM % 20 + 5))
+          done
+          exit 1
