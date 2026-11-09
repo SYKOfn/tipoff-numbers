@@ -72,6 +72,11 @@ jobs:
           git add data site/data model/tuned.json backtest/results.json 2>/dev/null || true
           git commit -q -m "Data update $(date -u +%Y-%m-%dT%H:%MZ)" || echo "no changes"
           git pull -q --rebase -X theirs origin main && git push -q
+      - name: Stamp the page with this version (browsers and GitHub's cache fetch the new code at once)
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          v=$(git rev-parse --short HEAD)
+          sed -i "s#href=\"styles.css\"#href=\"styles.css?v=$v\"#; s#src=\"app.js\"#src=\"app.js?v=$v\"#" site/index.html
       - name: Package website
         if: steps.gate.outputs.run == 'true'
         uses: actions/upload-pages-artifact@v3
