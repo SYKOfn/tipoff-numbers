@@ -5,6 +5,7 @@ python -m pipeline.run --demo    simulated league, no network (preview and tests
 """
 import argparse
 import math
+import os
 import shutil
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
@@ -30,6 +31,20 @@ def season_label(s):
 
 
 BLEND_W = 0.4  # model weight in the Pinnacle blend (log-odds), from the 1,368-game test
+
+
+LOCK_HOURS = float(os.environ.get("LOCK_HOURS", "3"))  # the day's tickets are chosen this long before the first tip
+
+
+def status_info(now, upcoming, cs):
+    """For the status line: odds credits today, the next refresh, collector errors."""
+    from . import oddsapi, should_run
+    st = read_json(STATE / "oddsapi.json", {}) or {}
+    oa = cs.get("odds_api") or {}
+    nxt = should_run.next_run(now, upcoming)
+    return {"odds_on": bool(oa.get("enabled")), "odds_spent_today": st.get("spent") if st.get("day") == now.date().isoformat() else 0,
+            "odds_cap": oddsapi.env("ODDS_API_DAILY", "15"), "odds_left": oa.get("remaining"),
+            "next_refresh": nxt.isoformat() if nxt else None, "collector_errors": (cs.get("errors") or [])[-3:]}
 
 
 def lines_around(center, sd, step, n=2):
@@ -487,6 +502,8 @@ def main(demo=False, now=None, collect_data=True):
                 for l in [l for pr in old.get("parlays", []) for l in pr["legs"]] + old.get("board", []) + old.get("singles", []):
                     l["clv"] = parlay.clv(l, fs.get(l["id"]), ls.get(l["id"]))
                 old["frozen"] = True
+                old.setdefault("locked", True)
+                old["locked"] = True
                 write_json(path, old)
             today_parlay = old
         else:
@@ -536,6 +553,32 @@ def main(demo=False, now=None, collect_data=True):
                             **built, "board": bl, "lifts": lifts, "first_seen": first_seen, "last_seen": last_seen,
                             "value": parlay.value_board(pre2),
                             "odds_source": sorted({(o or {}).get("provider") or "none" for o in odds_by_game.values()})}
+            # The day's tickets are chosen once, LOCK_HOURS before the first tip-off (after the main injury
+            # reports), then never change. Until then they are not shown.
+            lock_at = first_tip - timedelta(hours=LOCK_HOURS)
+            today_parlay["lock_at"] = lock_at.isoformat()
+            if old and old.get("locked"):
+                for k in ("parlays", "singles", "locked_at", "games", "candidates", "eligible", "book", "not_on_book"):
+                    if k in old:
+                        today_parlay[k] = old[k]
+                today_parlay["locked"] = True
+                # news after the lock: flag legs whose player is now out or doubtful (the ticket itself stays)
+                now_pl = {}
+                for g_, pay_ in slate:
+                    for side_ in ("home", "away"):
+                        for x in (pay_.get("players") or {}).get(side_, []):
+                            now_pl[str(x["id"])] = x
+                for pr in today_parlay["parlays"]:
+                    for l in pr["legs"]:
+                        x = now_pl.get(str(l.get("player") or ""))
+                        l.pop("alert", None)
+                        if x is not None and (x.get("out") or x.get("status")):
+                            l["alert"] = f"{x.get('status') or 'Out'} since the picks were locked: if he does not play, Winamax voids this leg"
+            elif now >= lock_at:
+                today_parlay["locked"] = True
+                today_parlay["locked_at"] = now.isoformat()
+            else:
+                today_parlay["locked"] = False
             write_json(path, today_parlay)
     # score finished slates
     fin_rows = {str(k): v for k, v in c.meta.items()}
@@ -726,7 +769,7 @@ def main(demo=False, now=None, collect_data=True):
     write_json(SITE / "meta.json", {"updated": now.isoformat(), "mode": "demo" if demo else "live", "season": season_label(cur),
                                     "games": int(len(games)), "box_games": int(games["box"].sum()) if len(games) else 0,
                                     "injuries_as_of": inj_raw.get("as_of"), "errors": len(cs.get("errors") or []),
-                                    "tuned": c.tuned})
+                                    "tuned": c.tuned, "status": status_info(now, upcoming, cs)})
     print(f"site: {len(cards_up)} upcoming, {len(cards_res)} recent results, {len(live_scored)} scored, "
           f"{len(check_items)} model checks")
 

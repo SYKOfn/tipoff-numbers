@@ -157,7 +157,7 @@ async function home() {
     ${featHtml}</div></section>
   <div class="wrap">${demoBanner()}${BANNER}
     ${d1 ? `<section><h2>${h(longDay(d1))} <span class="sub">${soon.length} game${soon.length > 1 ? "s" : ""} · US date, tip-off times in your time zone</span></h2><div class="cards">${soon.map(fcard).join("")}</div></section>` : `<p class="empty">No games scheduled in the next two weeks.</p>`}
-    ${par.today && par.today.parlays && par.today.parlays.length ? `<section class="section"><h2>Today's parlay <span class="sub"><a href="#/parlay">all tickets, value singles and the maths</a></span></h2>${ticket(par.today.parlays[0], true, 0)}</section>` : ""}
+    ${par.today && par.today.locked !== false && par.today.parlays && par.today.parlays.length ? `<section class="section"><h2>Today's parlay <span class="sub"><a href="#/parlay">all tickets, value singles and the maths</a></span></h2>${ticket(par.today.parlays[0], true, 0)}</section>` : ""}
     ${(() => {
       const ids = new Set(soon.map(c => c.id));
       const top = pl.filter(p => p.next_pts != null && ids.has(p.next_game)).sort((a, b) => b.next_pts - a.next_pts).slice(0, 8);
@@ -635,6 +635,26 @@ async function route() {
   app.focus({ preventScroll: true });
 }
 
+/* status line: is everything working? */
+async function statusLine() {
+  const el = document.getElementById("status");
+  if (!el || !META.updated) return;
+  const st = META.status || {};
+  let chk = null, blocked = null;
+  try { blocked = await get("checks_failed.json"); } catch (e) { blocked = null; }
+  try { chk = await get("checks.json"); } catch (e) { chk = null; }
+  const hm = iso => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  const ageMin = (Date.now() - new Date(META.updated)) / 60000;
+  const parts = [];
+  parts.push(`<span class="${ageMin > 200 ? "down" : "up"}">●</span> Last update ${hm(META.updated)}${ageMin > 200 ? " (late)" : ""}`);
+  parts.push(blocked ? `<span class="down">Safety checks blocked the last run: showing the previous good version</span>`
+    : chk ? (chk.ok ? `Safety checks passed (${chk.games_checked} games)` : `<span class="down">Safety checks failed</span>`) : "Safety checks: not run yet");
+  if (st.odds_on) parts.push(`Odds credits today ${st.odds_spent_today ?? 0}/${h(String(st.odds_cap))}${st.odds_left ? ` · ${Number(st.odds_left).toLocaleString("en-GB")} left this month` : ""}`);
+  if (st.next_refresh) parts.push(`Next refresh about ${hm(st.next_refresh)} (your local time)`);
+  if (st.collector_errors && st.collector_errors.length) parts.push(`<span class="down" title="${h(st.collector_errors.join(" | "))}">feed warnings: ${st.collector_errors.length}</span>`);
+  el.innerHTML = parts.join(" · ");
+}
+
 (async function init() {
   try {
     META = await get("meta.json");
@@ -642,6 +662,7 @@ async function route() {
     const list = await get("teams.json");
     for (const t of list) TEAMS[t.abbr] = t;
     document.getElementById("freshness").textContent = `Updated ${ago(META.updated)} · ${META.season} season${META.mode === "demo" ? " · simulated preview data" : ""}`;
+    statusLine();
   } catch (e) { /* pages show their own error */ }
   setupSearch();
   document.addEventListener("click", async e => {
@@ -826,7 +847,7 @@ function legRow(l, i) {
   const clv = l.clv ? ` · CLV ${l.clv.p != null ? sgn(l.clv.p * 100, 1) + " pts of chance" : sgn(l.clv.pts) + " pts of line"}` : "";
   return `<li class="${res.trim()}"><span class="no">${i + 1}</span>
     <span class="d"><span class="kind ${l.kind}">${KIND[l.kind] || l.kind}</span><b data-d="${l.id}">${h(legDesc(l))}</b><span class="mflag ${l.mind_flag}">${l.mind_flag === "with" ? "mind with it" : l.mind_flag === "against" ? "mind against" : "mind neutral"}</span>
-    <span class="sub"><a href="#/game/${h(l.game)}">${h(T(matchTeams(l)[0]).short)} at ${h(T(matchTeams(l)[1]).short)}</a> · ${tip(l.tip)} · ${h(l.note || "")} · market: ${h(mkt)}${clv}${l.result ? ` · <b class="${l.result === "hit" ? "up" : l.result === "miss" ? "down" : ""}">${l.result}</b>` : ""}</span></span>
+    <span class="sub"><a href="#/game/${h(l.game)}">${h(T(matchTeams(l)[0]).short)} at ${h(T(matchTeams(l)[1]).short)}</a> · ${tip(l.tip)} · ${h(l.note || "")} · market: ${h(mkt)}${clv}${l.result ? ` · <b class="${l.result === "hit" ? "up" : l.result === "miss" ? "down" : ""}">${l.result}</b>` : ""}${l.alert ? `<br><b class="down">⚠ ${h(l.alert)}</b>` : ""}</span></span>
     <span class="c"><b data-p="${l.id}">${pct(effP(l))}</b><span>chance</span></span><span class="c"><b data-f="${l.id}">${fx(1 / effP(l), 2)}</b><span data-m="${l.id}">fair · take ≥ ${fx(1.05 / effP(l), 2)}</span></span>${oddsCell(l)}</li>`;
 }
 function jointOf(legs) {
@@ -956,7 +977,8 @@ async function parlayPage() {
     <section class="section"><h2>Winamax vs Pinnacle <span class="sub">winners where Winamax pays more than the sharpest price</span></h2>
       <p class="sub small">Pinnacle's odds with its margin removed are the best available estimate of the true chance. When Winamax pays more than that, the bet profits in the long run whatever any model says. "Value" = an edge of 2% or more and our model not rating the side clearly lower. Got a boost (<i>cote boostée</i>)? Type the boosted odds: the edge recalculates against Pinnacle's fair price.</p>
       ${valueHtml}${valueRec}</section>
-    ${t && t.parlays && t.parlays.length ? t.parlays.map((pr, i) => ticket(pr, i === 0, i)).join("") : `<p class="empty">No ticket today: not enough legs pass the filters. That is an answer too.</p>`}
+    ${t && t.locked === false ? `<section class="section"><div class="panel"><h3>Today's tickets are chosen at ${tip(t.lock_at)}</h3><p class="sub">Three hours before the first tip-off, once the main injury reports are in, the full model picks the day's tickets once. From then on they never change: no reshuffling on reload. If a player in a locked ticket is ruled out later, his leg is flagged (Winamax voids a leg whose player does not play).</p></div></section>`
+      : t && t.parlays && t.parlays.length ? `${t.locked_at ? `<p class="verdict"><b>Locked at ${tip(t.locked_at)}:</b> these are today's tickets and they will not change.</p>` : ""}${t.parlays.map((pr, i) => ticket(pr, i === 0, i)).join("")}` : `<p class="empty">No ticket today: not enough legs pass the filters. That is an answer too.</p>`}
     <section class="section"><h2>Value singles <span class="sub">market prices worth taking on their own — the research favours these over parlays</span></h2>${singles}</section>
     <section class="section"><h2>Build your own ticket</h2><div class="panel"><div id="custom">${custom()}</div><p class="sub small" style="margin-top:10px">Optional stake to record with your bets (for your own log; the site never suggests stakes): <input id="stake" type="number" min="0" step="0.5" class="oddsin" style="width:90px"></p></div></section>
     <section class="section"><h2>My bets <span class="sub">kept in this browser only</span></h2><div id="mybets">${myBets()}</div>

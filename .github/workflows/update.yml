@@ -36,6 +36,9 @@ jobs:
           fi
       - if: steps.gate.outputs.run == 'true'
         run: pip install -r requirements.txt
+      - name: Tests, including the feed readers against saved real replies (a failure stops the run; the site stays as it was)
+        if: steps.gate.outputs.run == 'true'
+        run: python -m pytest -q tests
       - name: Fetch from ESPN (+ odds when ODDS_API_KEY is set), rebuild, predict, freeze and score
         if: steps.gate.outputs.run == 'true'
         env:

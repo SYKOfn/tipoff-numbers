@@ -4,8 +4,10 @@ ODDS_API_KEY        the key (free plan: 500 credits a month)
 ODDS_API_BOOKS      bookmakers for game odds, default "winamax_fr,pinnacle"
                     (Winamax = the prices you bet at; Pinnacle = the sharpest closing line, for CLV)
 ODDS_API_DAILY      credits the site may spend per day, default 15 (fits the free plan)
-ODDS_API_PROPS      "1" to also record US player-prop lines (5 credits per game per snapshot;
-                    needs a paid plan in practice)
+ODDS_API_PROPS      "1" to also record player-prop lines (5 credits per game per snapshot)
+ODDS_API_PROPS_BOOKS  books for player props, default "pinnacle": the only European book in the feed with NBA
+                    player lines (checked 9 Nov 2026: Pinnacle and BetOnline; no French book). Its no-margin
+                    price is the sharpest yardstick for Winamax's player prices.
 
 Game odds cost 3 credits per call for every NBA game at once. They are fetched when the last snapshot
 is 3+ hours old, and again in the 75 minutes before each slate's first tip-off (the closing price).
@@ -172,7 +174,8 @@ def collect(upcoming, now=None):
             if not phase or phase in done.get(g["game_id"], []) or st["spent"] + 5 > daily:
                 continue
             data, used, _ = _get(f"/events/{snap[g['game_id']]['event_id']}/odds",
-                                 {"regions": "us", "markets": ",".join(PROP_MARKETS), "oddsFormat": "decimal"})
+                                 {"bookmakers": env("ODDS_API_PROPS_BOOKS", "pinnacle"), "markets": ",".join(PROP_MARKETS),
+                                  "oddsFormat": "decimal"})
             st["spent"] += used or 5
             if isinstance(data, dict) and data.get("bookmakers"):
                 archive_props(data, g, now, phase)

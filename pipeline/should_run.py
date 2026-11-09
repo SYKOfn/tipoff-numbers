@@ -11,10 +11,10 @@ from datetime import datetime, timedelta, timezone
 from .store import STATE, read_json
 
 
-def decide(now=None):
+def decide(now=None, ups=None):
     now = now or datetime.now(timezone.utc)
     main_slot = 18 <= now.minute <= 33
-    ups = read_json(STATE / "upcoming.json", []) or []
+    ups = (read_json(STATE / "upcoming.json", []) or []) if ups is None else ups
     if not main_slot:
         for g in ups:
             try:
@@ -36,6 +36,21 @@ def decide(now=None):
         if timedelta(0) <= now - t <= timedelta(hours=4):
             return True, f"{g['away']} at {g['home']} under way or just finished"
     return False, "nothing tips off within 3 hours"
+
+
+SLOTS = (8, 23, 38, 53)  # the scheduled minutes (update.yml)
+
+
+def next_run(now=None, ups=None, hours=12):
+    """The next scheduled slot that will do a full update (GitHub may start it a few minutes late)."""
+    now = now or datetime.now(timezone.utc)
+    t = now.replace(second=0, microsecond=0)
+    end = now + timedelta(hours=hours)
+    while t <= end:
+        t += timedelta(minutes=1)
+        if t.minute in SLOTS and decide(t, ups)[0]:
+            return t
+    return None
 
 
 if __name__ == "__main__":
