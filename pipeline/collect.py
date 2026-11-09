@@ -134,6 +134,35 @@ def collect(today=None):
 
     from . import oddsapi
     ups = sorted(upcoming.values(), key=lambda g: g["date"])
+    # games in the next 36 hours: the game's own injury report (player ids, report time); in the last
+    # 90 minutes, the starting fives once ESPN posts them
+    now_ = espn.now_utc()
+    game_inj = {}
+    for g in ups:
+        try:
+            left = (datetime.fromisoformat(g["date"].replace("Z", "+00:00")) - now_).total_seconds() / 3600
+        except ValueError:
+            continue
+        if not 0 < left <= 36:
+            continue
+        s = espn.summary(g["game_id"])
+        if not s:
+            continue
+        for ab, lst in (s.get("injuries") or {}).items():
+            if ab in (g["home"], g["away"]):
+                game_inj[ab] = lst
+        if left <= 1.5 and s.get("players"):
+            st = {}
+            for p in s["players"]:
+                if p.get("starter"):
+                    st.setdefault(p["team"], []).append(str(p["player_id"]))
+            if all(len(st.get(t, [])) == 5 for t in (g["home"], g["away"])):
+                g["starters"] = st
+    if game_inj:
+        inj_all = read_json(STATE / "injuries.json", {}) or {}
+        teams_ = inj_all.get("teams", {}) or {}
+        teams_.update(game_inj)
+        write_json(STATE / "injuries.json", {"as_of": now_.isoformat(), "teams": teams_, "game_reports": sorted(game_inj)})
     if not ups and not finished:
         # nothing parsed at all: a feed change or outage, not an empty NBA calendar; keep the last good schedule
         prev = read_json(STATE / "upcoming.json", []) or []

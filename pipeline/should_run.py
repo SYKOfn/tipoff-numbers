@@ -1,7 +1,8 @@
-"""Decide whether an hourly scheduled run should do the full update.
+"""Decide whether a scheduled run (every 15 minutes) should do the full update.
 
-Always every 3 hours; in between, only when a game tips off within the next 3 hours (team news and
-late scratches, closing prices) or a game started in the last 4 hours (results come in quickly).
+At :23 past each hour: always every 3 hours; in between, when a game tips off within the next 3 hours
+(team news, closing prices) or started in the last 4 hours (results come in quickly).
+At the other quarter hours: only when a game tips off within 75 minutes (starting lineups, late scratches).
 Prints run=true/false for GitHub Actions ($GITHUB_OUTPUT).
 """
 import os
@@ -12,9 +13,20 @@ from .store import STATE, read_json
 
 def decide(now=None):
     now = now or datetime.now(timezone.utc)
+    main_slot = 18 <= now.minute <= 33
+    ups = read_json(STATE / "upcoming.json", []) or []
+    if not main_slot:
+        for g in ups:
+            try:
+                t = datetime.fromisoformat(g["date"].replace("Z", "+00:00"))
+            except (KeyError, ValueError):
+                continue
+            if timedelta(0) <= t - now <= timedelta(minutes=75):
+                return True, f"{g['away']} at {g['home']} tips off within 75 minutes (lineups)"
+        return False, "quarter-hour run: nothing tips off within 75 minutes"
     if now.hour % 3 == 0:
         return True, "regular 3-hour run"
-    for g in read_json(STATE / "upcoming.json", []) or []:
+    for g in ups:
         try:
             t = datetime.fromisoformat(g["date"].replace("Z", "+00:00"))
         except (KeyError, ValueError):

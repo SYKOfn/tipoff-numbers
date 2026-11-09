@@ -301,7 +301,7 @@ def parse_injury_blocks(blocks):
                 "player_id": str(ath.get("id") or ath.get("displayName")), "name": ath.get("displayName"),
                 "status": status, "weight": status_weight(status),
                 "detail": inj.get("shortComment") or det.get("type") or "",
-                "returns": det.get("returnDate"),
+                "returns": det.get("returnDate"), "date": inj.get("date"),
             })
     return out
 

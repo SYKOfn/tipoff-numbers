@@ -182,9 +182,9 @@ class PlayerTracker:
         for kind in ("same", "other"):
             same = lambda k: (pos_group(self.p[k]["pos"]) == g) == (kind == "same")
             lost = sum(v * avail_of(k) for k, v in rot.items() if k in absent and same(k))
-            here = sum(v for k, v in rot.items() if k not in absent and same(k)) or 1.0
+            here = sum(v * avail_of(k) for k, v in rot.items() if k not in absent and same(k)) or 1.0
             gain[kind] = lost * m8 / here
-        here_all = sum(v for k, v in rot.items() if k not in absent)
+        here_all = sum(v * avail_of(k) for k, v in rot.items() if k not in absent)
         heavy = m8 / 30.0
         return [1.0, m8, m3, sm, last, float(q["started"]), gain["same"], gain["other"],
                 abs(exp_margin or 0.0) / 10.0 * heavy, float(b2b) * heavy, float(returning),

@@ -291,3 +291,32 @@ def test_minutes_model_learns():
         f = [1.0] + list(rng.uniform(0, 36, len(MIN_FEATS) - 1))
         mm.add(f, 0.8 * f[2] + 3 + rng.normal(0, 1))  # minutes follow the short-term average
     assert mm.w is not None and abs(mm.predict([1.0] + [20.0] * (len(MIN_FEATS) - 1)) - 19.0) < 1.5
+
+
+def test_quarter_hour_gate(tmp_path, monkeypatch):
+    from datetime import datetime, timezone
+    from pipeline import should_run, store
+    import json
+    monkeypatch.setattr(should_run, "STATE", tmp_path)
+    (tmp_path / "upcoming.json").write_text(json.dumps([{"date": "2026-11-10T00:00Z", "home": "ATL", "away": "LAL"}]))
+    assert should_run.decide(datetime(2026, 11, 9, 23, 8, tzinfo=timezone.utc))[0]       # 52 min before tip
+    assert not should_run.decide(datetime(2026, 11, 9, 20, 8, tzinfo=timezone.utc))[0]   # quarter-hour, nothing close
+    assert should_run.decide(datetime(2026, 11, 9, 21, 23, tzinfo=timezone.utc))[0]      # hourly slot, within 3 h
+
+
+def test_rapm_recovers_ratings():
+    import numpy as np
+    from model.rapm import RAPM
+    rng = np.random.default_rng(3)
+    true = {str(i): rng.normal(0, 4) for i in range(60)}
+    rp = RAPM(lam=5)
+    for k in range(1500):
+        ids = rng.choice(60, 16, replace=False).astype(str)
+        h, a = ids[:8], ids[8:]
+        rows_h = [{"player_id": p, "min": 30} for p in h]
+        rows_a = [{"player_id": p, "min": 30} for p in a]
+        m = 2.5 + sum(true[p] for p in h) * 5 / 8 - sum(true[p] for p in a) * 5 / 8 + rng.normal(0, 8)
+        rp.add({"day": "2026-01-01", "season": 2026, "home_pts": 110 + m, "away_pts": 110, "ot": 0}, rows_h, rows_a)
+    rp.fit("2026-01-02")
+    est = np.array([rp.r[p] for p in true]); tru = np.array(list(true.values()))
+    assert np.corrcoef(est, tru)[0, 1] > 0.8 and abs(rp.hca - 2.5) < 1.0

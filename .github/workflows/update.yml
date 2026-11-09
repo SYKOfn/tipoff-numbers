@@ -2,7 +2,7 @@ name: update
 # runs hourly near tip-off; see pipeline/should_run.py
 on:
   schedule:
-    - cron: "23 * * * *"       # hourly; the gate below skips quiet hours (full run every 3 h, hourly near tip-off)
+    - cron: "8,23,38,53 * * * *"  # every 15 min; the gate skips quiet times (3-hourly, hourly near tip-off, every 15 min in the last 75)
   workflow_dispatch:
   push:
     branches: [main]

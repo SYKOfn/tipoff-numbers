@@ -29,6 +29,9 @@ def season_label(s):
     return f"{s - 1}-{str(s)[2:]}"
 
 
+BLEND_W = 0.4  # model weight in the Pinnacle blend (log-odds), from the 1,368-game test
+
+
 def lines_around(center, sd, step, n=2):
     base = math.floor(center / step) * step + step / 2
     out = []
@@ -59,6 +62,7 @@ def main(demo=False, now=None, collect_data=True):
     if collect_data and not demo:
         injury_log.update(upcoming, injuries, now)
     inj_cal = injury_log.calibrate(players, games)
+    from model import rest
     next_day = {}
     for g in sorted(upcoming, key=lambda x: x["date"]):
         for t in (g["home"], g["away"]):
@@ -70,6 +74,7 @@ def main(demo=False, now=None, collect_data=True):
 
     cur = espn.season_of(today.isoformat())
     c = engine.build_context(games, players, upcoming, tuned)
+    rest_table = rest.measure(games, players, c.ctxs)
     rts = engine.fit_all(games, today.isoformat(), c.tuned)
     season_start = games[games["season"] == cur]["day"].min() if (games["season"] == cur).any() else today.isoformat()
     prev_rows = [r[:5] for r in c.rows if r[5] < season_start]
@@ -222,14 +227,17 @@ def main(demo=False, now=None, collect_data=True):
             blend_items.append((e["win_home_model"], e["win_home_market"], 1.0 if gg["home_pts"] > gg["away_pts"] else 0.0))
     def _bl(a, b):
         lo = lambda x: math.log(max(x, 1e-6) / max(1 - x, 1e-6))
-        return 1 / (1 + math.exp(-(0.5 * lo(a) + 0.5 * lo(b))))
+        return 1 / (1 + math.exp(-(BLEND_W * lo(a) + (1 - BLEND_W) * lo(b))))
     blend_stats = None
     if blend_items:
         n_ = len(blend_items)
         blend_stats = {"n": n_, "brier_model": round(sum((a - y) ** 2 for a, b, y in blend_items) / n_, 4),
                        "brier_market": round(sum((b - y) ** 2 for a, b, y in blend_items) / n_, 4),
                        "brier_blend": round(sum((_bl(a, b) - y) ** 2 for a, b, y in blend_items) / n_, 4)}
-    market_blend_on = bool(blend_stats and blend_stats["n"] >= 150 and blend_stats["brier_blend"] < blend_stats["brier_model"])
+    # Tested on 1,368 past games with Pinnacle's price 30 min before the day's first tip (2025-26 and this season):
+    # 40% model / 60% market (log-odds) beat both alone on Brier and log loss and kept the model's extra winners.
+    # It stays on unless this season's frozen games show the blend doing worse than the model alone.
+    market_blend_on = not (blend_stats and blend_stats["n"] >= 150 and blend_stats["brier_blend"] > blend_stats["brier_model"])
     trc = tr.clone()
     upcoming_payloads = {}
     seen = set()
@@ -260,10 +268,21 @@ def main(demo=False, now=None, collect_data=True):
         em = engine.predict(c, g, ctx, rts)["base"]["margin"]  # results-only margin: blowout risk for minutes
         proj_players = PE.project_game(pt, pe, pdisp, g, ctx, injuries, notes, news, exp_margin=em)
         lf = None
-        sh_ = c.lineup.strength([(x["id"], x["min"]) for x in proj_players.get("home", []) if not x.get("out")])
-        sa_ = c.lineup.strength([(x["id"], x["min"]) for x in proj_players.get("away", []) if not x.get("out")])
-        if sh_ and sa_:
-            lf = (sh_[0] - sa_[0], sh_[1] - sa_[1])
+        # far from tip-off, key players not on the injury report may still sit (measured rates)
+        hours = (tip - now).total_seconds() / 3600
+        if hours > rest.NEWS_HOURS and rest_table:
+            for side in ("home", "away"):
+                p_sit = rest.chance_sits(rest_table, ctx[side]["b2b"], int(g["day"][5:7]), int(g.get("stype") or 2) == 3)
+                for x in proj_players.get(side, []):
+                    if not x.get("out") and not x.get("status") and x["min"] >= rest.KEY_MIN and p_sit:
+                        x["sit"] = round(p_sit, 3)
+        em_ = lambda x: x["min"] * (1 - x.get("sit", 0.0))  # expected minutes
+        sh_ = c.lineup.strength([(x["id"], em_(x)) for x in proj_players.get("home", []) if not x.get("out")])
+        sa_ = c.lineup.strength([(x["id"], em_(x)) for x in proj_players.get("away", []) if not x.get("out")])
+        rh_ = c.rapm.strength([(x["id"], em_(x)) for x in proj_players.get("home", []) if not x.get("out")])
+        ra_ = c.rapm.strength([(x["id"], em_(x)) for x in proj_players.get("away", []) if not x.get("out")])
+        if sh_ and sa_ and rh_ is not None and ra_ is not None:
+            lf = (sh_[0] - sa_[0], sh_[1] - sa_[1], rh_ - ra_)
         est = engine.predict(c, g, ctx, rts, lineup_feat=lf)
         pin = ((g.get("odds_books") or {}).get("pinnacle") or {})
         p_mkt = parlay.novig(pin.get("ml_home"), pin.get("ml_away"))
@@ -271,7 +290,7 @@ def main(demo=False, now=None, collect_data=True):
         est["win_home_market"] = p_mkt
         if p_mkt is not None and market_blend_on:
             lo = lambda x: math.log(max(x, 1e-6) / max(1 - x, 1e-6))
-            est["win_home"] = 1 / (1 + math.exp(-(0.5 * lo(est["win_home"]) + 0.5 * lo(p_mkt))))
+            est["win_home"] = 1 / (1 + math.exp(-(BLEND_W * lo(est["win_home"]) + (1 - BLEND_W) * lo(p_mkt))))
         payload = game_payload(g, ctx, est, "estimate", {t: injuries.get(t, []) for t in (g["home"], g["away"])} if news else None)
         payload["news"] = news
         payload["made_at"] = now.isoformat()
@@ -444,7 +463,8 @@ def main(demo=False, now=None, collect_data=True):
         "backtest": read_json(ROOT / "backtest" / "results.json"), "factors": eff_table,
         "upgrade": engine.lineup_test(c, cur), "market_blend": {**(blend_stats or {}), "on": market_blend_on},
         "players": {"track": ptrack, "factors": PM.effects_table(pe), "dispersion": {k: round(v, 2) for k, v in pdisp.items()},
-                    "lines_test": lines_test, "minutes_model": pt.mm.table(), "injury_status": inj_cal},
+                    "lines_test": lines_test, "minutes_model": pt.mm.table(), "injury_status": inj_cal,
+                    "rest": rest_table},
         "effects_games": c.eff.n, "sd_margin": r1(c.eff.sd_margin), "sd_total": r1(c.eff.sd_total)})
 
     # ------------------------------------------------------------ the daily parlay

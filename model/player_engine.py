@@ -131,6 +131,10 @@ def project_game(pt, pe, disp, g, ctx, injuries, notes, news=True, exp_margin=No
         inj = match_injury(pt, team, (injuries or {}).get(team)) if news else {}
         # out when he is more likely to miss than to play (measured rates once the injury log has enough cases)
         absent = {pid for pid, i in inj.items() if (i.get("weight") or 0) >= 0.5}
+        five = set(((g.get("starters") or {}).get(team)) or [])
+        if five:  # starting five posted: a starter plays whatever the report said
+            absent -= five
+            inj = {k: {**v, "weight": 0.0, "play": 1.0, "min_ratio": None} if k in five else v for k, v in inj.items()}
         lst = []
         for pid in sorted(rot, key=lambda k: -rot[k]):
             q = pt.p[pid]
@@ -166,7 +170,18 @@ def project_game(pt, pe, disp, g, ctx, injuries, notes, news=True, exp_margin=No
                 label = ("Hot hand" if v > 0 else "Cold hand") if k == "hot" else P.FACTORS[k][1]
                 spots.append({"key": k, "layer": P.FACTORS[k][0], "label": label, "text": txt,
                               "pct": round(100 * c * v, 1), "evidence": P.eff_mod.evidence(c, se) if se else "none"})
-            row = {"id": pid, "name": q["name"], "pos": q["pos"], "out": False,
+            if five:
+                if pid in five:
+                    row_lineup = "starting"
+                elif q.get("started"):
+                    row_lineup = "not in the starting five"
+                    if not status:  # a regular starter left out with no report: may be a late scratch
+                        proj = {k: v * 0.5 for k, v in proj.items()}
+                else:
+                    row_lineup = None
+            else:
+                row_lineup = None
+            row = {"id": pid, "name": q["name"], "pos": q["pos"], "out": False, "lineup": row_lineup,
                    "status": status.get("status") if status else None, "detail": status.get("detail") if status else None,
                    "play": status.get("play") if status else None, "spots": spots}
             for st in ("min", "pts", "reb", "ast", "tpm", "stl", "blk", "tov", "pra", "fga", "fta"):

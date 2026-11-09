@@ -13,6 +13,7 @@ from . import effects, ratings
 from .features import Tracker
 from .lineup import LineupTracker
 from .style import StyleTracker
+from .rapm import RAPM
 
 STACK_LAM = 50.0   # ridge on the player-strength weights (tested walk-forward on 2025-26 and 2026-27)
 
@@ -44,6 +45,7 @@ def build_context(games, players, upcoming, tuned=None, effects_until=None):
     byg = rows_by_game(players)
     lt = LineupTracker()
     sty = StyleTracker()
+    rp = RAPM()
     lfeat = {}
     tr = Tracker()
     tr.names.update(names)
@@ -67,8 +69,12 @@ def build_context(games, players, upcoming, tuned=None, effects_until=None):
         if rows_ and g["home"] in rows_ and g["away"] in rows_:
             sh = lt.strength([(r["player_id"], None) for r in rows_[g["home"]] if r["min"] > 0])
             sa = lt.strength([(r["player_id"], None) for r in rows_[g["away"]] if r["min"] > 0])
-            if sh and sa:
-                lfeat[gid] = (sh[0] - sa[0], sh[1] - sa[1])
+            rp.maybe_refit(g["day"])
+            rh = rp.strength([(r["player_id"], r["min"]) for r in rows_[g["home"]] if r["min"] > 0])
+            ra = rp.strength([(r["player_id"], r["min"]) for r in rows_[g["away"]] if r["min"] > 0])
+            if sh and sa and rh is not None and ra is not None:
+                lfeat[gid] = (sh[0] - sa[0], sh[1] - sa[1], rh - ra)
+            rp.add(g, rows_[g["home"]], rows_[g["away"]])
         lt.post_game(g, rows_)
         margin = g["home_pts"] - g["away_pts"]
         total = g["home_pts"] + g["away_pts"]
@@ -85,23 +91,24 @@ def build_context(games, players, upcoming, tuned=None, effects_until=None):
     eff = effects.estimate([r[:5] for r in use], tuned["lam_effects"])
     c = Context()
     c.tuned, c.base, c.ctxs, c.rows, c.eff, c.tracker, c.games, c.meta = tuned, base, ctxs, rows, eff, tr, fin, meta
-    c.lineup, c.lfeat, c.stack, c.rows_raw, c.style = lt, lfeat, stack, rows_raw, sty
+    rp.fit(fin["day"].max() if len(fin) else date.today().isoformat())  # latest ratings for upcoming games
+    c.lineup, c.lfeat, c.stack, c.rows_raw, c.style, c.rapm = lt, lfeat, stack, rows_raw, sty, rp
     return c
 
 
 def fit_stack(rows, lfeat, min_rows=300):
-    """margin = a*base + b*gamescore strength gap + c*plus-minus gap + d, ridge on b and c."""
+    """margin = a*base + b*gamescore gap + c*plus-minus gap + e*adjusted plus-minus gap + d, ridge on b, c, e."""
     X, y = [], []
     for r in rows:
         f = lfeat.get(r[6])
         if f is None:
             continue
-        X.append([r[2], f[0], f[1], 1.0])
+        X.append([r[2], *f, 1.0])
         y.append(r[1])
     if len(X) < min_rows:
         return None
     X, y = np.array(X), np.array(y)
-    lam = np.diag([0.0, STACK_LAM, STACK_LAM, 0.0])
+    lam = np.diag([0.0] + [STACK_LAM] * (X.shape[1] - 2) + [0.0])
     w = np.linalg.solve(X.T @ X + lam, X.T @ y)
     return {"w": [float(v) for v in w], "n": len(y)}
 
@@ -110,7 +117,9 @@ def stacked(stack, base_margin, feat):
     if stack is None or feat is None:
         return base_margin
     w = stack["w"]
-    return w[0] * base_margin + w[1] * feat[0] + w[2] * feat[1] + w[3]
+    if len(feat) != len(w) - 2:
+        return base_margin
+    return w[0] * base_margin + sum(wi * fi for wi, fi in zip(w[1:-1], feat)) + w[-1]
 
 
 def baseline(games, season, team, before):
@@ -204,11 +213,11 @@ def lineup_test(c, cur):
     te = [(c.base[gid][0] - c.base[gid][1], c.lfeat[gid], g["home_pts"] - g["away_pts"]) for gid, g in raw if g["day"] >= start]
     if len(tr) < 300 or not te:
         return None
-    X = np.array([[b, f[0], f[1], 1.0] for b, f, _ in tr])
+    X = np.array([[b, *f, 1.0] for b, f, _ in tr])
     y = np.array([m for _, _, m in tr])
-    w = np.linalg.solve(X.T @ X + np.diag([0, STACK_LAM, STACK_LAM, 0]), X.T @ y)
+    w = np.linalg.solve(X.T @ X + np.diag([0] + [STACK_LAM] * (X.shape[1] - 2) + [0]), X.T @ y)
     sd_new = float(np.std(y - X @ w))
     sd_old = float(np.std(y - X[:, 0]))
     before = sc([b for b, _, _ in te], [m for _, _, m in te], sd_old)
-    after = sc([w[0] * b + w[1] * f[0] + w[2] * f[1] + w[3] for b, f, _ in te], [m for _, _, m in te], sd_new)
+    after = sc([w[0] * b + sum(wi * fi for wi, fi in zip(w[1:-1], f)) + w[-1] for b, f, _ in te], [m for _, _, m in te], sd_new)
     return {"games": len(te), "before": before, "after": after}
