@@ -78,6 +78,8 @@ class StyleTracker:
             "three_match": match("tpa", "tpa_alw", 1000),
             "ft_match": match("ftr", "ftr_alw", 1000),
             "luck": (H["luck_own"] - H["luck_opp"]) - (A["luck_own"] - A["luck_opp"]),
+            "luck_off": H["luck_own"] - A["luck_own"],
+            "luck_def": A["luck_opp"] - H["luck_opp"],
             "pace_match": (H["pace"] - pace_l) * (A["pace"] - pace_l) / 10,
             "three_volume": (H["tpa"] + A["tpa"] + H["tpa_alw"] + A["tpa_alw"] - 4 * L["tpa"]) * 10,
             "luck_total": H["luck_own"] + H["luck_opp"] + A["luck_own"] + A["luck_opp"],
