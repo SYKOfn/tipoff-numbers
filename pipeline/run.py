@@ -10,6 +10,8 @@ import shutil
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 
+import numpy as np
+
 from model import effects, engine, explain, extras, parlay, prop_test, ratings
 from model import player_engine as PE
 from model import players as PM
@@ -422,10 +424,39 @@ def main(demo=False, now=None, collect_data=True):
     (SITE / "player").mkdir(parents=True, exist_ok=True)
 
     cards_up, cards_res = [], []
+    from model import sim as SIM
+    from pipeline.oddsapi import latest_props, norm_name
+    real_lines = latest_props()
+    sim_lines = {}  # player -> his simulated chances to clear tonight's bookmaker lines (players page)
+    sim_rng = np.random.default_rng(11)
     for gid, (g, payload, state) in upcoming_payloads.items():
         out = dict(payload)
         out["state"] = state
         out["detail"] = g.get("detail")
+        try:  # "How tonight plays out": the game simulated before tip-off (games in the next 36 hours)
+            tip_ = datetime.fromisoformat(str(payload.get("tip")).replace("Z", "+00:00"))
+            pls = payload.get("players") or {}
+            if state == "pre" and timedelta(0) <= tip_ - now <= timedelta(hours=36) and (pls.get("home") and pls.get("away")):
+                lines = {}
+                for side_ in ("home", "away"):
+                    for x in pls[side_]:
+                        for st in ("pts", "reb", "ast", "pra"):
+                            rl = real_lines.get((str(gid), norm_name(x.get("name") or ""), st))
+                            if rl:
+                                lines.setdefault(x["id"], {})[st] = float(rl["line"])
+                e_ = dict(payload["est"])
+                if e_.get("win_home") is not None and 0.01 < e_["win_home"] < 0.99:  # same win chance as the headline (market blend)
+                    from statistics import NormalDist
+                    e_["margin"] = e_["sd_margin"] * NormalDist().inv_cdf(e_["win_home"])
+                sm = SIM.simulate({"home": payload["home"]["abbr"], "away": payload["away"]["abbr"]}, e_, pls,
+                                  pdisp, sim_rng, sims=10000)
+                out["sim"] = SIM.summary(sm, None, lines)
+                for pid_, r_ in out["sim"]["players"].items():
+                    if r_.get("lines"):
+                        sim_lines[str(pid_)] = {"n": out["sim"]["n"], **{k: v for k, v in r_["lines"].items()}}
+        except Exception as e_:  # never let the panel block the site
+            print("sim panel skipped", gid, e_)
+
         if state == "in":
             out["live"] = {"home_pts": g.get("home_pts"), "away_pts": g.get("away_pts"), "detail": g.get("detail")}
         write_json(SITE / "game" / f"{gid}.json", out)
@@ -743,6 +774,9 @@ def main(demo=False, now=None, collect_data=True):
     (SITE / "player").mkdir(parents=True, exist_ok=True)
     for pid, page in ppages.items():
         write_json(SITE / "player" / f"{pid}.json", page)
+    for x in pindex:
+        if str(x.get("id")) in sim_lines:
+            x["sim_lines"] = sim_lines[str(x["id"])]
     write_json(SITE / "players.json", pindex)
 
     # playoff chances from the rest of the regular season

@@ -331,27 +331,9 @@ def book_legs(game, est, players, odds, offers, calib, disp, mind_gap):
 
 # ------------------------------------------------------------------ correlated simulation per game
 def simulate(game, est, players, disp, rng):
-    m = rng.normal(est["margin"], est["sd_margin"], SIMS)
-    t = rng.normal(est["total"], est["sd_total"], SIMS)
-    hp, ap = (t + m) / 2, (t - m) / 2
-    out = {"m": m, "t": t, "home": hp, "away": ap, "players": {}}
-    exp = {"home": max(est["home_pts"], 60), "away": max(est["away_pts"], 60)}
-    for side in ("home", "away"):
-        r = np.clip(out[side] / exp[side], 0.6, 1.5)
-        for pl in players.get(side, []):
-            if pl.get("out"):
-                continue
-            sims = {}
-            for st in ("pts", "reb", "ast", "tpm"):
-                proj = pl.get(st) or 0.0
-                var = max(proj, 0.3) * disp.get(st, 1.5)
-                shared = proj * (r ** BETA[st])
-                var_shared = float(np.var(shared))
-                eps = rng.normal(0, math.sqrt(max(var - var_shared, 0.25 * var)), SIMS)
-                sims[st] = np.maximum(0, shared + eps)
-            sims["pra"] = sims["pts"] + sims["reb"] + sims["ast"]
-            out["players"][pl["id"]] = sims
-    return out
+    """The game simulated SIMS times (model/sim.py: minutes, blowouts, overtime, teammates sharing points)."""
+    from . import sim
+    return sim.simulate(game, est, players, disp, rng, sims=SIMS)
 
 
 def outcome(sim, leg, game):

@@ -370,3 +370,22 @@ def test_gate_runs_when_lock_due(tmp_path):
     (tmp_path / "2026-11-09.json").write_text(json.dumps({"lock_at": "2026-11-09T21:00:00+00:00",
                                                           "first_tip": "2026-11-10T00:00:00+00:00", "locked": True}))
     assert not should_run.decide(at(21, 38), [], tmp_path)[0]      # already locked
+
+
+def test_game_simulation():
+    from model import sim
+    rng = np.random.default_rng(3)
+    est = {"margin": 4.0, "total": 228.0, "sd_margin": 13.0, "sd_total": 18.0, "home_pts": 116.0, "away_pts": 112.0}
+    mk = lambda i, m, p: {"id": str(i), "min": m, "pts": p, "reb": 5.0, "ast": 3.0, "tpm": 1.5, "p_play": 1.0}
+    pl = {"home": [mk(i, 34 - 3 * i, 24 - 3 * i) for i in range(8)], "away": [mk(10 + i, 34 - 3 * i, 23 - 3 * i) for i in range(8)]}
+    s = sim.simulate({"home": "BOS", "away": "NYK"}, est, pl, {"pts": 1.9, "reb": 1.4, "ast": 1.5, "tpm": 1.2}, rng, sims=20000)
+    assert 0.03 < s["ot"].mean() < 0.09                                 # overtime about as often as in the NBA
+    assert abs(s["players"]["0"]["pts"].mean() - 24) < 1.0              # projections kept on average
+    star = s["players"]["0"]["min"]; blow = np.abs(s["m"]) > 25
+    assert star[blow].mean() < star[~blow].mean() - 1                   # starters sit in blowouts
+    a, b = s["players"]["0"]["pts"], s["players"]["1"]["pts"]
+    team = s["home"]
+    ra = a - np.polyval(np.polyfit(team, a, 1), team); rb = b - np.polyval(np.polyfit(team, b, 1), team)
+    assert np.corrcoef(ra, rb)[0, 1] < 0                                 # teammates share the team's points
+    summ = sim.summary(s, None, {"0": {"pts": 23.5}})
+    assert 0.3 < summ["players"]["0"]["lines"]["pts"]["over"] < 0.7 and abs(sum(summ["margin_hist"]["p"]) - 1) < 1e-6

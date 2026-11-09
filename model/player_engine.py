@@ -92,6 +92,10 @@ def walk(c, players_df, notes, cur, use_mm=True, ev=None, opp_mode="team", norm=
                 rows_eff.append((x, {st: (r[st] if st != "min" else r["min"], proj[st]) for st in P.EFFECT_STATS}))
                 if ev is not None:
                     ev.setdefault("rows", []).append(int(g["season"]))
+                    if "pg" in ev:  # player-games with their out-of-sample projection (simulation research)
+                        ev["pg"].append((int(g["season"]), gid, team, side, pid, int(r.get("starter") or 0),
+                                         {st: r[st] for st in ("min", "pts", "reb", "ast", "tpm")},
+                                         {st: proj[st] for st in ("min", "pts", "reb", "ast", "tpm")}))
                 act_pra = r["pts"] + r["reb"] + r["ast"]
                 for st in P.SHOW + ["pra"]:
                     a = act_pra if st == "pra" else r[st]

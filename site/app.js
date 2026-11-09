@@ -19,6 +19,7 @@ function get(path) {
 
 /* ---------------------------------------------------------------- helpers */
 const h = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const STATS_SHORT = { pts: "PTS", reb: "REB", ast: "AST", pra: "PRA" };
 const pct = p => (p == null ? "–" : `${Math.round(p * 100)}%`);
 const fx = (x, d = 1) => (x == null ? "–" : Number(x).toFixed(d));
 const sgn = (x, d = 1) => (x == null ? "–" : `${x > 0 ? "+" : x < 0 ? "−" : "±"}${Math.abs(Number(x)).toFixed(d)}`);
@@ -478,6 +479,7 @@ async function game(id) {
         <p class="sub small" style="margin-top:10px">Base ${fx(e.base.total, 0)} · physical ${sgn(e.physical.total)} · mind ${sgn(e.mind.total)}${e.level_total ? ` · league scoring this season ${sgn(e.level_total)}` : ""}</p></div>
       <div class="panel"><h3>Why</h3><ul class="why">${g.reasoning.map(r => `<li>${h(r)}</li>`).join("")}</ul>${g.analyst ? `<p class="call"><b>Analyst view:</b> ${h(g.analyst.text || g.analyst.overall || "")}</p>` : ""}</div>
     </section>
+    ${simSection(g)}
     <section class="section"><h2>How the number was built <span class="sub">points on the margin</span></h2><div class="panel">${buildRows(g)}
       <p class="sub small" style="margin-top:12px">Win chance with the psychological layer: <b>${pct(Math.max(e.win_home, 1 - e.win_home))}</b> ${h(T(e.win_home >= 0.5 ? H : A).abbr)} · without it: <b>${pct(e.win_home_nomind >= 0.5 ? e.win_home_nomind : 1 - e.win_home_nomind)}</b> ${h(T(e.win_home_nomind >= 0.5 ? H : A).abbr)} · plain averages: <b>${pct(Math.max(e.baseline.win_home, 1 - e.baseline.win_home))}</b> ${h(T(e.baseline.win_home >= 0.5 ? H : A).abbr)}</p></div></section>
     <section class="section"><h2 class="mind">The mental game <span class="sub">each team's psychological spots, sized by what they have been worth in past games</span></h2>
@@ -491,6 +493,47 @@ async function game(id) {
     ${h2hSection(g)}
     ${g.made_at ? `<p class="sub small section">Estimate made ${ago(g.made_at)}.</p>` : ""}
   </div>`;
+}
+
+function simSection(g) {
+  const S = g.sim;
+  if (!S) return "";
+  const H = g.home.abbr, A = g.away.abbr, aw = 1 - S.home_win;
+  const fav = S.home_win >= 0.5 ? H : A, dog = fav === H ? A : H;
+  const bFav = fav === H ? S.blowout_home : S.blowout_away, bDog = fav === H ? S.blowout_away : S.blowout_home;
+  const story = [
+    S.close >= 0.33 ? "A tight one in many runs: about a third finish within five points" : `Most runs are settled by more than five points`,
+    `the ${T(fav).short} pull clear by 15+ in ${pct(bFav)} of them${bDog >= 0.05 ? `, the ${T(dog).short} in ${pct(bDog)}` : ""}`,
+    S.ot >= 0.04 ? `overtime in about ${Math.round(S.ot * 100)} of every 100` : "",
+  ].filter(Boolean).join("; ") + ".";
+  const ed = S.margin_hist.edges, ps = S.margin_hist.p, mx = Math.max(...ps);
+  const lab = i => i === 0 ? `${T(A).abbr} 30+` : i === ps.length - 1 ? `${T(H).abbr} 30+` : (() => { const lo = ed[i - 1], hi = ed[i]; return hi <= 0 ? `${T(A).abbr} ${-hi}–${-lo}` : `${T(H).abbr} ${lo}–${hi}`; })();
+  const bars = ps.map((p, i) => { const homeSide = i > 0 && ed[i - 1] >= 0; return `<div class="sb" title="${h(lab(i))}: ${pct(p)}"><span style="height:${(p / mx) * 100}%;background:${teamInk(homeSide ? H : A)}"></span><em>${i % 2 ? "" : h(lab(i).replace(/^\S+ /, ""))}</em></div>`; }).join("");
+  const nameOf = {};
+  for (const side of ["home", "away"]) for (const x of (g.players || {})[side] || []) nameOf[x.id] = { name: x.name, side };
+  const rows = side => Object.entries(S.players).filter(([id]) => (nameOf[id] || {}).side === side)
+    .sort((a, b) => b[1].min[1] - a[1].min[1]).slice(0, 7).map(([id, r]) => {
+      const rng = st => `<b class="num">${fx(r[st][1], 0)}</b> <span class="num">${fx(r[st][0], 0)}–${fx(r[st][2], 0)}</span>`;
+      const ln = Object.entries(r.lines || {}).map(([st, v]) => `${STATS_SHORT[st] || st} ${v.line}: <b>${pct(v.over)}</b>`).join(" · ");
+      return `<tr><td><a href="#/player/${h(id)}">${h(nameOf[id].name)}</a>${r.p_play < 0.95 ? ` <span class="chip warn">plays in ${pct(r.p_play)}</span>` : ""}</td><td>${rng("min")}</td><td>${rng("pts")}</td><td>${rng("reb")}</td><td>${rng("ast")}</td><td class="small">${ln || "–"}</td></tr>`;
+    }).join("");
+  const tbl = (side, ab) => `<div><h4>${disc(ab, "sm")} ${h(T(ab).short)}</h4><table class="simt"><thead><tr><th>Player</th><th>Minutes</th><th>Points</th><th>Rebounds</th><th>Assists</th><th>Clears the line</th></tr></thead><tbody>${rows(side)}</tbody></table></div>`;
+  return `<section class="section reveal"><h2>How tonight plays out <span class="sub">${S.n.toLocaleString("en-GB")} simulations of this game before tip-off</span></h2>
+    <div class="panel">
+      <p class="sim-story">${h(story)}</p>
+      <div class="sim-tiles">
+        <div><p class="k">${h(T(A).short)} win</p><p class="v num">${pct(aw)}</p></div>
+        <div><p class="k">${h(T(H).short)} win</p><p class="v num">${pct(S.home_win)}</p></div>
+        <div><p class="k">Within 5 points</p><p class="v num">${pct(S.close)}</p></div>
+        <div><p class="k">Blowout (15+)</p><p class="v num">${pct(S.blowout_home + S.blowout_away)}</p></div>
+        <div><p class="k">Overtime</p><p class="v num">${pct(S.ot)}</p></div>
+        <div><p class="k">Total, 80% range</p><p class="v num">${fx(S.total[0], 0)}–${fx(S.total[2], 0)}</p></div>
+      </div>
+      <div class="sim-hist">${bars}</div>
+      <p class="sub small">Final margins across the runs (left: ${h(T(A).short)} win, right: ${h(T(H).short)} win).</p>
+      <div class="sim-players">${tbl("away", A)}${tbl("home", H)}</div>
+      <p class="sub small">Bold: the typical run; after it, the middle 80% of runs. Minutes move with blowouts, overtime and night-to-night swings; teammates share the team's points. "Clears the line": share of runs above the bookmaker's main line, counting only runs where he plays (Winamax voids the leg if he does not).</p>
+    </div></section>`;
 }
 
 function playersSection(g) {
@@ -993,6 +1036,7 @@ function playerCard(p) {
       ${p.status ? `<span class="ptag q">${h(p.status)}</span>` : ""}</div>
     <div class="pc-nums">${[["Points", p.next_pts], ["Rebounds", p.next_reb], ["Assists", p.next_ast], ["Threes", p.next_tpm]].map(([k, v]) => `<div><b class="num">${v == null ? "–" : fx(v, 1)}</b><span>${k}</span></div>`).join("")}</div>
     ${(p.next_best || []).length ? `<div class="pc-legs">${p.next_best.map(b => { const l = legFor(p, b); return `<div class="pc-leg"><span>Over ${fx(b.line)} ${STATW[b.stat] || b.stat}</span><b class="num">${pct(b.over)}</b>${addBtn(l)}</div>`; }).join("")}</div>` : ""}
+    ${p.sim_lines ? `<p class="pc-sim">In ${Number(p.sim_lines.n).toLocaleString("en-GB")} simulations: ${Object.entries(p.sim_lines).filter(([k]) => k !== "n").slice(0, 2).map(([st, v]) => `over ${v.line} ${STATW[st] || st} in <b>${Math.round(v.over * p.sim_lines.n).toLocaleString("en-GB")}</b>`).join(" · ")}</p>` : ""}
     ${(p.next_spots || []).length ? `<p class="pc-spots">${p.next_spots.map(h).join(" · ")}</p>` : ""}
   </article>`;
 }
@@ -1207,6 +1251,7 @@ function ticket(pr, main, idx) {
     <div class="ticket-foot"><div><b>${pct(pr.p)}</b>chance all ${pr.n_legs} land</div><div><b>${fx(pr.fair, 2)}</b>fair combined odds</div>
       <div class="go"><b>${fx(pr.min_odds, 2)}+</b>worth placing at these combined odds or better</div>
       <div><b>${pr.lift >= 1 ? "+" : ""}${Math.round((pr.lift - 1) * 100)}%</b>correlation lift</div>
+      ${pr.games < pr.n_legs && Math.abs(pr.lift - 1) >= 0.03 ? `<p class="lift-note">${pr.lift > 1 ? "In the game simulations these legs land together more often than chance would say" : "In the game simulations these legs tend to pull against each other, so landing all of them is a little less likely than the single chances suggest"}.</p>` : ""}
       <div class="you" data-tv="${idx}">${ticketValue(pr.legs, pr.p)}</div></div></div>`;
 }
 
