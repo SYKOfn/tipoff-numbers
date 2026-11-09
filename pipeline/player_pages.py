@@ -67,6 +67,24 @@ def line(df):
     }
 
 
+def next_summary(nxt):
+    """Compact next-game view for the players list: projections, the likeliest overs, the spots."""
+    if not nxt or nxt.get("out") or not nxt.get("proj"):
+        return {}
+    pr = nxt["proj"]
+    best = []
+    for st, lst in (nxt.get("lines") or {}).items():
+        ok = [l for l in (lst or []) if (l.get("over") or 0) >= 0.6]
+        if ok:
+            top = max(ok, key=lambda l: l["line"])
+            best.append({"stat": st, "line": top["line"], "over": top["over"]})
+    order = {"pts": 0, "pra": 1, "reb": 2, "ast": 3, "tpm": 4}
+    best.sort(key=lambda b: order.get(b["stat"], 9))
+    return {"next_min": pr.get("min"), "next_reb": pr.get("reb"), "next_ast": pr.get("ast"), "next_tpm": pr.get("tpm"),
+            "next_tip": nxt.get("tip"), "next_opp": nxt.get("opp"), "next_home": nxt.get("home"), "next_best": best[:3],
+            "next_spots": [x.get("label") for x in (nxt.get("spots") or []) if x.get("label")][:2]}
+
+
 def build(players, games, cur, logs, next_proj, pt, notes, ctxs):
     """Returns (index list, {pid: page})."""
     ep = enrich(players, games)
@@ -146,6 +164,7 @@ def build(players, games, cur, logs, next_proj, pt, notes, ctxs):
                       "l5": next((s["ppg"] for s in splits if s["name"] == "Last 5"), None),
                       "next_pts": nxt["proj"]["pts"] if nxt and not nxt.get("out") else None,
                       "next_game": nxt["game"] if nxt else None, "status": nxt.get("status") if nxt else None,
-                      "out": bool(nxt and nxt.get("out")), "former": bool(former), "contract_year": page["contract_year"]})
+                      "out": bool(nxt and nxt.get("out")), "former": bool(former), "contract_year": page["contract_year"],
+                      **next_summary(nxt)})
     index.sort(key=lambda x: -(x["ppg"] or 0))
     return index, pages

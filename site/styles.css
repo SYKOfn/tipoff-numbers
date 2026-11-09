@@ -812,3 +812,66 @@ h3 { font-family: "Space Grotesk", Inter, sans-serif; letter-spacing: -.01em; }
 .hw-deep summary { padding: 20px 24px; cursor: pointer; font-weight: 600; color: var(--base); list-style: none; }
 .hw-deep summary::-webkit-details-marker { display: none; }
 .hw-deep .prose { padding: 0 24px 16px; color: #C9CCD6; line-height: 1.65; }
+
+/* ================================================================ bet slip */
+.addleg { flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50% !important; border: 1px solid #2A2D3A; background: #171A23; color: var(--ink);
+  font-size: 20px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: background .18s, border-color .18s, transform .12s; }
+.addleg:hover { border-color: var(--accent); color: var(--accent); }
+.addleg:active { transform: scale(.9); }
+.addleg .tick { display: none; }
+.addleg.on { background: var(--accent); border-color: var(--accent); color: #06261A; }
+.addleg.on .plus { display: none; } .addleg.on .tick { display: inline; font-size: 16px; }
+.tk-leg .addleg { align-self: center; }
+#slip { position: fixed; left: 16px; right: 16px; bottom: 18px; margin: 0 auto; max-width: 1100px; z-index: 40; animation: rise .35s cubic-bezier(.2,.7,.2,1) both; }
+#slip[hidden] { display: none; }
+.slip-in { border-radius: 22px; background: rgba(20,22,30,.985); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid #2A3A34;
+  box-shadow: 0 24px 80px rgba(0,0,0,.6), 0 0 0 1px rgba(61,240,165,.08); overflow: hidden; }
+.slip-bar { width: 100%; display: flex; align-items: center; gap: 22px; padding: 14px 20px; background: transparent; border: 0; color: var(--ink); font: inherit; cursor: pointer; text-align: left; flex-wrap: wrap; border-radius: 0 !important; }
+.slip-count { width: 34px; height: 34px; border-radius: 50%; background: var(--accent); color: #06261A; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; }
+.slip-title { font-family: "Space Grotesk", sans-serif; font-weight: 700; font-size: 18px; }
+.slip-stat { display: flex; flex-direction: column; line-height: 1.2; }
+.slip-stat span { font-size: 11px; color: #8B90A0; text-transform: uppercase; letter-spacing: .08em; }
+.slip-stat b { font-family: "Space Grotesk", sans-serif; font-size: 18px; }
+.slip-stat.go b { color: var(--accent); } .slip-stat.bad b { color: var(--neg); }
+.slip-chev { margin-left: auto; color: #8B90A0; font-size: 18px; }
+.slip-body { padding: 4px 20px 18px; border-top: 1px solid #23262F; max-height: 50vh; overflow: auto; }
+.slip-body ul { margin: 0; padding: 0; list-style: none; }
+.slip-body li { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-bottom: 1px solid #1C1F28; }
+.slip-body li .grow { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.slip-body li .grow b { font-weight: 600; }
+.slipodds { width: 120px; height: 40px; border-radius: 12px; border: 1px solid #2A2D3A; background: #0E1016; color: var(--ink); padding: 0 12px; font: inherit; text-align: right; }
+.slip-x { width: 36px; height: 36px; border-radius: 50% !important; border: 1px solid #2A2D3A; background: transparent; color: var(--muted); font-size: 18px; cursor: pointer; }
+.slip-x:hover { color: var(--neg); border-color: var(--neg); }
+.slip-acts { display: flex; gap: 10px; justify-content: flex-end; margin-top: 14px; flex-wrap: wrap; }
+body.has-slip { padding-bottom: 110px; }
+
+/* game page builder */
+.bb { margin-top: 16px; display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 10px; }
+.bb-leg { display: flex; align-items: center; gap: 14px; padding: 12px 14px 12px 18px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); }
+.bb-leg .grow { flex: 1 1 auto; min-width: 0; }
+.bb-leg .kind { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #8B90A0; }
+
+/* players: tonight */
+.pc-grid { margin-top: 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 16px; }
+.pc { position: relative; overflow: hidden; padding: 22px; border-radius: 22px; background: var(--card); border: 1px solid var(--line); transition: border-color .2s, transform .2s, box-shadow .2s; }
+.pc::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px; background: var(--c); opacity: .9; }
+.pc:hover { transform: translateY(-2px); border-color: #2C3040; box-shadow: 0 16px 44px rgba(0,0,0,.4); }
+.pc-top { display: flex; align-items: center; gap: 12px; }
+.pc-top .grow { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.pc-name { color: var(--ink); font-family: "Space Grotesk", sans-serif; font-weight: 700; font-size: 19px; }
+.pc-name:hover { color: var(--accent); }
+.pc-nums { margin-top: 18px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.pc-nums div { display: flex; flex-direction: column; }
+.pc-nums b { font-family: "Space Grotesk", sans-serif; font-size: 26px; font-weight: 600; line-height: 1.1; }
+.pc-nums div:first-child b { color: var(--accent); }
+.pc-nums span { font-size: 11.5px; color: #8B90A0; text-transform: uppercase; letter-spacing: .06em; margin-top: 2px; }
+.pc-legs { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
+.pc-leg { display: flex; align-items: center; gap: 12px; padding: 6px 6px 6px 14px; border-radius: 14px; background: #171A23; border: 1px solid #20232D; }
+.pc-leg span { flex: 1 1 auto; font-weight: 500; }
+.pc-leg b { color: var(--muted); font-weight: 600; }
+.pc-leg .addleg { width: 34px; height: 34px; font-size: 18px; }
+.pc-spots { margin: 14px 0 0; font-size: 13px; color: var(--mind); }
+.pc-more { margin-top: 16px; border: 1px solid var(--line); border-radius: 16px !important; background: var(--card); }
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px; }
+.toolbar input, .toolbar select { height: 42px; border-radius: 12px; border: 1px solid #23262F; background: #12141B; color: var(--ink); padding: 0 14px; font: inherit; }
+.toolbar input[type=search] { min-width: 260px; }

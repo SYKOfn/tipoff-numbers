@@ -72,6 +72,18 @@ jobs:
           git add data site/data model/tuned.json backtest/results.json 2>/dev/null || true
           git commit -q -m "Data update $(date -u +%Y-%m-%dT%H:%MZ)" || echo "no changes"
           git pull -q --rebase -X theirs origin main && git push -q
+      - name: Browser for the page tests
+        if: steps.gate.outputs.run == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-1
+      - name: Page tests (every page opened in a real browser; a broken page stops the publish and emails the owner)
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          pip install -q playwright
+          python -m playwright install chromium
+          python -m tools.smoke site
       - name: Stamp the page with this version (browsers and GitHub's cache fetch the new code at once)
         if: steps.gate.outputs.run == 'true'
         run: |

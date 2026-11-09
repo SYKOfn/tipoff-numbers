@@ -136,7 +136,7 @@ function tnLeg(l) {
   const badge = l.kind === "total" ? `<span class="mono" style="background:#2A2D3A">O/U</span>` : mono(l.team || teams[1]);
   return `<li class="tk-leg">${badge}<div class="body"><p class="meta">${h(KIND[l.kind] || l.kind)} · ${h(T(teams[0]).short)} at ${h(T(teams[1]).short)} · ${tipTime(l.tip)}</p>
     <p class="what">${h(legDesc(l))}</p>${l.story ? `<p class="why">${h(l.story)}</p>` : ""}${l.alert ? `<p class="alert">⚠ ${h(l.alert)}</p>` : ""}</div>
-    <div class="take"><p class="k">Take at</p><p class="v num">${fx(1.05 / p, 2)}+</p><p class="s num">${pct(p)} chance</p></div></li>`;
+    <div class="take"><p class="k">Take at</p><p class="v num">${fx(1.05 / p, 2)}+</p><p class="s num">${pct(p)} chance</p></div>${addBtn(l)}</li>`;
 }
 function gameCard(c) {
   const done = c.home_pts != null, ph = c.win_home, pa = 1 - ph;
@@ -468,7 +468,7 @@ async function game(id) {
     <div class="gh-win"><span class="num"><b>${pct(pa)}</b> ${h(T(A).short)}</span><div class="split"><span style="width:${pa * 100}%;background:${teamInk(A)}"></span><span style="width:${e.win_home * 100}%;background:${teamInk(H)}"></span></div><span class="num">${h(T(H).short)} <b>${pct(e.win_home)}</b></span></div>
     ${storyTxt ? `<p class="gh-story">${h(storyTxt.charAt(0).toUpperCase() + storyTxt.slice(1))}.</p>` : ""}
   </div></section>
-  <div class="wrap">${demoBanner()}${BANNER}${scored}
+  <div class="wrap">${demoBanner()}${BANNER}${scored}${gameBuilder(g)}
     <section class="grid">
       <div class="panel"><h3>Score estimate</h3><div class="teampts"><div>${disc(A, "sm")}<b>${fx(e.away_pts, 0)}</b></div><div>${disc(H, "sm")}<b>${fx(e.home_pts, 0)}</b></div></div>
         ${marginChart(e, H, A, am)}<p class="sub small">Likely margins (±${fx(e.sd_margin)} points is one standard deviation).</p>
@@ -777,6 +777,8 @@ async function route() {
   void app.offsetWidth;  // restart the entrance animation
   app.classList.add("entering");
   enhance(app);
+  syncAddButtons();
+  renderSlip();
   app.focus({ preventScroll: true });
 }
 
@@ -851,6 +853,12 @@ async function statusLine() {
     statusLine();
   } catch (e) { /* pages show their own error */ }
   setupSearch();
+  try { PAR = await get("parlay.json"); } catch (e) { PAR = null; }
+  renderSlip();
+  document.addEventListener("click", e => {
+    const add = e.target.closest("[data-add]");
+    if (add) { e.preventDefault(); e.stopPropagation(); toggleSlip(add.dataset.add, add.dataset.leg ? JSON.parse(add.dataset.leg) : null); }
+  }, true);
   document.addEventListener("click", async e => {
     const b = e.target.closest("[data-copy]");
     if (!b) return;
@@ -859,6 +867,77 @@ async function statusLine() {
   window.addEventListener("hashchange", route);
   route();
 })();
+
+/* ---------------------------------------------------------------- bet slip (follows you on every page) */
+const slipDay = () => (PAR && PAR.today && PAR.today.day) || "none";
+function slipPool() {
+  const t = PAR && PAR.today, m = new Map();
+  if (!t) return m;
+  [...(t.board || []), ...(t.singles || []), ...(t.parlays || []).flatMap(pr => pr.legs)].forEach(l => m.set(l.id, l));
+  return m;
+}
+function slipLegs() {
+  const pool = slipPool(), extra = LS.get("tipoff.slipx." + slipDay(), {});
+  return LS.get("tipoff.pick." + slipDay(), []).map(id => pool.get(id) || extra[id]).filter(Boolean);
+}
+function toggleSlip(id, leg) {
+  const k = "tipoff.pick." + slipDay();
+  let ids = LS.get(k, []);
+  if (ids.includes(id)) ids = ids.filter(x => x !== id);
+  else {
+    ids = [...ids, id];
+    if (leg && !slipPool().has(id)) { const x = LS.get("tipoff.slipx." + slipDay(), {}); x[id] = leg; LS.set("tipoff.slipx." + slipDay(), x); }
+  }
+  LS.set(k, ids);
+  SLIP_OPEN = SLIP_OPEN || ids.length === 1;
+  renderSlip();
+  syncAddButtons();
+  if (typeof refreshValues === "function" && document.getElementById("custom")) document.getElementById("custom").innerHTML = custom();
+  app.querySelectorAll(".pick[data-leg]").forEach(cb => { cb.checked = ids.includes(cb.dataset.leg); });
+}
+function syncAddButtons() {
+  const ids = new Set(LS.get("tipoff.pick." + slipDay(), []));
+  document.querySelectorAll("[data-add]").forEach(b => { const on = ids.has(b.dataset.add); b.setAttribute("aria-pressed", on ? "true" : "false"); b.classList.toggle("on", on); b.title = on ? "In your ticket (tap to remove)" : "Add to your ticket"; });
+}
+const addBtn = (l, label = "") => `<button type="button" class="addleg" data-add="${h(l.id)}"${l._synthetic ? ` data-leg="${h(JSON.stringify(l))}"` : ""} aria-pressed="false" aria-label="Add ${h(legDesc(l))} to your ticket"><span class="plus">+</span><span class="tick">✓</span>${label}</button>`;
+function propLeg(pid, name, team, game, tip, opp, home, stat, line, over) {
+  // a player over built from the projection, for players and lines not in tonight's curated list
+  return { id: `x${pid}_${stat}_${line}`, _synthetic: true, game, kind: "prop", player: pid, player_name: name, team, stat, line, side: "over", p: over,
+    fair: +(1 / over).toFixed(2), min_odds: +(1.05 / over).toFixed(2), tip, matchup: home ? `${opp} at ${team}` : `${team} at ${opp}` };
+}
+let SLIP_OPEN = false;
+function renderSlip() {
+  let el = document.getElementById("slip");
+  if (!el) { el = document.createElement("aside"); el.id = "slip"; el.setAttribute("aria-label", "Your ticket"); document.body.appendChild(el); }
+  const legs = slipLegs();
+  document.body.classList.toggle("has-slip", legs.length > 0);
+  if (!legs.length) { el.hidden = true; el.innerHTML = ""; return; }
+  el.hidden = false;
+  const p = jointOf(legs), odds = legs.map(l => oddsOf(l.id)), all = odds.every(Boolean), prod = all ? odds.reduce((a, b) => a * b, 1) : null;
+  const ev = prod ? p * prod - 1 : null;
+  el.className = SLIP_OPEN ? "open" : "";
+  el.innerHTML = `<div class="slip-in">
+    <button type="button" class="slip-bar" id="slipToggle" aria-expanded="${SLIP_OPEN}">
+      <span class="slip-count num">${legs.length}</span><span class="slip-title">My ticket</span>
+      <span class="slip-stat"><span>Chance</span><b class="num">${pct(p)}</b></span>
+      <span class="slip-stat"><span>Fair odds</span><b class="num">${fx(1 / p, 2)}</b></span>
+      <span class="slip-stat go"><span>Take at</span><b class="num">${fx(1.05 / p, 2)}+</b></span>
+      ${prod ? `<span class="slip-stat ${ev >= 0 ? "go" : "bad"}"><span>Your Winamax odds</span><b class="num">${fx(prod, 2)} · ${ev >= 0 ? "worth it" : "not worth it"}</b></span>` : ""}
+      <span class="slip-chev" aria-hidden="true">${SLIP_OPEN ? "▾" : "▴"}</span></button>
+    ${SLIP_OPEN ? `<div class="slip-body"><ul>${legs.map(l => `<li><div class="grow"><b>${h(legDesc(l))}</b><span class="sub small">${h(l.matchup || "")}${l.tip ? ` · ${tipTime(l.tip)}` : ""} · ${pct(effP(l))} · take at ${fx(1.05 / effP(l), 2)}+</span></div>
+        <label class="sr" for="so_${h(l.id)}">Winamax odds</label><input id="so_${h(l.id)}" class="slipodds" data-id="${h(l.id)}" type="number" inputmode="decimal" step="0.01" min="1.01" placeholder="Odds" value="${oddsOf(l.id) || ""}">
+        <button type="button" class="slip-x" data-add="${h(l.id)}" aria-label="Remove ${h(legDesc(l))}">×</button></li>`).join("")}</ul>
+      <div class="slip-acts"><button type="button" class="pill-btn" id="slipClear">Clear</button><button type="button" class="pill-btn" data-copy="${h(`My ticket — Tip-Off Numbers\n` + legs.map((l, i) => `${i + 1}. ${legDesc(l)} — ${pct(effP(l))}, take at ${fx(1.05 / effP(l), 2)}+`).join("\n") + `\nAll: ${pct(p)} · fair ${fx(1 / p, 2)} · worth placing at ${fx(1.05 / p, 2)}+`)}">Copy</button>
+        <button type="button" class="pill-btn primary" id="slipRecord">Record as my bet</button></div>
+      <p class="sub small" style="margin:10px 0 0">Same-game legs from tonight's checked list are priced together; other player lines added from the Players page count as independent, so two lines on the same player are a bit more likely together than shown. A leg whose player doesn't play is voided on Winamax.</p></div>` : ""}
+  </div>`;
+  document.getElementById("slipToggle").onclick = () => { SLIP_OPEN = !SLIP_OPEN; renderSlip(); };
+  const clr = document.getElementById("slipClear");
+  if (clr) clr.onclick = () => { LS.set("tipoff.pick." + slipDay(), []); renderSlip(); syncAddButtons(); app.querySelectorAll(".pick[data-leg]").forEach(cb => { cb.checked = false; }); };
+  const rec = document.getElementById("slipRecord");
+  if (rec) rec.onclick = () => { recordBet("My ticket", legs, p); rec.textContent = "Recorded"; };
+  el.querySelectorAll(".slipodds").forEach(inp => inp.onchange = () => { const v = parseFloat(inp.value); LS.set(`tipoff.odds.${inp.dataset.id}`, v > 1 ? v : null); renderSlip(); });
+}
 
 /* ---------------------------------------------------------------- players */
 const PCOLS = [["gp", "GP", 0], ["mpg", "MIN", 1], ["ppg", "PTS", 1], ["rpg", "REB", 1], ["apg", "AST", 1], ["tpm", "3PM", 1], ["spg", "STL", 1], ["bpg", "BLK", 1], ["ts", "TS%", 3], ["usg", "USG%", 1], ["pm", "+/-", 1], ["l5", "Last 5", 1], ["next_pts", "Next game", 1]];
@@ -869,9 +948,7 @@ function ptags(p) {
     + (p.contract_year ? `<span class="ptag" title="Final year of his contract">contract yr</span>` : "")
     + (p.former ? `<span class="ptag" title="Has played for another team in the stored seasons">ex-team</span>` : "");
 }
-async function playersPage() {
-  const list = await get("players.json");
-  setTitle("Players");
+function allPlayersTable(list) {
   const render = () => {
     const q = PSTATE.q.toLowerCase();
     let rows = list.filter(p => (p.gp || 0) >= PSTATE.min && (!PSTATE.team || p.team === PSTATE.team) && (!PSTATE.pos || (p.pos || "").includes(PSTATE.pos)) && (!q || p.name.toLowerCase().includes(q)));
@@ -883,11 +960,10 @@ async function playersPage() {
     document.querySelectorAll("#ptab th.sortable").forEach(th => th.onclick = () => { const k = th.dataset.k; PSTATE.dir = PSTATE.sort === k ? -PSTATE.dir : -1; PSTATE.sort = k; render(); });
   };
   const teams = Object.values(TEAMS).sort((a, b) => a.name.localeCompare(b.name));
-  app.innerHTML = `<section class="hero court"><div class="wrap"><h1>Players</h1><p class="sub" style="margin-top:8px">Every player this season: per-game numbers, shooting efficiency (TS%), share of team plays used while on the floor (USG%), and the projection for his next game.</p></div></section>
-  <div class="wrap">${demoBanner()}<div class="toolbar"><input id="pq" type="search" placeholder="Filter by name" value="${h(PSTATE.q)}">
+  document.getElementById("pview").innerHTML = `<div class="toolbar"><input id="pq" type="search" placeholder="Filter by name" value="${h(PSTATE.q)}">
     <select id="pt"><option value="">All teams</option>${teams.map(t => `<option value="${t.abbr}" ${PSTATE.team === t.abbr ? "selected" : ""}>${h(t.name)}</option>`).join("")}</select>
     <select id="pp"><option value="">All positions</option>${["G", "F", "C"].map(x => `<option ${PSTATE.pos === x ? "selected" : ""}>${x}</option>`).join("")}</select>
-    <select id="pm"><option value="1">1+ games</option><option value="3" selected>3+ games</option><option value="10">10+ games</option></select></div><div id="ptab"></div></div>`;
+    <select id="pm"><option value="1">1+ games</option><option value="3" selected>3+ games</option><option value="10">10+ games</option></select></div><div id="ptab"></div>`;
   document.getElementById("pm").value = String(PSTATE.min);
   document.getElementById("pq").oninput = e => { PSTATE.q = e.target.value; render(); };
   document.getElementById("pt").onchange = e => { PSTATE.team = e.target.value; render(); };
@@ -896,6 +972,66 @@ async function playersPage() {
   render();
 }
 
+const STATW = { pts: "pts", reb: "reb", ast: "ast", tpm: "3s", pra: "pra" };
+function legFor(p, b) {
+  // the curated leg for this player and line if tonight's list has it, else one built from his projection
+  const hit = [...slipPool().values()].find(l => l.kind === "prop" && String(l.player) === String(p.id) && l.stat === b.stat && Math.abs(l.line - b.line) < 0.01 && l.side === "over");
+  return hit || propLeg(p.id, p.name, p.team, p.next_game, p.next_tip, p.next_opp, p.next_home, b.stat, b.line, b.over);
+}
+function gameBuilder(g) {
+  const gid = String(g.id || g.game_id || location.hash.split("/")[2]);
+  const legs = [...slipPool().values()].filter(l => String(l.game) === gid).sort((a, b) => b.p - a.p).slice(0, 12);
+  if (!legs.length || g.kind !== "estimate") return "";
+  return `<section class="section"><h2>Build a ticket from this game <span class="sub">tonight's checked legs; tap + to add</span></h2>
+    <div class="bb">${legs.map(l => `<div class="bb-leg"><span class="kind ${l.kind}">${KIND[l.kind] || l.kind}</span><span class="grow">${h(legDesc(l))}</span><span class="num sub">${pct(effP(l))}</span><b class="num">${fx(1.05 / effP(l), 2)}+</b>${addBtn(l)}</div>`).join("")}</div></section>`;
+}
+function playerCard(p) {
+  const ink = teamInk(p.team);
+  return `<article class="pc" style="--c:${ink}">
+    <div class="pc-top">${mono(p.team, "sm")}<div class="grow"><a class="pc-name" href="#/player/${h(p.id)}">${h(p.name)}</a>
+      <span class="sub small">${p.next_home ? "vs" : "at"} ${h(T(p.next_opp).short)} · ${tipTime(p.next_tip)}${p.pos ? ` · ${h(p.pos)}` : ""}</span></div>
+      ${p.status ? `<span class="ptag q">${h(p.status)}</span>` : ""}</div>
+    <div class="pc-nums">${[["Points", p.next_pts], ["Rebounds", p.next_reb], ["Assists", p.next_ast], ["Threes", p.next_tpm]].map(([k, v]) => `<div><b class="num">${v == null ? "–" : fx(v, 1)}</b><span>${k}</span></div>`).join("")}</div>
+    ${(p.next_best || []).length ? `<div class="pc-legs">${p.next_best.map(b => { const l = legFor(p, b); return `<div class="pc-leg"><span>Over ${fx(b.line)} ${STATW[b.stat] || b.stat}</span><b class="num">${pct(b.over)}</b>${addBtn(l)}</div>`; }).join("")}</div>` : ""}
+    ${(p.next_spots || []).length ? `<p class="pc-spots">${p.next_spots.map(h).join(" · ")}</p>` : ""}
+  </article>`;
+}
+const TSTATE = { q: "", team: "", sort: "next_pts", n: 48 };
+async function playersPage() {
+  const list = await get("players.json");
+  setTitle("Players");
+  const now = Date.now();
+  const tips = list.filter(p => p.next_tip && !p.out).map(p => p.next_tip).sort();
+  const firstDay = tips.length ? new Date(tips[0]).getTime() : null;
+  const tonight = firstDay ? list.filter(p => p.next_tip && !p.out && p.next_pts != null && new Date(p.next_tip).getTime() - firstDay < 20 * 3600e3) : [];
+  const mode = location.hash.includes("/all") || !tonight.length ? "all" : "tonight";
+  const teamsTonight = [...new Set(tonight.map(p => p.team))].sort((a, b) => T(a).short.localeCompare(T(b).short));
+  app.innerHTML = `<div class="wrap tn">${demoBanner()}<section class="tn-hero" style="padding-bottom:28px"><div class="lead"><p class="eyebrow">${mode === "tonight" ? `${tonight.length} players in tonight's games` : "Every player this season"}</p><h1>Players</h1>
+    <p class="sublede">${mode === "tonight" ? "Tonight's projections and each player's likeliest overs. Tap + to add a line to your ticket." : "Per-game numbers, shooting efficiency, usage and the projection for each player's next game."}</p></div></section>
+    <nav class="daytabs" aria-label="View"><a href="#/players" aria-current="${mode === "tonight" ? "page" : "false"}">Tonight</a><a href="#/players/all" aria-current="${mode === "all" ? "page" : "false"}">All players</a></nav>
+    <div id="pview" style="margin-top:24px"></div></div>`;
+  if (mode === "all") { allPlayersTable(list); return; }
+  const render = () => {
+    const q = TSTATE.q.toLowerCase();
+    let rows = tonight.filter(p => (!TSTATE.team || p.team === TSTATE.team) && (!q || p.name.toLowerCase().includes(q)));
+    rows.sort((a, b) => (b[TSTATE.sort] ?? -1) - (a[TSTATE.sort] ?? -1));
+    document.getElementById("pcards").innerHTML = rows.slice(0, TSTATE.n).map(playerCard).join("") || `<p class="empty">No player matches.</p>`;
+    const more = document.getElementById("pmore");
+    more.hidden = rows.length <= TSTATE.n;
+    more.textContent = `Show more (${rows.length - TSTATE.n} more)`;
+    syncAddButtons();
+    enhance(document.getElementById("pcards"));
+  };
+  document.getElementById("pview").innerHTML = `<div class="toolbar"><label class="sr" for="tq">Search tonight's players</label><input id="tq" type="search" placeholder="Search tonight's players" value="${h(TSTATE.q)}">
+    <label class="sr" for="tt">Team</label><select id="tt"><option value="">All teams tonight</option>${teamsTonight.map(a => `<option value="${a}" ${TSTATE.team === a ? "selected" : ""}>${h(T(a).name)}</option>`).join("")}</select>
+    <label class="sr" for="ts">Sort by</label><select id="ts">${[["next_pts", "Most points"], ["next_reb", "Most rebounds"], ["next_ast", "Most assists"], ["next_tpm", "Most threes"]].map(([k, l]) => `<option value="${k}" ${TSTATE.sort === k ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+    <div class="pc-grid" id="pcards"></div><button type="button" class="vb-more pc-more" id="pmore" hidden></button>`;
+  document.getElementById("tq").oninput = e => { TSTATE.q = e.target.value; render(); };
+  document.getElementById("tt").onchange = e => { TSTATE.team = e.target.value; render(); };
+  document.getElementById("ts").onchange = e => { TSTATE.sort = e.target.value; render(); };
+  document.getElementById("pmore").onclick = () => { TSTATE.n += 48; render(); };
+  render();
+}
 function linesBlock(lines, which) {
   const keys = which || Object.keys(lines || {});
   return `<div class="plines">${keys.filter(k => lines[k]).map(k => `<div><h4>${h({ pts: "Points", reb: "Rebounds", ast: "Assists", tpm: "Threes", pra: "Pts+Reb+Ast" }[k] || k)}</h4>${linesList(lines[k], null, "Over")}</div>`).join("")}</div>`;
@@ -925,6 +1061,11 @@ async function player(id) {
       ${n.status ? `<p class="call"><b>${h(n.status)}</b>${n.detail ? ` — ${h(n.detail)}` : ""}. ${n.play != null && n.play < 1 ? `Chance he plays: <b>${pct(n.play)}</b>. ` : ""}Projection assumes he plays.</p>` : ""}
       <div class="projgrid">${[["min", "Minutes"], ["pts", "Points"], ["reb", "Rebounds"], ["ast", "Assists"], ["tpm", "Threes"], ["pra", "Pts+Reb+Ast"], ["stl", "Steals"], ["blk", "Blocks"], ["tov", "Turnovers"]].map(([k, l]) => `<div><b>${fx(n.proj[k])}</b>${l}</div>`).join("")}</div>
       ${n.spots && n.spots.length ? `<ul class="spots">${n.spots.map(s => `<li><div class="sh"><b>${h(s.label)}</b><span class="eff ${effCls(s.pct)}">${sgn(s.pct)}% pts</span></div><p>${h(s.text)}</p><div class="hist">${ev(s.evidence)}</div></li>`).join("")}</ul>` : `<p class="none-note">No special spot for him in this game.</p>`}
+      ${(() => {
+        const pp = { id: p.id, name: p.name, team: p.team, next_game: n.game, next_tip: n.tip, next_opp: n.opp, next_home: n.home };
+        const best = Object.entries(n.lines || {}).map(([st, lst]) => { const ok = (lst || []).filter(l => l.over >= 0.6); return ok.length ? { stat: st, ...ok.reduce((a, b) => (b.line > a.line ? b : a)) } : null; }).filter(Boolean);
+        return best.length ? `<h4 style="margin:16px 0 8px">Likeliest overs</h4><div class="pc-legs">${best.map(b => `<div class="pc-leg"><span>Over ${fx(b.line)} ${STATW[b.stat] || b.stat}</span><b class="num">${pct(b.over)}</b>${addBtn(legFor(pp, b))}</div>`).join("")}</div>` : "";
+      })()}
       <div class="ltabs" id="ltabs">${ltabs.map((k, i) => `<button data-k="${k}" aria-pressed="${i === 0}">${{ pts: "Points", reb: "Rebounds", ast: "Assists", tpm: "Threes", pra: "PRA" }[k]}</button>`).join("")}</div><div id="lbox">${n.lines ? linesList(n.lines.pts, null, "Over") : ""}</div>`}</div>`
     : `<div class="panel"><h3>Next game</h3><p class="sub">Not in a projected rotation for the next two weeks (injury, or too few recent minutes).</p></div>`;
   const seasonRows = p.seasons.map(s => `<tr><td>${s.season - 1}-${String(s.season).slice(2)}</td><td>${tlink(s.team)}</td><td class="n">${s.gp}</td><td class="n">${fx(s.mpg)}</td><td class="n">${fx(s.ppg)}</td><td class="n">${fx(s.rpg)}</td><td class="n">${fx(s.apg)}</td><td class="n">${fx(s.tpm)}</td><td class="n">${fx(s.spg)}</td><td class="n">${fx(s.bpg)}</td><td class="n">${s.fg == null ? "–" : (s.fg * 100).toFixed(1)}</td><td class="n">${s.tp == null ? "–" : (s.tp * 100).toFixed(1)}</td><td class="n">${s.ft == null ? "–" : (s.ft * 100).toFixed(1)}</td><td class="n">${s.ts == null ? "–" : (s.ts * 100).toFixed(1)}</td><td class="n">${fx(s.usg)}</td><td class="n">${fx(s.p36)}</td><td class="n">${sgn(s.pm)}</td></tr>`).join("");
@@ -1109,9 +1250,8 @@ function myBets() {
 function custom() {
   const t = PAR && PAR.today;
   if (!t) return "";
-  const picked = LS.get("tipoff.pick." + t.day, []);
-  const legs = (t.board || []).filter(l => picked.includes(l.id));
-  if (!legs.length) return `<p class="sub">Tick legs in the table below to build your own ticket; same-game correlation is taken into account.</p>`;
+  const legs = slipLegs();
+  if (!legs.length) return `<p class="sub">Tick legs in the table below, or tap + on any leg anywhere on the site, to build your own ticket; same-game correlation is taken into account.</p>`;
   const p = jointOf(legs);
   return `<ul class="legs">${legs.map(legRow).join("")}</ul><div class="ticket-foot"><div><b>${pct(p)}</b>chance all ${legs.length} land</div><div><b>${fx(1 / p, 2)}</b>fair combined odds</div><div class="go"><b>${fx(1.05 / p, 2)}+</b>worth placing at</div><div class="you" data-tv="custom">${ticketValue(legs, p)}</div><div><button class="copybtn" data-record="custom">Record as my bet</button></div></div>`;
 }
@@ -1219,6 +1359,8 @@ async function parlayPage() {
       p = cb.checked ? [...new Set([...p, cb.dataset.leg])] : p.filter(x => x !== cb.dataset.leg);
       LS.set(k, p);
       document.getElementById("custom").innerHTML = custom();
+      renderSlip();
+      syncAddButtons();
     }
     if (e.target.id === "imp" && e.target.files[0]) {
       e.target.files[0].text().then(txt => { try { const inc = JSON.parse(txt); const cur = LS.get(BETS_KEY, []); const seen = new Set(cur.map(b => b.at)); LS.set(BETS_KEY, cur.concat(inc.filter(b => !seen.has(b.at)))); document.getElementById("mybets").innerHTML = myBets(); } catch (err) { /* bad file */ } });
@@ -1228,7 +1370,7 @@ async function parlayPage() {
     const r = e.target.closest("[data-record]");
     if (r && t) {
       const k = r.dataset.record;
-      if (k === "custom") { const picked = LS.get("tipoff.pick." + t.day, []); const legs = (t.board || []).filter(l => picked.includes(l.id)); if (legs.length) recordBet("My ticket", legs, jointOf(legs)); }
+      if (k === "custom") { const legs = slipLegs(); if (legs.length) recordBet("My ticket", legs, jointOf(legs)); }
       else { const pr = t.parlays[+k]; recordBet(pr.name, pr.legs, pr.p * pr.legs.reduce((a, l) => a * effP(l) / l.p, 1)); }
       document.getElementById("mybets").innerHTML = myBets();
       r.textContent = "Recorded";
