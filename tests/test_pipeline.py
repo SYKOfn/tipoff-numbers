@@ -389,3 +389,23 @@ def test_game_simulation():
     assert np.corrcoef(ra, rb)[0, 1] < 0                                 # teammates share the team's points
     summ = sim.summary(s, None, {"0": {"pts": 23.5}})
     assert 0.3 < summ["players"]["0"]["lines"]["pts"]["over"] < 0.7 and abs(sum(summ["margin_hist"]["p"]) - 1) < 1e-6
+
+
+def test_player_legs_use_winamax_lines():
+    from model import parlay
+    from model.players import WINAMAX_LADDER, lines_for
+    game = {"id": "9", "home": "BOS", "away": "NYK", "tip": "2026-11-10T00:00Z"}
+    pl = {"id": "1", "name": "Test Player", "min": 34.0, "pts": 22.3, "reb": 7.8, "ast": 5.1, "tpm": 2.6, "pra": 35.2, "p_play": 1.0}
+    players = {"home": [pl], "away": []}
+    avg = {"1": {"gp": 10, "pts": 20.1, "reb": 7.0, "ast": 4.6, "tpm": 2.2, "pra": 31.7}}
+    disp = {"pts": 1.9, "reb": 1.4, "ast": 1.5, "tpm": 1.2, "pra": 1.7}
+    real = {("9", "test player", "pts"): {"line": 21.5, "over": 1.87, "under": 1.93, "book": "pinnacle"},
+            ("9", "test player", "ast"): {"line": 4.5, "over": 1.80, "under": 2.0, "book": "pinnacle"}}
+    legs = parlay.prop_legs(game, players, {}, avg, disp, real) + parlay.prop_legs(game, players, {}, avg, disp, None)
+    assert legs
+    for l in legs:
+        assert l["line"] in WINAMAX_LADDER[l["stat"]], (l["stat"], l["line"])
+        assert l["side"] == "over"
+    ast = [l for l in legs if l["stat"] == "ast" and l.get("book") == "pinnacle"]
+    assert all(not l["price_est"] for l in ast if l["line"] == 4.5)       # posted line on the ladder keeps its price
+    assert all(x["line"] in WINAMAX_LADDER["reb"] for x in lines_for("reb", 7.8, disp))

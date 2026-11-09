@@ -409,17 +409,46 @@ def over_prob(stat, line, mu, disp):
     return max(0.0, min(1.0, 1.0 - cdf))
 
 
+# The lines Winamax lists for NBA player markets ("X+" = over X - 0.5). Every player line on the site and in the
+# tickets is one of these, so every leg can be placed as shown.
+WINAMAX_LADDER = {
+    "pts": [4.5 + 5 * k for k in range(12)],            # 4.5, 9.5, 14.5 ... 59.5
+    "reb": [2.5, 4.5, 6.5, 9.5, 12.5, 14.5],
+    "ast": [2.5, 4.5, 6.5, 9.5, 12.5, 14.5],
+    "pra": [9.5 + 5 * k for k in range(12)],            # 9.5, 14.5, 19.5 ... 64.5
+    "tpm": [0.5 + k for k in range(9)],                 # 0.5, 1.5 ... 8.5
+}
+
+
+def ladder(stat):
+    return WINAMAX_LADDER.get(stat, [])
+
+
+def near_lines(stat, center, below=2, above=2):
+    """The Winamax lines around a projection: up to `below` under it and `above` over it."""
+    lad = ladder(stat)
+    lo = [L for L in lad if L < center][-below:] if below else []
+    hi = [L for L in lad if L >= center][:above] if above else []
+    return lo + hi
+
+
 def lines_for(stat, proj, disp):
-    sd = sd_for(stat, proj, disp)
-    base = math.floor(proj) + 0.5
-    step = 1.0 if proj < 8 else 2.0 if proj < 20 else 3.0
     out = []
-    for k in (-2, -1, 0, 1, 2):
-        L = base + k * step
-        if L <= 0:
-            continue
+    for L in near_lines(stat, proj, 2, 2):
         out.append({"line": L, "over": round(over_prob(stat, L, proj, disp), 3)})
     return out
+
+
+def mu_for_over(stat, line, p_over, disp, lo=0.05, hi=120.0):
+    """The mean at which P(count > line) equals p_over (to carry a book's chance at its own line to another line)."""
+    p_over = min(max(p_over, 0.01), 0.99)
+    for _ in range(50):
+        mid = (lo + hi) / 2
+        if over_prob(stat, line, mid, disp) < p_over:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2
 
 
 def estimate_effects(rows, lam=300.0):

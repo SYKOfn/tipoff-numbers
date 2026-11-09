@@ -425,8 +425,6 @@ def main(demo=False, now=None, collect_data=True):
 
     cards_up, cards_res = [], []
     from model import sim as SIM
-    from pipeline.oddsapi import latest_props, norm_name
-    real_lines = latest_props()
     sim_lines = {}  # player -> his simulated chances to clear tonight's bookmaker lines (players page)
     sim_rng = np.random.default_rng(11)
     for gid, (g, payload, state) in upcoming_payloads.items():
@@ -437,13 +435,15 @@ def main(demo=False, now=None, collect_data=True):
             tip_ = datetime.fromisoformat(str(payload.get("tip")).replace("Z", "+00:00"))
             pls = payload.get("players") or {}
             if state == "pre" and timedelta(0) <= tip_ - now <= timedelta(hours=36) and (pls.get("home") and pls.get("away")):
-                lines = {}
+                lines = {}  # the Winamax line just under each projection (the natural "X+" bet)
                 for side_ in ("home", "away"):
                     for x in pls[side_]:
+                        if x.get("out") or (x.get("min") or 0) < 15:
+                            continue
                         for st in ("pts", "reb", "ast", "pra"):
-                            rl = real_lines.get((str(gid), norm_name(x.get("name") or ""), st))
-                            if rl:
-                                lines.setdefault(x["id"], {})[st] = float(rl["line"])
+                            nl = PM.near_lines(st, float(x.get(st) or 0.0), 1, 0)
+                            if nl:
+                                lines.setdefault(x["id"], {})[st] = nl[0]
                 e_ = dict(payload["est"])
                 if e_.get("win_home") is not None and 0.01 < e_["win_home"] < 0.99:  # same win chance as the headline (market blend)
                     from statistics import NormalDist

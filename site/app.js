@@ -532,7 +532,7 @@ function simSection(g) {
       <div class="sim-hist">${bars}</div>
       <p class="sub small">Final margins across the runs (left: ${h(T(A).short)} win, right: ${h(T(H).short)} win).</p>
       <div class="sim-players">${tbl("away", A)}${tbl("home", H)}</div>
-      <p class="sub small">Bold: the typical run; after it, the middle 80% of runs. Minutes move with blowouts, overtime and night-to-night swings; teammates share the team's points. "Clears the line": share of runs above the bookmaker's main line, counting only runs where he plays (Winamax voids the leg if he does not).</p>
+      <p class="sub small">Bold: the typical run; after it, the middle 80% of runs. Minutes move with blowouts, overtime and night-to-night swings; teammates share the team's points. "Clears the line": share of runs above the Winamax line just under his projection (Winamax lists fixed lines: points 5+, 10+, 15+…; rebounds and assists 3+, 5+, 7+, 10+, 13+, 15+; pts+reb+ast 10+, 15+, 20+…; threes 1+, 2+, 3+…), counting only runs where he plays (Winamax voids the leg if he does not).</p>
     </div></section>`;
 }
 
@@ -1035,8 +1035,8 @@ function playerCard(p) {
       <span class="sub small">${p.next_home ? "vs" : "at"} ${h(T(p.next_opp).short)} · ${tipTime(p.next_tip)}${p.pos ? ` · ${h(p.pos)}` : ""}</span></div>
       ${p.status ? `<span class="ptag q">${h(p.status)}</span>` : ""}</div>
     <div class="pc-nums">${[["Points", p.next_pts], ["Rebounds", p.next_reb], ["Assists", p.next_ast], ["Threes", p.next_tpm]].map(([k, v]) => `<div><b class="num">${v == null ? "–" : fx(v, 1)}</b><span>${k}</span></div>`).join("")}</div>
-    ${(p.next_best || []).length ? `<div class="pc-legs">${p.next_best.map(b => { const l = legFor(p, b); return `<div class="pc-leg"><span>Over ${fx(b.line)} ${STATW[b.stat] || b.stat}</span><b class="num">${pct(b.over)}</b>${addBtn(l)}</div>`; }).join("")}</div>` : ""}
-    ${p.sim_lines ? `<p class="pc-sim">In ${Number(p.sim_lines.n).toLocaleString("en-GB")} simulations: ${Object.entries(p.sim_lines).filter(([k]) => k !== "n").slice(0, 2).map(([st, v]) => `over ${v.line} ${STATW[st] || st} in <b>${Math.round(v.over * p.sim_lines.n).toLocaleString("en-GB")}</b>`).join(" · ")}</p>` : ""}
+    ${(p.next_best || []).length ? `<div class="pc-legs">${p.next_best.map(b => { const l = legFor(p, b); return `<div class="pc-leg"><span>${Math.ceil(b.line)}+ ${STATW[b.stat] || b.stat}</span><b class="num">${pct(b.over)}</b>${addBtn(l)}</div>`; }).join("")}</div>` : ""}
+    ${p.sim_lines ? `<p class="pc-sim">In ${Number(p.sim_lines.n).toLocaleString("en-GB")} simulations: ${Object.entries(p.sim_lines).filter(([k]) => k !== "n").slice(0, 2).map(([st, v]) => `${Math.ceil(v.line)}+ ${STATW[st] || st} in <b>${Math.round(v.over * p.sim_lines.n).toLocaleString("en-GB")}</b>`).join(" · ")}</p>` : ""}
     ${(p.next_spots || []).length ? `<p class="pc-spots">${p.next_spots.map(h).join(" · ")}</p>` : ""}
   </article>`;
 }
@@ -1108,7 +1108,7 @@ async function player(id) {
       ${(() => {
         const pp = { id: p.id, name: p.name, team: p.team, next_game: n.game, next_tip: n.tip, next_opp: n.opp, next_home: n.home };
         const best = Object.entries(n.lines || {}).map(([st, lst]) => { const ok = (lst || []).filter(l => l.over >= 0.6); return ok.length ? { stat: st, ...ok.reduce((a, b) => (b.line > a.line ? b : a)) } : null; }).filter(Boolean);
-        return best.length ? `<h4 style="margin:16px 0 8px">Likeliest overs</h4><div class="pc-legs">${best.map(b => `<div class="pc-leg"><span>Over ${fx(b.line)} ${STATW[b.stat] || b.stat}</span><b class="num">${pct(b.over)}</b>${addBtn(legFor(pp, b))}</div>`).join("")}</div>` : "";
+        return best.length ? `<h4 style="margin:16px 0 8px">Likeliest overs</h4><div class="pc-legs">${best.map(b => `<div class="pc-leg"><span>${Math.ceil(b.line)}+ ${STATW[b.stat] || b.stat}</span><b class="num">${pct(b.over)}</b>${addBtn(legFor(pp, b))}</div>`).join("")}</div>` : "";
       })()}
       <div class="ltabs" id="ltabs">${ltabs.map((k, i) => `<button data-k="${k}" aria-pressed="${i === 0}">${{ pts: "Points", reb: "Rebounds", ast: "Assists", tpm: "Threes", pra: "PRA" }[k]}</button>`).join("")}</div><div id="lbox">${n.lines ? linesList(n.lines.pts, null, "Over") : ""}</div>`}</div>`
     : `<div class="panel"><h3>Next game</h3><p class="sub">Not in a projected rotation for the next two weeks (injury, or too few recent minutes).</p></div>`;
@@ -1189,7 +1189,7 @@ function effP(l) {
 const STATN = { pts: "points", reb: "rebounds", ast: "assists", tpm: "threes", pra: "pts+reb+ast" };
 function legDesc(l) {
   const L = lineOf(l);
-  if (l.kind === "prop") return `${l.player_name} ${l.side} ${fx(L)} ${STATN[l.stat] || l.stat}`;
+  if (l.kind === "prop") return l.side === "over" && Number.isFinite(+L) ? `${l.player_name} ${Math.ceil(+L)}+ ${STATN[l.stat] || l.stat} (over ${fx(L)})` : `${l.player_name} ${l.side} ${fx(L)} ${STATN[l.stat] || l.stat}`;
   if (l.kind === "total") return `${l.side === "over" ? "Over" : "Under"} ${fx(L)} points`;
   if (l.kind === "spread") return `${T(l.team).short} ${L > 0 ? "+" : ""}${fx(L)} handicap`;
   if (l.kind === "ml") return `${T(l.team).short} to win`;

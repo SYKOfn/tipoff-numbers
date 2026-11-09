@@ -26,6 +26,7 @@ PROP_SIDES = ("over",)   # Winamax lists player markets as "over" only (X+ point
 EDGE_W = 3.0             # how much a measured price edge is worth against chance when ranking tickets
 EST_EDGE_W, EST_EDGE_CAP = 1.0, 0.12   # edges against an estimated line count less, and are capped
 SAFETY = 1.05            # ask 5% more than fair odds before calling a leg worth taking
+WINAMAX_PROP_MARGIN = 1.07  # assumed margin on Winamax's one-sided player prices when only another book's line is known
 BETA = {"pts": 1.0, "pra": 0.85, "ast": 0.6, "reb": 0.3, "tpm": 0.8}
 STAT_NAME = {"pts": "points", "reb": "rebounds", "ast": "assists", "tpm": "threes", "pra": "pts+reb+ast"}
 STD_PRICE = 1.91         # a standard -110 line, for spreads and totals without a price
@@ -162,7 +163,7 @@ def prop_legs(game, players, calib, avg, disp, real=None):
     """Player props at the line a bookmaker would most likely post: books anchor main lines on the player's
     season average, so that line is estimated as his average rounded to .5. A leg is a candidate when the
     projection (matchup, minutes, teammates out, psychology) disagrees with that line."""
-    from .players import LABEL, sd_for, over_prob
+    from .players import LABEL, sd_for, over_prob, ladder, near_lines, mu_for_over
     legs = []
     for side in ("home", "away"):
         team = game[side]
@@ -178,52 +179,52 @@ def prop_legs(game, players, calib, avg, disp, real=None):
             for st in ("pts", "reb", "ast", "tpm", "pra"):
                 proj, av = pl.get(st), a.get(st)
                 rl = (real or {}).get((game["id"], norm_name(pl["name"]), st))
-                if rl:  # a real posted line: test the projection against it and its no-margin price
-                    L = float(rl["line"])
-                    sd = sd_for(st, proj, disp)
-                    po = over_prob(st, L, proj, disp)
+                if rl:  # a real posted line: carried to Winamax's own lines around it (the only ones that can be bet)
+                    L0 = float(rl["line"])
                     t = (calib.get(st) or {}).get("t", 0.75)
-                    pm_over = novig(rl["over"], rl["under"])
-                    for sd_, pm, price, mk in (("over", po, float(rl["over"]), pm_over), ("under", 1 - po, float(rl["under"]), 1 - pm_over)):
-                        if sd_ not in PROP_SIDES:
+                    pm_over0 = novig(rl["over"], rl["under"])
+                    mu_mkt = mu_for_over(st, L0, pm_over0, disp)  # the book's view, as a mean
+                    on_ladder = L0 in ladder(st)
+                    for L in ([L0] if on_ladder else near_lines(st, L0, 1, 1)):
+                        sd = sd_for(st, proj, disp)
+                        po = over_prob(st, L, proj, disp)
+                        mk = pm_over0 if L == L0 else over_prob(st, L, mu_mkt, disp)
+                        pc = sigmoid(MARKET_W["w"] * t * logit(po) + (1 - MARKET_W["w"]) * logit(mk))
+                        if not (0.5 <= pc <= PROP_MAX):
                             continue
-                        pc = sigmoid(MARKET_W["w"] * t * logit(pm) + (1 - MARKET_W["w"]) * logit(mk))
-                        if 0.5 <= pc <= PROP_MAX:
-                            legs.append(_leg(game, "prop", f"{pl['name']} {sd_} {L:.1f} {STAT_NAME[st]}", pm, pc, price,
-                                             team=team, player=pl["id"], player_name=pl["name"], stat=st, line=L, side=sd_,
-                                             proj=proj, avg=None if av is None or av != av else round(av, 1), price_est=False,
-                                             book=rl["book"], market=round(mk, 3),
-                                             dist={"mu": round(proj, 2), "sd": round(sd, 2), "d": round(disp.get(st, 1.5), 3), "alone": t, "model": t},
-                                             note=f"projection {proj:.1f}; real {rl['book']} line, blended {round(MARKET_W['w'] * 100)}/{round(100 - MARKET_W['w'] * 100)} with its no-margin price"
-                                                  + (" (weight measured on settled lines)" if MARKET_W.get("measured") else ""),
-                                             mind=mind if sd_ == "over" else -mind, spots=[x["label"] for x in spots],
-                                             sim=("prop", side, pl["id"], st, sd_, L)))
+                        exact = L == L0
+                        price = float(rl["over"]) if exact else round(1 / (min(mk, 0.97) * WINAMAX_PROP_MARGIN), 2)
+                        legs.append(_leg(game, "prop", f"{pl['name']} over {L:.1f} {STAT_NAME[st]}", po, pc, price,
+                                         team=team, player=pl["id"], player_name=pl["name"], stat=st, line=L, side="over",
+                                         proj=proj, avg=None if av is None or av != av else round(av, 1), price_est=not exact,
+                                         book=rl["book"], market=round(mk, 3),
+                                         dist={"mu": round(proj, 2), "sd": round(sd, 2), "d": round(disp.get(st, 1.5), 3), "alone": t, "model": t},
+                                         note=(f"projection {proj:.1f}; real {rl['book']} line, blended {round(MARKET_W['w'] * 100)}/{round(100 - MARKET_W['w'] * 100)} with its no-margin price"
+                                               if exact else f"projection {proj:.1f}; Winamax line {L:.1f}, market chance carried from the {rl['book']} line {L0:.1f}; price estimated")
+                                              + (" (weight measured on settled lines)" if MARKET_W.get("measured") else ""),
+                                         mind=mind, spots=[x["label"] for x in spots],
+                                         sim=("prop", side, pl["id"], st, "over", L)))
                     continue
                 if proj is None or av is None or av != av or av < (2.0 if st in ("tpm", "ast", "reb") else 3):
                     continue  # one-a-game stats: books post 0.5 or 1.5 with very uneven prices, too unreliable to estimate
-                L = math.floor(av) + 0.5
                 # like team legs against the market: blend the projection 50/50 with the line's anchor
                 center = 0.5 * proj + 0.5 * av
                 sd = sd_for(st, center, disp)
-                po = over_prob(st, L, center, disp)
-                # the price a book would ask: fair on the season-average anchor, plus a 5% margin. For low counts
-                # (threes, assists) this is far from 1.85 - an under 1.5 threes for a one-a-game shooter is short.
-                sda = sd_for(st, av, disp)
-                pa_over = min(max(over_prob(st, L, av, disp), 0.03), 0.97)
                 t = (calib.get(st) or {}).get("t", 0.75)
-                for sd_, pm, pa in (("over", po, pa_over), ("under", 1 - po, 1 - pa_over)):
-                    if sd_ not in PROP_SIDES:
-                        continue
-                    pc = sigmoid(t * logit(pm))
-                    price = round(1 / (pa * 1.05), 2)
+                for L in near_lines(st, center, 2, 1):  # Winamax's own lines around the player
+                    po = over_prob(st, L, center, disp)
+                    # the price a book would ask: fair on the season-average anchor, plus its margin
+                    pa_over = min(max(over_prob(st, L, av, disp), 0.03), 0.97)
+                    pc = sigmoid(t * logit(po))
+                    price = round(1 / (pa_over * WINAMAX_PROP_MARGIN), 2)
                     if 0.5 <= pc <= PROP_MAX and price >= 1.3:
-                        legs.append(_leg(game, "prop", f"{pl['name']} {sd_} {L:.1f} {STAT_NAME[st]}", pm, pc, price,
+                        legs.append(_leg(game, "prop", f"{pl['name']} over {L:.1f} {STAT_NAME[st]}", po, pc, price,
                                          dist={"mu": round(center, 2), "sd": round(sd, 2), "d": round(disp.get(st, 1.5), 3), "alone": t, "model": t},
-                                         team=team, player=pl["id"], player_name=pl["name"], stat=st, line=L, side=sd_,
+                                         team=team, player=pl["id"], player_name=pl["name"], stat=st, line=L, side="over",
                                          proj=proj, avg=round(av, 1), price_est=True,
-                                         note=f"projection {proj:.1f} vs season average {av:.1f} {LABEL.get(st, st).lower()} (blended 50/50); line and price estimated",
-                                         mind=mind if sd_ == "over" else -mind, spots=[x["label"] for x in spots],
-                                         sim=("prop", side, pl["id"], st, sd_, L)))
+                                         note=f"projection {proj:.1f} vs season average {av:.1f} {LABEL.get(st, st).lower()} (blended 50/50); Winamax line, price estimated",
+                                         mind=mind, spots=[x["label"] for x in spots],
+                                         sim=("prop", side, pl["id"], st, "over", L)))
     return legs
 
 
