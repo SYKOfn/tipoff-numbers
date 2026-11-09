@@ -1,9 +1,13 @@
-"""One-off check: do past box-score summaries carry the injury report from game time?"""
-import pandas as pd
+"""One-off check: where ESPN keeps head coaches per season."""
 from pipeline import espn
-g = pd.read_csv("data/history/games.csv", dtype={"game_id": str})
-for s in sorted(g.season.unique()):
-    for gid in g[g.season == s].game_id.head(2):
-        sm = espn.summary(gid)
-        inj = (sm or {}).get("injuries") or {}
-        print(s, gid, {k: [(i.get("name"), i.get("status"), (i.get("date") or "")[:10]) for i in v][:4] for k, v in inj.items()})
+for url in ["https://sports.core.api.espn.com/v2/sports/basketball/leagues/nba/seasons/2025/teams/1/coaches",
+            "https://sports.core.api.espn.com/v2/sports/basketball/leagues/nba/seasons/2025/coaches?limit=60",
+            "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/1?enable=coaches",
+            "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/1/roster"]:
+    d = espn.fetch(url)
+    print(url, str(d)[:700])
+    if isinstance(d, dict) and d.get("items"):
+        for it in d["items"][:3]:
+            ref = it.get("$ref")
+            if ref:
+                print("  ", str(espn.fetch(ref.replace("http://", "https://")))[:600])
