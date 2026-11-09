@@ -1,7 +1,9 @@
 """Pinnacle's pre-game moneyline for past games (The Odds API historical snapshots), to test the market blend.
 
 One snapshot per game day, 30 minutes before that day's first tip-off: 10 credits a day.
-Resumable: days already stored are skipped.  Usage: python -m tools.market_history 2026 [2027 ...]
+Resumable: days already stored are skipped.
+Usage: python -m tools.market_history MAX_CREDITS SEASON [SEASON ...]
+It never spends more than MAX_CREDITS (and never more than the site's ODDS_API_DAILY cap, if set).
 """
 import csv
 import json
@@ -26,7 +28,11 @@ def snap(ts):
         return json.loads(r.read().decode()), r.headers.get("x-requests-remaining")
 
 
-def main(seasons):
+def main(max_credits, seasons):
+    cap = oddsapi.env("ODDS_API_DAILY", "")
+    if cap:
+        max_credits = min(max_credits, int(float(cap)))
+    spent = 0
     g = pd.read_csv("data/history/games.csv", dtype={"game_id": str})
     g = g[g["season"].isin(seasons) & g["home_pts"].notna()]
     have = set()
@@ -45,7 +51,11 @@ def main(seasons):
             continue
         first = min(datetime.fromisoformat(x.replace("Z", "+00:00")) for x in d["date"])
         ts = (first - timedelta(minutes=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        if spent + 10 > max_credits:
+            print(f"stopping: credit limit {max_credits} reached")
+            break
         try:
+            spent += 10
             data, left = snap(ts)
         except Exception as e:
             print(day, "error", e)
@@ -69,4 +79,6 @@ def main(seasons):
 
 
 if __name__ == "__main__":
-    main([int(x) for x in sys.argv[1:]] or [2026, 2027])
+    if len(sys.argv) < 3:
+        sys.exit("usage: python -m tools.market_history MAX_CREDITS SEASON [SEASON ...]")
+    main(int(sys.argv[1]), [int(x) for x in sys.argv[2:]])
