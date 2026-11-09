@@ -1,6 +1,6 @@
 """Incremental collection from ESPN: results, schedule, box scores, injuries.
 
-First run backfills three full seasons plus the current one (box scores fill over a few runs,
+First run backfills five full seasons plus the current one (box scores fill over a few runs,
 MAX_SUMMARIES per run, newest first). Later runs re-read the last few days and the next two weeks.
 """
 import os
@@ -13,6 +13,7 @@ from .store import (BOX, STATE, load_games, load_players, read_json, save_games,
 
 MAX_SUMMARIES = int(os.environ.get("MAX_SUMMARIES", "1000"))
 AHEAD_DAYS = 14
+HIST_SEASONS = int(os.environ.get("HIST_SEASONS", "5"))  # full seasons kept before the current one
 
 
 def _d(s):
@@ -30,6 +31,9 @@ def collect(today=None):
         noq = games[(games["q"].fillna(0).astype(int) == 0) & (games["season"].astype(int) >= cur - 1)]
         if len(noq) > 30:
             start = min(start, _d(noq["day"].min()))
+        # more history: results back to HIST_SEASONS seasons before this one (one-time scan)
+        if int(games["season"].min()) > cur - HIST_SEASONS:
+            start = date(cur - HIST_SEASONS - 1, 10, 1)
         # player lines stored before the full stat line existed -> fetch those box scores again
         if len(players):
             full = set(players.loc[players["fga"].notna(), "game_id"].astype(str))
@@ -37,7 +41,7 @@ def collect(today=None):
                 & (games["season"].astype(int) >= cur - 1)
             games.loc[stale, "box"] = 0
     else:
-        start = date(espn.season_of(today.isoformat()) - 4, 10, 1)  # three full seasons + this one
+        start = date(cur - HIST_SEASONS - 1, 10, 1)
     end = today + timedelta(days=AHEAD_DAYS)
 
     finished, upcoming = {}, {}
@@ -86,7 +90,7 @@ def collect(today=None):
         games = games.drop_duplicates("game_id", keep="last")
 
     # box scores, newest first
-    need = games[(games["box"].fillna(0).astype(int) == 0) & (games["season"].astype(int) >= cur - 1)]
+    need = games[(games["box"].fillna(0).astype(int) == 0) & (games["season"].astype(int) >= cur - HIST_SEASONS)]
     need = need.sort_values("date", ascending=False).head(MAX_SUMMARIES)
     new_players = []
     games = games.set_index("game_id")

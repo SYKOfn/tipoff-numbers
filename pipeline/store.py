@@ -49,13 +49,28 @@ def save_games(df):
 
 
 def load_players():
-    return _read(HIST / "players.csv", PLAYER_COLS)
+    """Player lines, one file per season (old seasons never change, so the repository stays small)."""
+    parts = [_read(f, PLAYER_COLS) for f in sorted(HIST.glob("players_*.csv"))]
+    if (HIST / "players.csv").exists():  # older single-file layout
+        parts.append(_read(HIST / "players.csv", PLAYER_COLS))
+    parts = [p for p in parts if len(p)]
+    if not parts:
+        return pd.DataFrame(columns=PLAYER_COLS)
+    df = pd.concat(parts, ignore_index=True)
+    return df.drop_duplicates(["game_id", "team", "player_id"], keep="last").reset_index(drop=True)
 
 
 def save_players(df):
     HIST.mkdir(parents=True, exist_ok=True)
     df = df.drop_duplicates(["game_id", "team", "player_id"], keep="last").sort_values(["game_id", "team"])
-    df[PLAYER_COLS].to_csv(HIST / "players.csv", index=False)
+    g = _read(HIST / "games.csv", ["game_id", "season"])
+    season = df["game_id"].astype(str).map(dict(zip(g["game_id"].astype(str), g["season"])))
+    season = pd.to_numeric(season, errors="coerce").fillna(0).astype(int)
+    for s, part in df.groupby(season):
+        part[PLAYER_COLS].to_csv(HIST / f"players_{s}.csv", index=False)
+    old = HIST / "players.csv"
+    if old.exists():
+        old.unlink()
 
 
 def read_json(path, default=None):
