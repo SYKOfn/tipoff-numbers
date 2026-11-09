@@ -256,3 +256,17 @@ def test_no_player_unders():
     avg = {"1": {"gp": 10, "pts": 24.0, "reb": 5.0, "ast": 4.0, "tpm": 2.5, "pra": 33.0}}
     legs = parlay.prop_legs(game, players, {}, avg, {"pts": 1.2, "reb": 0.6, "ast": 0.5, "tpm": 0.5, "pra": 1.1})
     assert legs == [] or all(l["side"] == "over" for l in legs)
+
+
+def test_lineup_strength_follows_players():
+    from model.lineup import LineupTracker
+    lt = LineupTracker()
+    star = {"player_id": "s", "min": 36, "pts": 32, "reb": 8, "ast": 7, "fgm": 12, "fga": 20, "ftm": 6, "fta": 7, "oreb": 1,
+            "stl": 2, "blk": 1, "pf": 2, "tov": 3, "pm": 10, "tpm": 2}
+    bench = {"player_id": "b", "min": 20, "pts": 4, "reb": 2, "ast": 1, "fgm": 2, "fga": 8, "ftm": 0, "fta": 0, "oreb": 0,
+             "stl": 0, "blk": 0, "pf": 3, "tov": 2, "pm": -6, "tpm": 0}
+    for i in range(10):
+        lt.post_game({"season": 2027, "home": "BOS", "away": "LAL", "home_pts": 110, "away_pts": 100}, {"BOS": [star, bench]})
+    with_star = lt.strength([("s", None), ("b", None)])
+    without = lt.strength([("b", None)])
+    assert with_star[0] > without[0] and with_star[1] > without[1]

@@ -7,8 +7,13 @@ predict(): the estimate for one game, with every piece shown.
 from collections import defaultdict
 from datetime import date
 
+import numpy as np
+
 from . import effects, ratings
 from .features import Tracker
+from .lineup import LineupTracker
+
+STACK_LAM = 50.0   # ridge on the player-strength weights (tested walk-forward on 2025-26 and 2026-27)
 
 DEFAULT = {"half_life": 90.0, "lam": 6.0, "carry": 0.6, "lam_effects": 150.0}
 
@@ -34,6 +39,10 @@ def build_context(games, players, upcoming, tuned=None, effects_until=None):
     fin = games.sort_values(["date", "game_id"]).reset_index(drop=True)
     base = ratings.walk_forward(fin, half_life=tuned["half_life"], lam=tuned["lam"], carry=tuned["carry"])
     pg, names = players_by_game(players)
+    from .player_engine import rows_by_game
+    byg = rows_by_game(players)
+    lt = LineupTracker()
+    lfeat = {}
     tr = Tracker()
     tr.names.update(names)
     tr.set_schedule([{"day": d, "home": h, "away": a, "game_id": gid}
@@ -49,6 +58,13 @@ def build_context(games, players, upcoming, tuned=None, effects_until=None):
         ctx = tr.pre_game(g, played=played)
         ctxs[gid] = ctx
         b = base.get(gid)
+        rows_ = byg.get(gid)
+        if rows_ and g["home"] in rows_ and g["away"] in rows_:
+            sh = lt.strength([(r["player_id"], None) for r in rows_[g["home"]] if r["min"] > 0])
+            sa = lt.strength([(r["player_id"], None) for r in rows_[g["away"]] if r["min"] > 0])
+            if sh and sa:
+                lfeat[gid] = (sh[0] - sa[0], sh[1] - sa[1])
+        lt.post_game(g, rows_)
         margin = g["home_pts"] - g["away_pts"]
         total = g["home_pts"] + g["away_pts"]
         if b:
@@ -56,11 +72,40 @@ def build_context(games, players, upcoming, tuned=None, effects_until=None):
         tr.post_game(g, base_margin=(b[0] - b[1]) if b else None,
                      box_players={t: dict(v) for t, v in box.items()} if played else None)
         meta[gid] = g
+    rows_raw = list(rows)
+    stack = fit_stack([r for r in rows if effects_until is None or r[5] < effects_until], lfeat)
+    if stack is not None:  # effects are measured on what the player-strength base still misses
+        rows = [(r[0], r[1], stacked(stack, r[2], lfeat.get(r[6])), r[3], r[4], r[5], r[6]) for r in rows]
     use = [r for r in rows if effects_until is None or r[5] < effects_until]
     eff = effects.estimate([r[:5] for r in use], tuned["lam_effects"])
     c = Context()
     c.tuned, c.base, c.ctxs, c.rows, c.eff, c.tracker, c.games, c.meta = tuned, base, ctxs, rows, eff, tr, fin, meta
+    c.lineup, c.lfeat, c.stack, c.rows_raw = lt, lfeat, stack, rows_raw
     return c
+
+
+def fit_stack(rows, lfeat, min_rows=300):
+    """margin = a*base + b*gamescore strength gap + c*plus-minus gap + d, ridge on b and c."""
+    X, y = [], []
+    for r in rows:
+        f = lfeat.get(r[6])
+        if f is None:
+            continue
+        X.append([r[2], f[0], f[1], 1.0])
+        y.append(r[1])
+    if len(X) < min_rows:
+        return None
+    X, y = np.array(X), np.array(y)
+    lam = np.diag([0.0, STACK_LAM, STACK_LAM, 0.0])
+    w = np.linalg.solve(X.T @ X + lam, X.T @ y)
+    return {"w": [float(v) for v in w], "n": len(y)}
+
+
+def stacked(stack, base_margin, feat):
+    if stack is None or feat is None:
+        return base_margin
+    w = stack["w"]
+    return w[0] * base_margin + w[1] * feat[0] + w[2] * feat[1] + w[3]
 
 
 def baseline(games, season, team, before):
@@ -78,7 +123,7 @@ def baseline(games, season, team, before):
     return sum(pf) / len(pf), sum(pa) / len(pa)
 
 
-def predict(c, g, ctx, rts, eff=None, base_override=None):
+def predict(c, g, ctx, rts, eff=None, base_override=None, lineup_feat=None, stack="default"):
     """g: game dict (home, away, neutral, season). rts: {stat: Rating}. Returns the full estimate."""
     eff = eff or c.eff
     h, a = g["home"], g["away"]
@@ -88,6 +133,11 @@ def predict(c, g, ctx, rts, eff=None, base_override=None):
     else:
         bh, ba = ratings.predict_game(rts["pts"], h, a, neutral)
     base_m, base_t = bh - ba, bh + ba
+    results_only_m = base_m
+    st_ = getattr(c, "stack", None) if stack == "default" else stack
+    if lineup_feat is not None and st_:
+        base_m = stacked(st_, base_m, lineup_feat)
+        bh, ba = (base_t + base_m) / 2, (base_t - base_m) / 2
     parts = effects.contributions(eff, ctx)
     phys_m = sum(p["pts"] for p in parts if p["target"] == "margin" and p["layer"] == "physical")
     mind_m = sum(p["pts"] for p in parts if p["target"] == "margin" and p["layer"] == "mind")
@@ -104,7 +154,8 @@ def predict(c, g, ctx, rts, eff=None, base_override=None):
     bl_t = (pf_h + pa_a + pf_a + pa_h) / 2
     out = {
         "home_pts": (t + m) / 2, "away_pts": (t - m) / 2, "margin": m, "total": t, "win_home": win,
-        "base": {"home_pts": bh, "away_pts": ba, "margin": base_m, "total": base_t, "win_home": effects.norm_cdf(base_m / sdm)},
+        "base": {"home_pts": bh, "away_pts": ba, "margin": base_m, "total": base_t, "win_home": effects.norm_cdf(base_m / sdm),
+                 "results_margin": results_only_m, "lineup": lineup_feat is not None and bool(st_)},
         "physical": {"margin": phys_m, "total": phys_t}, "mind": {"margin": mind_m, "total": mind_t},
         "win_home_nomind": win_nomind, "margin_nomind": m - mind_m, "total_nomind": t - mind_t,
         "baseline": {"margin": bl_m, "total": bl_t, "win_home": effects.norm_cdf(bl_m / sdm)},
@@ -128,3 +179,31 @@ def fit_all(games, asof, tuned):
 
 def today_iso(now):
     return now.date().isoformat() if hasattr(now, "date") else date.today().isoformat()
+
+
+def lineup_test(c, cur):
+    """Out-of-sample check of the player-strength upgrade: weights fitted before this season, scored on it."""
+    def sc(pred, ys, sd):
+        p = np.array([effects.norm_cdf(x / sd) for x in pred])
+        y = np.array([1.0 if v > 0 else 0.0 for v in ys])
+        pc = np.clip(p, 1e-6, 1 - 1e-6)
+        return {"brier": round(float(np.mean((p - y) ** 2)), 4),
+                "logloss": round(float(-np.mean(y * np.log(pc) + (1 - y) * np.log(1 - pc))), 4),
+                "winners": round(float(np.mean((p >= 0.5) == (y == 1))), 4),
+                "mae_margin": round(float(np.mean(np.abs(np.array(ys) - np.array(pred)))), 3)}
+    start = c.games.loc[c.games["season"] == cur, "day"].min() if (c.games["season"] == cur).any() else None
+    if start is None:
+        return None
+    raw = [(gid, g) for gid, g in c.meta.items() if gid in c.base and gid in c.lfeat]
+    tr = [(c.base[gid][0] - c.base[gid][1], c.lfeat[gid], g["home_pts"] - g["away_pts"]) for gid, g in raw if g["day"] < start]
+    te = [(c.base[gid][0] - c.base[gid][1], c.lfeat[gid], g["home_pts"] - g["away_pts"]) for gid, g in raw if g["day"] >= start]
+    if len(tr) < 300 or not te:
+        return None
+    X = np.array([[b, f[0], f[1], 1.0] for b, f, _ in tr])
+    y = np.array([m for _, _, m in tr])
+    w = np.linalg.solve(X.T @ X + np.diag([0, STACK_LAM, STACK_LAM, 0]), X.T @ y)
+    sd_new = float(np.std(y - X @ w))
+    sd_old = float(np.std(y - X[:, 0]))
+    before = sc([b for b, _, _ in te], [m for _, _, m in te], sd_old)
+    after = sc([w[0] * b + w[1] * f[0] + w[2] * f[1] + w[3] for b, f, _ in te], [m for _, _, m in te], sd_new)
+    return {"games": len(te), "before": before, "after": after}

@@ -65,6 +65,7 @@ def main(demo=False, now=None, collect_data=True):
     season_start = games[games["season"] == cur]["day"].min() if (games["season"] == cur).any() else today.isoformat()
     prev_rows = [r[:5] for r in c.rows if r[5] < season_start]
     eff_prev = effects.estimate(prev_rows, c.tuned["lam_effects"]) if len(prev_rows) >= 200 else c.eff
+    stack_prev = engine.fit_stack([r for r in c.rows_raw if r[5] < season_start], c.lfeat)
     eff_table = c.eff.table()
     tr = c.tracker
 
@@ -150,10 +151,11 @@ def main(demo=False, now=None, collect_data=True):
         m = est["margin"]
         out = {"win_home": r1(est["win_home"], 3), "margin": r1(m), "total": r1(est["total"]),
                "home_pts": r1(est["home_pts"]), "away_pts": r1(est["away_pts"]), "sd_margin": r1(sdm), "sd_total": r1(sdt),
-               "base": {k: r1(v, 3 if k == "win_home" else 1) for k, v in est["base"].items()},
+               "base": {k: (v if isinstance(v, bool) else r1(v, 3 if k == "win_home" else 1)) for k, v in est["base"].items()},
                "physical": {k: r1(v, 2) for k, v in est["physical"].items()},
                "mind": {k: r1(v, 2) for k, v in est["mind"].items()},
                "win_home_nomind": r1(est["win_home_nomind"], 3), "margin_nomind": r1(est["margin_nomind"]),
+               "win_home_model": r1(est.get("win_home_model"), 3), "win_home_market": r1(est.get("win_home_market"), 3),
                "baseline": {k: r1(v, 3 if k == "win_home" else 1) for k, v in est["baseline"].items()},
                "parts": parts,
                "total_lines": lines_around(est["total"], sdt, 5.0),
@@ -201,6 +203,24 @@ def main(demo=False, now=None, collect_data=True):
 
     # ------------------------------------------------------------ upcoming
     PRED.mkdir(parents=True, exist_ok=True)
+    # the Pinnacle blend switches itself on only once frozen games show it beats the model alone
+    blend_items = []
+    for path in sorted(PRED.glob("*/*.json")):
+        pj = read_json(path) or {}
+        e = ((pj.get("payload") or {}).get("est") or {})
+        gg = c.meta.get(pj.get("game_id"))
+        if pj.get("frozen") and gg is not None and e.get("win_home_model") is not None and e.get("win_home_market") is not None:
+            blend_items.append((e["win_home_model"], e["win_home_market"], 1.0 if gg["home_pts"] > gg["away_pts"] else 0.0))
+    def _bl(a, b):
+        lo = lambda x: math.log(max(x, 1e-6) / max(1 - x, 1e-6))
+        return 1 / (1 + math.exp(-(0.5 * lo(a) + 0.5 * lo(b))))
+    blend_stats = None
+    if blend_items:
+        n_ = len(blend_items)
+        blend_stats = {"n": n_, "brier_model": round(sum((a - y) ** 2 for a, b, y in blend_items) / n_, 4),
+                       "brier_market": round(sum((b - y) ** 2 for a, b, y in blend_items) / n_, 4),
+                       "brier_blend": round(sum((_bl(a, b) - y) ** 2 for a, b, y in blend_items) / n_, 4)}
+    market_blend_on = bool(blend_stats and blend_stats["n"] >= 150 and blend_stats["brier_blend"] < blend_stats["brier_model"])
     trc = tr.clone()
     upcoming_payloads = {}
     seen = set()
@@ -226,11 +246,24 @@ def main(demo=False, now=None, collect_data=True):
                 write_json(path, old)
                 upcoming_payloads[gid] = (g, old["payload"], g.get("state"))
             continue
-        est = engine.predict(c, g, ctx, rts)
+        proj_players = PE.project_game(pt, pe, pdisp, g, ctx, injuries, notes, news)
+        lf = None
+        sh_ = c.lineup.strength([(x["id"], x["min"]) for x in proj_players.get("home", []) if not x.get("out")])
+        sa_ = c.lineup.strength([(x["id"], x["min"]) for x in proj_players.get("away", []) if not x.get("out")])
+        if sh_ and sa_:
+            lf = (sh_[0] - sa_[0], sh_[1] - sa_[1])
+        est = engine.predict(c, g, ctx, rts, lineup_feat=lf)
+        pin = ((g.get("odds_books") or {}).get("pinnacle") or {})
+        p_mkt = parlay.novig(pin.get("ml_home"), pin.get("ml_away"))
+        est["win_home_model"] = est["win_home"]
+        est["win_home_market"] = p_mkt
+        if p_mkt is not None and market_blend_on:
+            lo = lambda x: math.log(max(x, 1e-6) / max(1 - x, 1e-6))
+            est["win_home"] = 1 / (1 + math.exp(-(0.5 * lo(est["win_home"]) + 0.5 * lo(p_mkt))))
         payload = game_payload(g, ctx, est, "estimate", {t: injuries.get(t, []) for t in (g["home"], g["away"])} if news else None)
         payload["news"] = news
         payload["made_at"] = now.isoformat()
-        payload["players"] = PE.project_game(pt, pe, pdisp, g, ctx, injuries, notes, news)
+        payload["players"] = proj_players
         if gid in analyst:
             payload["analyst"] = analyst[gid]
         payload["odds"] = g.get("odds")
@@ -272,7 +305,8 @@ def main(demo=False, now=None, collect_data=True):
             payload = frozen_ids[gid]["payload"]
             payload["kind"] = "frozen"
         else:
-            est = engine.predict(c, g, c.ctxs[gid], {}, eff=eff_prev, base_override=c.base[gid])
+            est = engine.predict(c, g, c.ctxs[gid], {}, eff=eff_prev, base_override=c.base[gid],
+                                 lineup_feat=c.lfeat.get(gid), stack=stack_prev)
             payload = game_payload(g, c.ctxs[gid], est, "check")
         checks.append((g, payload))
         if True:  # every game of the season gets its page; only the last three weeks get cards
@@ -396,6 +430,7 @@ def main(demo=False, now=None, collect_data=True):
     write_json(SITE / "accuracy.json", {
         "live": summarise(live_items), "checks": summarise(check_items), "recent": recent_scored,
         "backtest": read_json(ROOT / "backtest" / "results.json"), "factors": eff_table,
+        "upgrade": engine.lineup_test(c, cur), "market_blend": {**(blend_stats or {}), "on": market_blend_on},
         "players": {"track": ptrack, "factors": PM.effects_table(pe), "dispersion": {k: round(v, 2) for k, v in pdisp.items()},
                     "lines_test": lines_test},
         "effects_games": c.eff.n, "sd_margin": r1(c.eff.sd_margin), "sd_total": r1(c.eff.sd_total)})
