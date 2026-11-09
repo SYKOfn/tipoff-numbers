@@ -27,7 +27,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           set -- ${{ matrix.job }}
-          git add data/history/stints_$1.csv data/history/games_archive_$1.csv data/history/players_$1.csv 2>/dev/null || true
+          for f in stints_$1.csv games_archive_$1.csv players_$1.csv; do [ -f data/history/$f ] && git add data/history/$f; done
           git commit -q -m "History backfill: season $1 ($2)" || { echo "nothing new"; exit 0; }
           for i in 1 2 3 4 5 6; do
             git pull -q --rebase origin main && git push -q && exit 0
