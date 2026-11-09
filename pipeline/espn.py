@@ -330,3 +330,23 @@ def teams_meta():
 
 def now_utc():
     return datetime.now(timezone.utc)
+
+
+# ------------------------------------------------------------------ coaches
+CORE = "https://sports.core.api.espn.com/v2/sports/basketball/leagues/nba"
+
+
+def coaches(season):
+    """{team: {id, name, experience}} for a season (ESPN lists the coach in charge at season's end)."""
+    from .teams import TEAMS
+    out = {}
+    for ab, t in TEAMS.items():
+        d = fetch(f"{CORE}/seasons/{season}/teams/{t[0]}/coaches")
+        items = (d or {}).get("items") or []
+        if not items:
+            continue
+        c = fetch(items[0]["$ref"].replace("http://", "https://")) or {}
+        if c.get("id"):
+            out[ab] = {"id": str(c["id"]), "name": f"{c.get('firstName', '')} {c.get('lastName', '')}".strip(),
+                       "experience": c.get("experience")}
+    return out

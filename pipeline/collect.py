@@ -157,6 +157,18 @@ def collect(today=None):
     if not fresh:
         write_json(STATE / "season_rest.json", rest)
         rest_at = espn.now_utc().isoformat()
+    # head coaches per season: past seasons once, this season once a day
+    co = read_json(STATE / "coaches.json", {}) or {}
+    co_at = co.get("_at")
+    for sn in range(cur - HIST_SEASONS, cur + 1):
+        stale = sn == cur and (not co_at or espn.now_utc() - datetime.fromisoformat(co_at) > timedelta(hours=24))
+        if str(sn) not in co or len(co.get(str(sn)) or {}) < 25 or stale:
+            got = espn.coaches(sn)
+            if got:
+                co[str(sn)] = got
+            if sn == cur:
+                co["_at"] = espn.now_utc().isoformat()
+    write_json(STATE / "coaches.json", co)
     write_json(STATE / "collect.json", {"calls": espn.CALLS["n"], "errors": espn.CALLS["errors"][-30:],
                                         "finished_seen": len(finished), "upcoming": len(upcoming),
                                         "summaries": len(need), "odds_api": odds_status, "season_rest_at": rest_at})

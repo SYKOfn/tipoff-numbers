@@ -40,6 +40,48 @@ FACTORS = {
 EFFECT_STATS = ["min", "pts", "reb", "ast"]
 
 
+MIN_FEATS = ["const", "m8", "m3", "season", "last", "started", "gain_same", "gain_other", "blowout", "b2b",
+             "returning", "new", "crowd", "early_m8", "early_season"]
+MIN_LAM = 50.0
+MIN_REFIT = 150     # refit after this many new player-games
+
+
+def pos_group(pos):
+    p = (pos or "").upper()
+    return "C" if "C" in p else "G" if "G" in p else "F"
+
+
+class MinutesModel:
+    """Expected minutes for a player who plays: a ridge regression on pre-game facts, fitted online on
+    every past player-game only (walk-forward, so it never sees the game it predicts)."""
+
+    def __init__(self):
+        k = len(MIN_FEATS)
+        self.xtx = np.zeros((k, k))
+        self.xty = np.zeros(k)
+        self.n = 0
+        self.since = 0
+        self.w = None
+
+    def add(self, f, y):
+        x = np.asarray(f, float)
+        self.xtx += np.outer(x, x)
+        self.xty += x * y
+        self.n += 1
+        self.since += 1
+        if self.n >= 3000 and (self.w is None or self.since >= MIN_REFIT):
+            lam = np.eye(len(x)) * MIN_LAM
+            lam[0, 0] = 0.0
+            self.w = np.linalg.solve(self.xtx + lam, self.xty)
+            self.since = 0
+
+    def predict(self, f):
+        return None if self.w is None else float(np.dot(self.w, f))
+
+    def table(self):
+        return None if self.w is None else {k: round(float(v), 3) for k, v in zip(MIN_FEATS, self.w)}
+
+
 def ew_add(state, key, value, hl):
     a = 0.5 ** (1 / hl)
     s = state.get(key, (0.0, 0.0))
@@ -59,12 +101,16 @@ class PlayerTracker:
         self.allowed = defaultdict(dict)              # team -> ew state of what opponents produced per stat
         self.league = {}                              # ew of team production per stat
         self.pos_rate = defaultdict(lambda: defaultdict(lambda: [0.0, 0.0]))  # pos -> stat -> [sum, min]
+        self.mm = MinutesModel()
+        self.use_mm = True
+        self.last_mf = None
 
     # ------------------------------------------------------------ player state
     def get(self, pid, name=None, pos=None):
         if pid not in self.p:
             self.p[pid] = {"name": name, "pos": pos, "team": None, "teams": [], "ew_min": {}, "rate": {},
-                           "last_team_game": {}, "missed": 0, "back_left": 0, "recent": deque(maxlen=5), "gp": 0}
+                           "last_team_game": {}, "missed": 0, "back_left": 0, "recent": deque(maxlen=5), "gp": 0,
+                           "ew3": {}, "last_min": None, "started": 0, "smin": [0.0, 0]}
         q = self.p[pid]
         if name:
             q["name"] = name
@@ -106,7 +152,28 @@ class PlayerTracker:
         return out
 
     # ------------------------------------------------------------ projection
-    def project(self, pid, team, opp, is_home, b2b, absent=(), missing_share=0.0, notes=None, eff=None, extra_min=None):
+    def min_features(self, pid, team, rot, absent, avail_of, exp_margin, b2b, returning):
+        q = self.p[pid]
+        m8 = ew_get(q["ew_min"], "m") or 0.0
+        m3 = ew_get(q["ew3"], "m") or m8
+        sm = q["smin"][0] / q["smin"][1] if q["smin"][1] else m8
+        early = max(0.0, 1.0 - q["smin"][1] / 10.0)  # first games of a season: last season counts less
+        last = q["last_min"] if q["last_min"] is not None else m8
+        g = pos_group(q["pos"])
+        gain = {"same": 0.0, "other": 0.0}
+        for kind in ("same", "other"):
+            same = lambda k: (pos_group(self.p[k]["pos"]) == g) == (kind == "same")
+            lost = sum(v * avail_of(k) for k, v in rot.items() if k in absent and same(k))
+            here = sum(v for k, v in rot.items() if k not in absent and same(k)) or 1.0
+            gain[kind] = lost * m8 / here
+        here_all = sum(v for k, v in rot.items() if k not in absent)
+        heavy = m8 / 30.0
+        return [1.0, m8, m3, sm, last, float(q["started"]), gain["same"], gain["other"],
+                abs(exp_margin or 0.0) / 10.0 * heavy, float(b2b) * heavy, float(returning),
+                float(q["gp"] < 10), (here_all / 240.0 - 1.0) * m8, early * m8, early * sm]
+
+    def project(self, pid, team, opp, is_home, b2b, absent=(), missing_share=0.0, notes=None, eff=None, extra_min=None,
+                exp_margin=None):
         """absent: pids of teammates out. Returns dict of projections and the factor values."""
         q = self.p[pid]
         m = ew_get(q["ew_min"], "m") or 0.0
@@ -122,6 +189,12 @@ class PlayerTracker:
             # (a fixed rule over-projected minutes by ~2.5 a game on real data)
             extra_min = 0.0
         mins = min(42.0, m + extra_min)
+        gap0 = self.team_games[team] - q["last_team_game"].get(team, self.team_games[team])
+        returning = int(q["back_left"] > 0 or (gap0 >= BACK_GAP and q["gp"] > 5))
+        self.last_mf = self.min_features(pid, team, rot, set(absent), avail_of, exp_margin, b2b, returning)
+        pm = self.mm.predict(self.last_mf) if self.use_mm else None
+        if pm is not None:
+            mins = max(0.0, min(44.0, pm))
         recent = list(q["recent"])
         hot = 0.0
         if len(recent) >= 3:
@@ -167,6 +240,7 @@ class PlayerTracker:
                             for k, (a_, b_) in list(stt.items()):
                                 stt[k] = (a_ * 0.2, b_ * 0.2)
                     q["season"] = int(g["season"])
+                    q["smin"] = [0.0, 0]
                 if q["team"] != team:
                     if q["team"] and q["team"] not in q["teams"]:
                         q["teams"].append(q["team"])
@@ -182,6 +256,11 @@ class PlayerTracker:
                 q["last_team_game"][team] = self.team_games[team]
                 q["gp"] += 1
                 ew_add(q["ew_min"], "m", mn, MIN_HL)
+                ew_add(q["ew3"], "m", mn, 3)
+                q["last_min"] = mn
+                q["started"] = int(r.get("starter") == 1 or r.get("starter") is True)
+                q["smin"][0] += mn
+                q["smin"][1] += 1
                 al = 0.5 ** (1 / RATE_HL)
                 for k_ in list(q["rate"]):  # every stat's history decays once per game played
                     a_, b_ = q["rate"][k_]

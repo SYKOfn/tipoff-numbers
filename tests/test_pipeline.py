@@ -270,3 +270,24 @@ def test_lineup_strength_follows_players():
     with_star = lt.strength([("s", None), ("b", None)])
     without = lt.strength([("b", None)])
     assert with_star[0] > without[0] and with_star[1] > without[1]
+
+
+def test_injury_report_keys():
+    from pipeline.injury_log import key
+    assert key("Out", "") == "out"
+    assert key("Day-To-Day", "Jokic (elbow) is listed as questionable for Monday's game.", "2026-11-09") == "questionable"
+    assert key("Day-To-Day", "Bane (illness) has been ruled out for Monday's game.", "2026-11-09") == "ruled out (note)"
+    # a note about another day's game is stale
+    assert key("Day-To-Day", "Bane (illness) has been ruled out for Saturday's game.", "2026-11-09") == "day-to-day"
+    assert key("Day-To-Day", "Santos (knee) is listed as probable for Monday's game.", "2026-11-09") == "probable"
+
+
+def test_minutes_model_learns():
+    import numpy as np
+    from model.players import MinutesModel, MIN_FEATS
+    mm = MinutesModel()
+    rng = np.random.default_rng(1)
+    for _ in range(4000):
+        f = [1.0] + list(rng.uniform(0, 36, len(MIN_FEATS) - 1))
+        mm.add(f, 0.8 * f[2] + 3 + rng.normal(0, 1))  # minutes follow the short-term average
+    assert mm.w is not None and abs(mm.predict([1.0] + [20.0] * (len(MIN_FEATS) - 1)) - 19.0) < 1.5

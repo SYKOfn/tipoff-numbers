@@ -55,6 +55,15 @@ def main(demo=False, now=None, collect_data=True):
     upcoming = [g for g in (read_json(STATE / "upcoming.json", []) or [])]
     inj_raw = read_json(STATE / "injuries.json", {}) or {}
     injuries = inj_raw.get("teams", {}) or {}
+    from . import injury_log
+    if collect_data and not demo:
+        injury_log.update(upcoming, injuries, now)
+    inj_cal = injury_log.calibrate(players, games)
+    next_day = {}
+    for g in sorted(upcoming, key=lambda x: x["date"]):
+        for t in (g["home"], g["away"]):
+            next_day.setdefault(t, g["day"])
+    injuries = injury_log.apply(injuries, inj_cal, next_day)
     meta_logos = read_json(STATE / "teams_meta.json", {}) or {}
     tuned = read_json(ROOT / "model" / "tuned.json", {}) or {}
     analyst = (read_json(OVR / "analyst.json", {}) or {}).get("games", {})
@@ -246,7 +255,8 @@ def main(demo=False, now=None, collect_data=True):
                 write_json(path, old)
                 upcoming_payloads[gid] = (g, old["payload"], g.get("state"))
             continue
-        proj_players = PE.project_game(pt, pe, pdisp, g, ctx, injuries, notes, news)
+        em = engine.predict(c, g, ctx, rts)["base"]["margin"]  # results-only margin: blowout risk for minutes
+        proj_players = PE.project_game(pt, pe, pdisp, g, ctx, injuries, notes, news, exp_margin=em)
         lf = None
         sh_ = c.lineup.strength([(x["id"], x["min"]) for x in proj_players.get("home", []) if not x.get("out")])
         sa_ = c.lineup.strength([(x["id"], x["min"]) for x in proj_players.get("away", []) if not x.get("out")])
@@ -432,7 +442,7 @@ def main(demo=False, now=None, collect_data=True):
         "backtest": read_json(ROOT / "backtest" / "results.json"), "factors": eff_table,
         "upgrade": engine.lineup_test(c, cur), "market_blend": {**(blend_stats or {}), "on": market_blend_on},
         "players": {"track": ptrack, "factors": PM.effects_table(pe), "dispersion": {k: round(v, 2) for k, v in pdisp.items()},
-                    "lines_test": lines_test},
+                    "lines_test": lines_test, "minutes_model": pt.mm.table(), "injury_status": inj_cal},
         "effects_games": c.eff.n, "sd_margin": r1(c.eff.sd_margin), "sd_total": r1(c.eff.sd_total)})
 
     # ------------------------------------------------------------ the daily parlay

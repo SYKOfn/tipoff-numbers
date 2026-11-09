@@ -31,8 +31,10 @@ def rows_by_game(df):
     return out
 
 
-def walk(c, players_df, notes, cur):
+def walk(c, players_df, notes, cur, use_mm=True, ev=None):
+    """ev: optional dict filled with out-of-sample errors per season and stat (for model tests)."""
     pt = P.PlayerTracker()
+    pt.use_mm = use_mm
     byg = rows_by_game(players_df)
     rows_eff, logs = [], {}
     sq = defaultdict(float)
@@ -46,7 +48,9 @@ def walk(c, players_df, notes, cur):
             pt.post_game(g, {})
             continue
         ctx = c.ctxs.get(gid)
-        done = []
+        b = c.base.get(gid)
+        em = (b[0] - b[1]) if b else None
+        done, mrows = [], []
         for team, opp, side in ((g["home"], g["away"], "home"), (g["away"], g["home"], "away")):
             trs = rows.get(team, [])
             played = {r["player_id"] for r in trs if r["min"] > 0}
@@ -56,7 +60,17 @@ def walk(c, players_df, notes, cur):
                 if r["min"] <= 0 or pid not in pt.p or pt.p[pid]["gp"] < 3:
                     continue
                 proj, x = pt.project(pid, team, opp, side == "home", ctx[side]["b2b"] if ctx else 0, absent,
-                                     ctx[side]["missing"] if ctx else 0.0, notes.get(pid))
+                                     ctx[side]["missing"] if ctx else 0.0, notes.get(pid), exp_margin=em)
+                mrows.append((pt.last_mf, r["min"]))
+                if ev is not None:
+                    for st in ("min", "pts", "reb", "ast", "tpm", "pra"):
+                        a = (r["pts"] + r["reb"] + r["ast"]) if st == "pra" else r[st]
+                        if a is None:
+                            continue
+                        e = ev.setdefault((int(g["season"]), st), [0, 0.0, 0.0])
+                        e[0] += 1
+                        e[1] += abs(a - proj[st])
+                        e[2] += (a - proj[st]) ** 2
                 rows_eff.append((x, {st: (r[st] if st != "min" else r["min"], proj[st]) for st in P.EFFECT_STATS}))
                 act_pra = r["pts"] + r["reb"] + r["ast"]
                 for st in P.SHOW + ["pra"]:
@@ -80,6 +94,8 @@ def walk(c, players_df, notes, cur):
                     s[0] += r["pts"]
                     s[1] += 1
         pt.post_game(g, rows)
+        for f, y in mrows:
+            pt.mm.add(f, y)
         for pid, a, p in done:
             pt.note_result(pid, a, p)
     pe = P.estimate_effects(rows_eff)
@@ -103,12 +119,13 @@ def match_injury(pt, team, injured):
     return out
 
 
-def project_game(pt, pe, disp, g, ctx, injuries, notes, news=True):
+def project_game(pt, pe, disp, g, ctx, injuries, notes, news=True, exp_margin=None):
     out = {}
     for team, opp, side in ((g["home"], g["away"], "home"), (g["away"], g["home"], "away")):
         rot = pt.rotation(team)
         inj = match_injury(pt, team, (injuries or {}).get(team)) if news else {}
-        absent = {pid for pid, i in inj.items() if (i.get("weight") or 0) >= 0.75}
+        # out when he is more likely to miss than to play (measured rates once the injury log has enough cases)
+        absent = {pid for pid, i in inj.items() if (i.get("weight") or 0) >= 0.5}
         lst = []
         for pid in sorted(rot, key=lambda k: -rot[k]):
             q = pt.p[pid]
@@ -118,7 +135,10 @@ def project_game(pt, pe, disp, g, ctx, injuries, notes, news=True):
                             "detail": status.get("detail")})
                 continue
             proj, x = pt.project(pid, team, opp, side == "home", ctx[side]["b2b"], absent - {pid}, ctx[side]["missing"],
-                                 notes.get(pid), pe)
+                                 notes.get(pid), pe, exp_margin=exp_margin)
+            ratio = (status or {}).get("min_ratio")
+            if ratio:  # listed but playing: measured minutes for that status
+                proj = {k: v * ratio for k, v in proj.items()}
             if proj["min"] < 6:
                 continue
             spots = []
@@ -140,7 +160,7 @@ def project_game(pt, pe, disp, g, ctx, injuries, notes, news=True):
                               "pct": round(100 * c * v, 1), "evidence": P.eff_mod.evidence(c, se) if se else "none"})
             row = {"id": pid, "name": q["name"], "pos": q["pos"], "out": False,
                    "status": status.get("status") if status else None, "detail": status.get("detail") if status else None,
-                   "spots": spots}
+                   "play": status.get("play") if status else None, "spots": spots}
             for st in ("min", "pts", "reb", "ast", "tpm", "stl", "blk", "tov", "pra", "fga", "fta"):
                 row[st] = round(proj[st], 1)
             row["lines"] = {st: P.lines_for(st, proj[st], disp) for st in ("pts", "reb", "ast", "tpm", "pra")}
