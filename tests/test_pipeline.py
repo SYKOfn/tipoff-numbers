@@ -247,3 +247,12 @@ def test_book_legs_only_from_book_menu():
     assert "Jayson Tatum over 26.5 points" in descs and "BOS -9.5" in descs and "LAL under 112.5 points" in descs
     assert all(l["book"] == "winamax_fr" and l["price"] for l in legs)
     assert {l["line"] for l in legs if l["kind"] == "prop"} == {26.5}   # no player line the book does not list
+
+
+def test_no_player_unders():
+    from model import parlay
+    game = {"id": "g1", "home": "BOS", "away": "LAL"}
+    players = {"home": [{"id": "1", "name": "A B", "min": 34, "pts": 18.0, "reb": 5.0, "ast": 4.0, "tpm": 2.5, "spots": []}], "away": []}
+    avg = {"1": {"gp": 10, "pts": 24.0, "reb": 5.0, "ast": 4.0, "tpm": 2.5, "pra": 33.0}}
+    legs = parlay.prop_legs(game, players, {}, avg, {"pts": 1.2, "reb": 0.6, "ast": 0.5, "tpm": 0.5, "pra": 1.1})
+    assert legs == [] or all(l["side"] == "over" for l in legs)

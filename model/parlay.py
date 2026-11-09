@@ -21,6 +21,7 @@ from .effects import norm_cdf
 SIMS = 20000
 P_MIN, P_MAX = 0.55, 0.86
 PROP_MAX = 0.80          # alternate prop lines beyond this are priced too short to carry value
+PROP_SIDES = ("over",)   # Winamax lists player markets as "over" only (X+ points etc.): no player unders
 EDGE_W = 3.0             # how much a measured price edge is worth against chance when ranking tickets
 EST_EDGE_W, EST_EDGE_CAP = 1.0, 0.12   # edges against an estimated line count less, and are capped
 SAFETY = 1.05            # ask 5% more than fair odds before calling a leg worth taking
@@ -183,6 +184,8 @@ def prop_legs(game, players, calib, avg, disp, real=None):
                     t = (calib.get(st) or {}).get("t", 0.75)
                     pm_over = novig(rl["over"], rl["under"])
                     for sd_, pm, price, mk in (("over", po, float(rl["over"]), pm_over), ("under", 1 - po, float(rl["under"]), 1 - pm_over)):
+                        if sd_ not in PROP_SIDES:
+                            continue
                         pc = sigmoid(0.5 * t * logit(pm) + 0.5 * logit(mk))
                         if 0.5 <= pc <= PROP_MAX:
                             legs.append(_leg(game, "prop", f"{pl['name']} {sd_} {L:.1f} {STAT_NAME[st]}", pm, pc, price,
@@ -207,6 +210,8 @@ def prop_legs(game, players, calib, avg, disp, real=None):
                 pa_over = min(max(1 - norm_cdf((L - av) / sda), 0.03), 0.97)
                 t = (calib.get(st) or {}).get("t", 0.75)
                 for sd_, pm, pa in (("over", po, pa_over), ("under", 1 - po, 1 - pa_over)):
+                    if sd_ not in PROP_SIDES:
+                        continue
                     pc = sigmoid(t * logit(pm))
                     price = round(1 / (pa * 1.05), 2)
                     if 0.5 <= pc <= PROP_MAX and price >= 1.3:
@@ -311,6 +316,8 @@ def book_legs(game, est, players, odds, offers, calib, disp, mind_gap):
         spots = pl.get("spots") or []
         mind = sum(x["pct"] for x in spots if x.get("layer") == "mind")
         for sd_, price in sides.items():
+            if sd_ not in PROP_SIDES:
+                continue
             pb = (both if sd_ == "over" else 1 - both) if both is not None else min(0.97, 1 / (price * BOOK_MARGIN))
             add("prop", f"{pl['name']} {sd_} {L:.1f} {STAT_NAME[st]}", po if sd_ == "over" else 1 - po, pb, price,
                 team=game[side], player=pl["id"], player_name=pl["name"], stat=st, line=L, side=sd_, proj=proj,
