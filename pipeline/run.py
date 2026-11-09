@@ -9,7 +9,7 @@ import shutil
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 
-from model import effects, engine, explain, extras, ratings
+from model import effects, engine, explain, extras, parlay, ratings
 from model import player_engine as PE
 from model import players as PM
 from model.features import Tracker
@@ -80,6 +80,7 @@ def main(demo=False, now=None, collect_data=True):
             notes[pid] = v
     if notes != raw_notes:
         pt, pe, pdisp, plogs, ptrack, byg = PE.walk(c, players, notes, cur)
+    calib = parlay.fit_prop_calibration(plogs, byg, pdisp)
     qshares = extras.quarter_shares(games)
     adv = extras.advanced(games, cur)
     if not any(adv.values()):
@@ -368,6 +369,79 @@ def main(demo=False, now=None, collect_data=True):
         "backtest": read_json(ROOT / "backtest" / "results.json"), "factors": eff_table,
         "players": {"track": ptrack, "factors": PM.effects_table(pe), "dispersion": {k: round(v, 2) for k, v in pdisp.items()}},
         "effects_games": c.eff.n, "sd_margin": r1(c.eff.sd_margin), "sd_total": r1(c.eff.sd_total)})
+
+    # ------------------------------------------------------------ the daily parlay
+    PAR = ROOT / "data" / "parlays"
+    PAR.mkdir(parents=True, exist_ok=True)
+    days_up = sorted({g["day"] for g, _, _ in upcoming_payloads.values()})
+    today_parlay = None
+    if days_up:
+        sday = days_up[0]
+        path = PAR / f"{sday}.json"
+        old = read_json(path)
+        slate = [(g, pay) for g, pay, st in upcoming_payloads.values() if g["day"] == sday]
+        first_tip = min(datetime.fromisoformat(g["date"].replace("Z", "+00:00")) for g, _ in slate)
+        if old and (old.get("frozen") or now >= first_tip):
+            if not old.get("frozen"):
+                old["frozen"] = True
+                write_json(path, old)
+            today_parlay = old
+        else:
+            pre = [(g, pay) for g, pay in slate if g.get("state") != "in"]
+            pc_ = players[players["game_id"].astype(str).isin(set(c.games.loc[c.games["season"] == cur, "game_id"].astype(str)))
+                          & (players["min"].fillna(0) > 0)].copy()
+            avg = {}
+            if len(pc_):
+                pc_["pra"] = pc_["pts"] + pc_["reb"] + pc_["ast"]
+                for pid, d_ in pc_.groupby(pc_["player_id"].astype(str)):
+                    avg[pid] = {"gp": len(d_), **{k: float(d_[k].mean()) for k in ("pts", "reb", "ast", "tpm", "pra")}}
+            built, cands = parlay.build(pre, pdisp, calib, avg)
+            today_parlay = {"day": sday, "made_at": now.isoformat(), "first_tip": first_tip.isoformat(), "frozen": False,
+                            **built, "board": parlay.board(cands)}
+            write_json(path, today_parlay)
+    # score finished slates
+    fin_rows = {str(k): v for k, v in c.meta.items()}
+    history = []
+    for path in sorted(PAR.glob("*.json")):
+        pj = read_json(path)
+        if not pj or not pj.get("parlays"):
+            continue
+        if not pj.get("scored"):
+            gids = {l["game"] for pr in pj["parlays"] for l in pr["legs"]} | {l["game"] for l in pj.get("singles", [])}
+            if gids and all(gid in fin_rows for gid in gids):
+                for pr in pj["parlays"]:
+                    for l in pr["legs"] + ([] if pr is not pj["parlays"][0] else []):
+                        pass
+                def sc(l):
+                    rows = {r["player_id"]: r for team in byg.get(l["game"], {}).values() for r in team}
+                    l["result"] = parlay.score_leg(l, fin_rows.get(l["game"]), rows)
+                for pr in pj["parlays"]:
+                    for l in pr["legs"]:
+                        sc(l)
+                    live_legs = [l for l in pr["legs"] if l["result"] != "void"]
+                    pr["result"] = "hit" if live_legs and all(l["result"] == "hit" for l in live_legs) else "miss"
+                for l in pj.get("singles", []):
+                    sc(l)
+                pj["scored"] = True
+                pj["frozen"] = True
+                write_json(path, pj)
+        if pj.get("scored"):
+            history.append(pj)
+    rec = {}
+    for pr_name in ("The daily 6", "Core 3", "Same-game 3"):
+        items = [pr for h_ in history for pr in h_["parlays"] if pr["name"] == pr_name]
+        if items:
+            legs = [l for pr in items for l in pr["legs"] if l.get("result") in ("hit", "miss")]
+            rec[pr_name] = {"n": len(items), "hits": sum(pr.get("result") == "hit" for pr in items),
+                            "expected": round(sum(pr["p"] for pr in items), 2),
+                            "legs": len(legs), "leg_hits": sum(l["result"] == "hit" for l in legs),
+                            "leg_expected": round(sum(l["p"] for l in legs), 1)}
+    write_json(SITE / "parlay.json", {"today": today_parlay, "calibration": calib, "record": rec,
+                                      "history": [{"day": h_["day"], "parlays": [{"name": pr["name"], "p": pr["p"], "fair": pr["fair"],
+                                                                                   "result": pr.get("result"),
+                                                                                   "legs": [{"desc": l["desc"], "p": l["p"], "result": l.get("result"),
+                                                                                             "kind": l["kind"], "team": l.get("team")} for l in pr["legs"]]}
+                                                                                  for pr in h_["parlays"]]} for h_ in history[-30:][::-1]]})
 
     # players: next-game projection per player, pages, index
     next_proj = {}

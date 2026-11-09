@@ -120,7 +120,7 @@ def project_game(pt, pe, disp, g, ctx, injuries, notes, news=True):
             for k, v in x.items():
                 if not v or k in ("home",):
                     continue
-                c = pe.get("pts", {}).get("coef", {}).get(k, 0.0)
+                c = pe.get("pts", {}).get("coef", {}).get(k, 0.0) if ("pts" in pe and P.usable(pe["pts"], k)) else 0.0
                 if k == "hot" and abs(v) < 1.5:
                     continue
                 if k == "usage" and v < 0.5:

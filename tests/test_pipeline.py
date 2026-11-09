@@ -165,3 +165,19 @@ def test_player_projection_basic():
     assert 28 < proj["min"] < 38 and 15 < proj["pts"] < 30
     proj2, _ = pt.project("1", "BOS", "LAL", True, 0, absent={"2"}, missing_share=0.3)
     assert proj2["min"] > proj["min"]
+
+
+def test_parlay_scoring_and_correlation():
+    from model import parlay
+    g = {"home": "BOS", "away": "LAL", "home_pts": 120, "away_pts": 110}
+    assert parlay.score_leg({"kind": "ml", "team": "BOS"}, g, {}) == "hit"
+    assert parlay.score_leg({"kind": "spread", "team": "LAL", "line": 9.5}, g, {}) == "miss"
+    assert parlay.score_leg({"kind": "total", "line": 225.5, "side": "over"}, g, {}) == "hit"
+    assert parlay.score_leg({"kind": "prop", "player": "1", "stat": "pts", "line": 20.5, "side": "over"}, g, {"1": {"min": 0}}) == "void"
+    est = {"margin": 4.0, "sd_margin": 12.0, "total": 226.0, "sd_total": 15.0, "home_pts": 115.0, "away_pts": 111.0, "win_home": 0.63}
+    players = {"home": [{"id": "1", "name": "A", "min": 34, "pts": 26.0, "reb": 5.0, "ast": 6.0, "tpm": 3.0, "lines": {}}], "away": []}
+    import numpy as np
+    sim = parlay.simulate({"id": "g", "home": "BOS", "away": "LAL"}, est, players, {"pts": 1.2, "reb": 0.6, "ast": 0.5, "tpm": 0.5}, np.random.default_rng(1))
+    over_total = sim["t"] > 226
+    star_over = sim["players"]["1"]["pts"] > 26
+    assert (over_total & star_over).mean() > over_total.mean() * star_over.mean()  # positive correlation

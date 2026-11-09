@@ -198,7 +198,13 @@ def generate(today=None, seed=7):
             hour = sim.rng.choice([23, 23, 0, 0, 0, 1, 2, 3])
             dd = date.fromisoformat(g["day"]) + (timedelta(days=1) if hour < 12 else timedelta())
             tip = datetime(dd.year, dd.month, dd.day, hour, sim.rng.choice([0, 30]), tzinfo=timezone.utc)
-            upcoming.append({"game_id": f"9{g['game_id']}", "date": tip.isoformat().replace("+00:00", "Z"), "day": g["day"],
+            from math import erf, sqrt
+            mm = sim.strength[g["home"]] - sim.strength[g["away"]] + 2.6 + sim.np.normal(0, 1.5)
+            pm = 0.5 * (1 + erf(mm / 12.5 / sqrt(2)))
+            tm = 228 + 0.6 * (2 * sim.off[g["home"]] - sim.strength[g["home"]]) + 0.6 * (2 * sim.off[g["away"]] - sim.strength[g["away"]]) + sim.np.normal(0, 3)
+            odds = {"provider": "Simulated book", "ml_home": round(1 / (pm * 1.045), 2), "ml_away": round(1 / ((1 - pm) * 1.045), 2),
+                    "spread_home": -round(mm * 2) / 2, "total": round(tm * 2) / 2}
+            upcoming.append({"odds": odds, "game_id": f"9{g['game_id']}", "date": tip.isoformat().replace("+00:00", "Z"), "day": g["day"],
                              "season": cur, "stype": 2, "home": g["home"], "away": g["away"], "home_pts": None,
                              "away_pts": None, "state": "pre", "completed": False, "detail": None, "ot": 0,
                              "neutral": False, "national_tv": sim.rng.random() < 0.15, "venue": None, "note": None})

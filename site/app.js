@@ -125,7 +125,7 @@ function standingsTable(rows, short = false) {
 
 /* ---------------------------------------------------------------- home */
 async function home() {
-  const [sch, hm, st, acc, pl, md] = await Promise.all([get("schedule.json"), get("home.json"), get("standings.json"), get("accuracy.json"), get("players.json"), get("mind.json")]);
+  const [sch, hm, st, acc, pl, md, par] = await Promise.all([get("schedule.json"), get("home.json"), get("standings.json"), get("accuracy.json"), get("players.json"), get("mind.json"), get("parlay.json").catch(() => ({}))]);
   setTitle("");
   const up = sch.upcoming.filter(c => !c.live);
   const days = byDay(sch.upcoming);
@@ -157,6 +157,7 @@ async function home() {
     ${featHtml}</div></section>
   <div class="wrap">${demoBanner()}${BANNER}
     ${d1 ? `<section><h2>${h(longDay(d1))} <span class="sub">${soon.length} game${soon.length > 1 ? "s" : ""} · US date, tip-off times in your time zone</span></h2><div class="cards">${soon.map(fcard).join("")}</div></section>` : `<p class="empty">No games scheduled in the next two weeks.</p>`}
+    ${par.today && par.today.parlays && par.today.parlays.length ? `<section class="section"><h2>Today's parlay <span class="sub"><a href="#/parlay">all tickets, value singles and the maths</a></span></h2>${ticket(par.today.parlays[0], true)}</section>` : ""}
     ${(() => {
       const ids = new Set(soon.map(c => c.id));
       const top = pl.filter(p => p.next_pts != null && ids.has(p.next_game)).sort((a, b) => b.next_pts - a.next_pts).slice(0, 8);
@@ -543,6 +544,8 @@ async function about() {
     <p>Every rotation player gets a projection for his next game: <b>expected minutes × his per-minute production × the opponent</b>, then the measured player effects. Minutes come from his recent games, plus a share of the minutes left by teammates who are out. Per-minute numbers are recency-weighted and pulled towards the average for his position until he has enough minutes; a new season counts last season's numbers much less. The opponent factor is what that team has allowed in the stat, half-shrunk to the league average.</p>
     <p>Player storylines are measured the same way as the team ones, on every stored player-game: <b>facing a former team</b>, <b>first games back</b> from a long absence, <b>hot or cold hand</b>, <b>contract year</b> (from a notes file the daily analyst keeps), <b>teammates out</b>, back-to-backs and home floor. Over/under chances use the spread of past misses for each stat.</p>
     <p>Player pages add true shooting (TS%), effective FG%, usage (share of team plays while on the floor), rebound and assist rates, per-36 numbers, splits and the full game log with the projection made before each game.</p>
+    <h2>The daily parlay</h2>
+    <p>Every leg for the next slate is checked: winners, handicaps and totals at the market's line (from ESPN's odds feed when it has them), and points, rebounds, assists, threes and pts+reb+ast for every rotation player. Team chances are blended 50/50 with the market's no-margin price; player chances are shrunk towards 50% by a factor fitted on past player-games. Each game is simulated 20,000 times so legs from the same game are priced together. Tickets: the <b>daily 6</b> (chance of landing balanced against measured value, at most two legs per game), the <b>Core 3</b> (fewer legs, less margin) and the best <b>same-game 3</b>. Each leg shows the minimum price worth taking; tickets are frozen at the first tip-off and scored afterwards.</p>
     <h2>Quarters, playoff chances, mind ranking</h2>
     <ul><li><b>Quarters and halves</b>: the game estimate split by each team's usual share of points per quarter (pulled towards the league's).</li>
     <li><b>Playoff chances</b>: the rest of the regular season simulated 4,000 times from the ratings (with their uncertainty), then the play-in (7v8, 9v10, and the last game for the 8th seed).</li>
@@ -598,6 +601,7 @@ async function route() {
     else if (page === "players") await playersPage();
     else if (page === "player") await player(arg);
     else if (page === "mind") await mind();
+    else if (page === "parlay") await parlayPage();
     else if (page === "accuracy") await accuracy();
     else if (page === "about") await about();
     else await home();
@@ -617,6 +621,11 @@ async function route() {
     document.getElementById("freshness").textContent = `Updated ${ago(META.updated)} · ${META.season} season${META.mode === "demo" ? " · simulated preview data" : ""}`;
   } catch (e) { /* pages show their own error */ }
   setupSearch();
+  document.addEventListener("click", async e => {
+    const b = e.target.closest("[data-copy]");
+    if (!b) return;
+    try { await navigator.clipboard.writeText(b.dataset.copy); b.textContent = "Copied"; } catch (err) { b.textContent = "Copy failed"; }
+  });
   window.addEventListener("hashchange", route);
   route();
 })();
@@ -729,4 +738,69 @@ async function mind() {
         <span class="edge ${effCls(r.edge)}">${sgn(r.edge)}<small>mind edge, next games</small></span></li>`;
     }).join("")}</ul>
     <p class="note" style="margin-top:16px">Momentum describes; it doesn't predict. Whether hot or cold streaks carry over is measured separately — see "Streak" and "Confidence" on the <a href="#/accuracy">track record</a>.</p></div>`;
+}
+
+/* ---------------------------------------------------------------- daily parlay */
+const KIND = { ml: "Winner", spread: "Handicap", total: "Total", prop: "Player" };
+function legDesc(l) {
+  let d = l.desc;
+  if (l.kind === "ml") d = `${T(l.team).short} to win`;
+  if (l.kind === "spread") d = `${T(l.team).short} ${l.line > 0 ? "+" : ""}${fx(l.line)} handicap`;
+  return d;
+}
+function legRow(l, i) {
+  const res = l.result ? ` ${l.result}` : "";
+  const price = l.price && !l.price_est ? `<b>${fx(l.price, 2)}</b><span>${l.kind === "ml" ? "market price" : "standard price"}${l.edge != null ? ` · ${l.edge >= 0 ? "+" : ""}${Math.round(l.edge * 100)}% value` : ""}</span>` : `<b>${fx(l.min_odds, 2)}</b><span>take at or above${l.price_est ? " · check the line is " + fx(l.line) : ""}</span>`;
+  return `<li class="${res.trim()}"><span class="no">${i + 1}</span>
+    <span class="d"><span class="kind ${l.kind}">${KIND[l.kind] || l.kind}</span><b>${h(legDesc(l))}</b><span class="mflag ${l.mind_flag}">${l.mind_flag === "with" ? "mind with it" : l.mind_flag === "against" ? "mind against" : "mind neutral"}</span>
+    <span class="sub"><a href="#/game/${h(l.game)}">${h(T(l.matchup.split(" at ")[0]).short)} at ${h(T(l.matchup.split(" at ")[1]).short)}</a> · ${tip(l.tip)} · ${h(l.note || "")}${l.spots && l.spots.length ? ` · ${l.spots.map(h).join(", ")}` : ""}${l.result ? ` · <b class="${l.result === "hit" ? "up" : l.result === "miss" ? "down" : ""}">${l.result}</b>` : ""}</span></span>
+    <span class="c"><b>${pct(l.p)}</b><span>chance</span></span><span class="c"><b>${fx(l.fair, 2)}</b><span>fair odds</span></span><span class="c">${price}</span></li>`;
+}
+function ticketText(pr) {
+  return `${pr.name} — Tip-Off Numbers\n` + pr.legs.map((l, i) => `${i + 1}. ${legDesc(l)} (${T(l.matchup.split(" at ")[0]).abbr} @ ${T(l.matchup.split(" at ")[1]).abbr}) — ${pct(l.p)}, take at ${fx(l.min_odds, 2)}+`).join("\n")
+    + `\nAll legs: ${pct(pr.p)} · fair combined odds ${fx(pr.fair, 2)} · worth it at ${fx(pr.min_odds, 2)}+`;
+}
+function ticket(pr, main) {
+  return `<div class="ticket ${main ? "main" : ""}"><div class="ticket-head"><div><h3>${h(pr.name)}${pr.result ? ` <span class="cat ${pr.result === "hit" ? "Hot" : "Cold"}">${pr.result}</span>` : ""}</h3><p>${h(pr.why || "")}</p></div>
+    <button class="copybtn" data-copy="${h(ticketText(pr))}">Copy ticket</button></div>
+    <ul class="legs">${pr.legs.map(legRow).join("")}</ul>
+    <div class="ticket-foot"><div><b>${pct(pr.p)}</b>chance all ${pr.n_legs} land</div><div><b>${fx(pr.fair, 2)}</b>fair combined odds</div>
+      <div class="go"><b>${fx(pr.min_odds, 2)}+</b>worth placing at these combined odds or better</div>
+      <div><b>${pr.lift >= 1 ? "+" : ""}${Math.round((pr.lift - 1) * 100)}%</b>correlation lift vs treating legs as independent</div></div></div>`;
+}
+
+async function parlayPage() {
+  const d = await get("parlay.json");
+  setTitle("Daily parlay");
+  const t = d.today;
+  const rec = d.record || {};
+  const recHtml = Object.keys(rec).length ? `<div class="grid">${Object.entries(rec).map(([k, r]) => `<div class="panel"><h3>${h(k)}</h3><div class="adv"><div><b>${r.hits}/${r.n}</b>tickets landed<br>expected ${fx(r.expected, 1)}</div><div><b>${r.leg_hits}/${r.legs}</b>legs landed<br>expected ${fx(r.leg_expected, 1)}</div></div></div>`).join("")}</div>`
+    : `<p class="note">No slate has been scored yet. Each day's tickets are frozen at the first tip-off and scored after the last game; nothing is ever changed afterwards.</p>`;
+  const hist = (d.history || []).length ? `<div class="tscroll"><table><tr><th>Day</th><th>Ticket</th><th class="n">Chance</th><th class="n">Fair odds</th><th>Legs</th><th>Result</th></tr>${d.history.flatMap(hd => hd.parlays.map(pr => `<tr><td>${day(hd.day)}</td><td>${h(pr.name)}</td><td class="n">${pct(pr.p)}</td><td class="n">${fx(pr.fair, 2)}</td><td class="small">${pr.legs.map(l => `<span class="${l.result === "hit" ? "up" : l.result === "miss" ? "down" : "sub"}">${l.result === "hit" ? "✓" : l.result === "miss" ? "✗" : "–"}</span> ${h(l.kind === "ml" ? T(l.team).short + " win" : l.desc)}`).join(" · ")}</td><td class="${pr.result === "hit" ? "up" : "down"}">${pr.result}</td></tr>`)).join("")}</table></div>` : "";
+  const cal = d.calibration || {};
+  const calHtml = `<div class="tscroll"><table><tr><th>Stat</th><th class="n">Shrink</th><th class="n">Lines tested</th><th>When we said… it happened</th></tr>${Object.entries(cal).map(([k, c]) => `<tr><td>${h({ pts: "Points", reb: "Rebounds", ast: "Assists", tpm: "Threes", pra: "Pts+Reb+Ast" }[k] || k)}</td><td class="n">${fx(c.t, 2)}</td><td class="n">${(c.n || 0).toLocaleString("en-GB")}</td><td class="small">${(c.bins || []).map(b => `${pct(b.p)} → ${pct(b.hit)}`).join(" · ") || "not enough history yet"}</td></tr>`).join("")}</table></div>`;
+  const board = t && t.board ? `<div class="tscroll"><table class="ptable"><tr><th>Leg</th><th>Game</th><th class="n">Chance</th><th class="n">Fair</th><th class="n">Take at</th><th>Mind</th></tr>${t.board.map(l => `<tr><td><span class="kind ${l.kind}">${KIND[l.kind]}</span>${h(legDesc(l))}</td><td class="small"><a href="#/game/${h(l.game)}">${h(l.matchup)}</a></td><td class="n hl">${pct(l.p)}</td><td class="n">${fx(l.fair, 2)}</td><td class="n">${fx(l.min_odds, 2)}</td><td><span class="mflag ${l.mind_flag}">${l.mind_flag}</span></td></tr>`).join("")}</table></div>` : "";
+  const singles = t && t.singles && t.singles.length ? `<ul class="legs ticket" style="padding:0">${t.singles.map(legRow).join("")}</ul>` : `<p class="sub">No single market price is worth taking today.</p>`;
+  app.innerHTML = `<section class="hero court"><div class="wrap"><h1>Daily parlay</h1>
+    <p class="lede" style="margin-top:10px">${t ? `Slate of ${h(longDay(t.day))} (US date): ${t.games} game${t.games === 1 ? "" : "s"}, ${t.candidates} possible legs checked, ${t.eligible} worth considering. ${t.frozen ? "Frozen at the first tip-off." : `Updates until the first tip-off (${tip(t.first_tip)}).`}` : "No games on the board right now."}</p></div></section>
+  <div class="wrap">${demoBanner()}
+    <p class="banner">The maths first: a parlay multiplies the bookmaker's margin with every leg, so it only makes sense when each leg is worth taking on its own. Every leg below shows its calibrated chance, its fair odds and the minimum Winamax price that makes it worth it. If Winamax pays less than that, leave the leg out. Statistical estimates, not advice; 18+.</p>
+    <div class="principles">
+      <div><span class="n">1</span><b>Every leg must stand alone</b>A leg goes in only if its chance beats its price. A parlay of bad bets is a worse bet, not a better one.</div>
+      <div><span class="n">2</span><b>Fewer legs, less margin</b>The margin compounds with every leg: about 9% with two legs and around 24% with six at standard prices. The Core 3 is the sounder ticket.</div>
+      <div><span class="n">3</span><b>Correlation is measured</b>Each game is simulated 20,000 times, so legs that tend to land together (a team's scorers and the total) are priced as a pair.</div>
+      <div><span class="n">4</span><b>Psychology both ways</b>Team and player spots are inside the chances, and no leg is picked with a psychological spot working against it.</div>
+    </div>
+    ${t && t.parlays && t.parlays.length ? t.parlays.map((pr, i) => ticket(pr, i === 0)).join("") : `<p class="empty">No ticket today: not enough legs pass the filters. That is an answer too.</p>`}
+    <section class="section"><h2>Value singles <span class="sub">market prices worth taking on their own — the research favours these over parlays</span></h2>${singles}</section>
+    <section class="section"><h2 class="mind">The bettor's mind <span class="sub">what research on bettors says goes wrong</span></h2><div class="grid2"><div class="panel mind"><ul class="checklist">
+      <li><b>Decide the stake before you look at the payout.</b> Prospect theory: people overweight small chances of big wins, which is exactly what long tickets sell.</li>
+      <li><b>Don't add a leg to make the odds look better.</b> Every extra leg adds margin; if a leg wasn't worth taking alone, it isn't worth taking in a ticket.</li>
+      <li><b>No chasing.</b> After a loss, bettors take riskier bets to win it back; after a win, they feel skilled. Both change the bet, not the chances.</li>
+      <li><b>Streaks are not memory.</b> A team or player being "due" is the gambler's fallacy; a hot hand is only real here if the measured effect says so.</li>
+      <li><b>Distrust the story you like.</b> Confirmation bias makes the leg you want feel safer. The chance on this page doesn't know which team you support.</li>
+      <li><b>Keep a record.</b> Compare your prices with the minimum odds. Beating that number over months is the only evidence of an edge.</li></ul></div>
+      <div class="panel"><h3>How sure are the player chances?</h3><p class="sub small">Model chances are shrunk towards 50% by a factor fitted on past player-games (1.00 = no change needed), so "80%" should land about 80% of the time.</p>${calHtml}</div></div></section>
+    <section class="section"><h2>Track record</h2>${recHtml}${hist}</section>
+    <section class="section"><h2>All strong legs today <span class="sub">to build your own</span></h2>${board}</section></div>`;
 }

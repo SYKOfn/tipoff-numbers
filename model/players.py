@@ -118,7 +118,9 @@ class PlayerTracker:
         avail = {k: v for k, v in rot.items() if k not in absent}
         tot = sum(avail.values()) or 1.0
         if extra_min is None:
-            extra_min = 0.7 * miss_min * (m / tot) if pid in avail else 0.0
+            # no hand-made redistribution: the measured "teammates out" effect below does that job
+            # (a fixed rule over-projected minutes by ~2.5 a game on real data)
+            extra_min = 0.0
         mins = min(42.0, m + extra_min)
         recent = list(q["recent"])
         hot = 0.0
@@ -136,7 +138,7 @@ class PlayerTracker:
             mult[st] = 1.0
             if eff and st in eff:
                 mult[st] = max(0.5, min(1.6, 1.0 + eff[st].get("bias", 0.0)
-                                        + sum(eff[st]["coef"][k] * v for k, v in x.items())))
+                                        + sum(eff[st]["coef"][k] * v for k, v in x.items() if usable(eff[st], k))))
         use = {"min": "min", "pts": "pts", "reb": "reb", "ast": "ast", "tpm": "pts", "fgm": "pts", "fga": "pts",
                "ftm": "pts", "fta": "pts", "stl": "min", "blk": "min", "tov": "min"}
         proj = {"min": mins * mult["min"]}
@@ -202,6 +204,12 @@ class PlayerTracker:
 
     def note_result(self, pid, actual_pts, proj_pts):
         self.p[pid]["recent"].append((actual_pts, proj_pts))
+
+
+def usable(e, k):
+    """Apply a player effect only with real support: 100+ games and at least moderate evidence."""
+    se = e["se"].get(k)
+    return bool(se) and e["n"].get(k, 0) >= 100 and abs(e["coef"][k] / se) >= 2
 
 
 def sd_for(stat, proj, disp):

@@ -4,6 +4,7 @@ Every parser is defensive: ESPN fields come and go, so a missing field gives Non
 """
 import json
 import time
+import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
@@ -24,7 +25,12 @@ def fetch(url, retries=3, timeout=30):
             req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "application/json"})
             with urllib.request.urlopen(req, timeout=timeout) as r:
                 return json.loads(r.read().decode("utf-8"))
-        except Exception as e:  # network, HTTP or JSON error
+        except urllib.error.HTTPError as e:
+            if e.code in (400, 404):  # e.g. a date range with no games: an empty answer, not worth retrying
+                return {}
+            last = e
+            time.sleep(1.5 * (i + 1))
+        except Exception as e:  # network or JSON error
             last = e
             time.sleep(1.5 * (i + 1))
     CALLS["errors"].append(f"{url}: {last}")
@@ -56,7 +62,7 @@ def scoreboard(day_from, day_to=None):
     """Events between two US-Eastern dates (YYYYMMDD), inclusive."""
     q = day_from if not day_to or day_to == day_from else f"{day_from}-{day_to}"
     data = fetch(f"{BASE}/scoreboard?dates={q}&limit=1000")
-    if not data:
+    if data is None:
         return None
     out = []
     for e in data.get("events", []) or []:
@@ -108,9 +114,55 @@ def parse_event(e):
             "home_logo": teams["home"]["logo"], "away_logo": teams["away"]["logo"],
             "home_record": teams["home"]["record"], "away_record": teams["away"]["record"],
             "home_lines": teams["home"]["linescores"], "away_lines": teams["away"]["linescores"],
+            "odds": parse_odds(comp),
         }
     except Exception:
         return None
+
+
+# ------------------------------------------------------------------ market odds
+def american_to_decimal(x):
+    try:
+        v = float(str(x).replace("+", "").strip())
+    except (TypeError, ValueError):
+        return None
+    if v == 0:
+        return None
+    return round(1 + (v / 100 if v > 0 else 100 / -v), 4)
+
+
+def _num(x):
+    try:
+        return float(str(x).lstrip("ou").replace("+", ""))
+    except (TypeError, ValueError):
+        return None
+
+
+def parse_odds(comp):
+    """Moneyline (decimal), spread (home line) and total from the scoreboard odds block, if ESPN has one."""
+    for o in comp.get("odds") or []:
+        out = {"provider": (o.get("provider") or {}).get("name")}
+        ht, at = o.get("homeTeamOdds") or {}, o.get("awayTeamOdds") or {}
+        out["ml_home"] = american_to_decimal(ht.get("moneyLine"))
+        out["ml_away"] = american_to_decimal(at.get("moneyLine"))
+        ml = o.get("moneyline") or {}
+        if not out["ml_home"]:
+            out["ml_home"] = american_to_decimal(((ml.get("home") or {}).get("close") or (ml.get("home") or {}).get("open") or {}).get("odds"))
+        if not out["ml_away"]:
+            out["ml_away"] = american_to_decimal(((ml.get("away") or {}).get("close") or (ml.get("away") or {}).get("open") or {}).get("odds"))
+        sp = o.get("spread")
+        if sp is None:
+            ps = (o.get("pointSpread") or {}).get("home") or {}
+            sp = _num((ps.get("close") or ps.get("open") or {}).get("line"))
+        # ESPN's "spread" is the home team's line (negative = home favoured)
+        out["spread_home"] = _num(sp)
+        out["total"] = _num(o.get("overUnder"))
+        if out["total"] is None:
+            tt = (o.get("total") or {}).get("over") or {}
+            out["total"] = _num((tt.get("close") or tt.get("open") or {}).get("line"))
+        if any(out.get(k) for k in ("ml_home", "spread_home", "total")):
+            return out
+    return None
 
 
 # ------------------------------------------------------------------ summary (box score)
