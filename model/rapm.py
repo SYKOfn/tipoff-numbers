@@ -115,7 +115,7 @@ class StintRAPM(RAPM):
     variance grows with stint length, so each stint is weighted by 1 / seconds (weighted least squares).
     Ratings are points per 48 minutes of team margin a player adds while on the floor."""
 
-    def __init__(self, lam=15.0, hl=HL_DAYS):
+    def __init__(self, lam=10.0, hl=HL_DAYS):  # 3-100 tested walk-forward; 3-30 alike, 10 kept
         super().__init__(lam, hl)
         self.games_n = 0
 
@@ -132,8 +132,10 @@ class StintRAPM(RAPM):
                 continue
             idx = np.array([0] + [self._col(p) for p in hids] + [self._col(p) for p in aids])
             x = np.array([neutral] + [1.0] * 5 + [-1.0] * 5)
-            self.A[np.ix_(idx, idx)] += k * dur / 2880.0 ** 2 * np.outer(x, x)
-            self.b[idx] += k * (hp - ap) / 2880.0 * x
+            # weighted least squares with weight 1/seconds, scaled by 2880 so one full game counts about
+            # as much as one game-level equation (keeps the ridge penalty on the same scale)
+            self.A[np.ix_(idx, idx)] += k * dur / 2880.0 * np.outer(x, x)
+            self.b[idx] += k * (hp - ap) * x
             for p in hids + aids:
                 self.mins[p] += dur / 60.0
             any_ = True

@@ -108,7 +108,7 @@ def main(demo=False, now=None, collect_data=True):
     analyst = (read_json(OVR / "analyst.json", {}) or {}).get("games", {})
 
     cur = espn.season_of(today.isoformat())
-    stints = load_stints(min_season=cur_s - 1) if engine.SRAPM_MODE != "off" else None
+    stints = load_stints(min_season=cur_s - MODEL_HIST) if engine.SRAPM_MODE != "off" else None
     c = engine.build_context(games, players, upcoming, tuned, stints=stints)
     rest_table = rest.measure(games, players, c.ctxs)
     rts = engine.fit_all(games, today.isoformat(), c.tuned)

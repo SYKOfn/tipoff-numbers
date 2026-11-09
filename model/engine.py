@@ -39,7 +39,7 @@ class Context:
     pass
 
 
-SRAPM_MODE = os.environ.get("SRAPM_MODE", "off")  # stint ratings: "off", "add" (a fourth player feature), "replace"
+SRAPM_MODE = os.environ.get("SRAPM_MODE", "add")  # stint ratings: "off", "add" (a fourth player feature), "replace"
 
 
 def build_context(games, players, upcoming, tuned=None, effects_until=None, stints=None):
