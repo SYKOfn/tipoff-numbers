@@ -499,10 +499,11 @@ async function accuracy() {
     <div class="panel"><h3>Margin</h3><p class="sub small">Average miss in points, lower is better</p>${duel(rowsFor(o), "mae_margin", true, 2)}<p class="sub small" style="margin-top:12px">Total points, average miss</p>${duel(rowsFor(o), "mae_total", true, 2)}</div>
     ${cal ? `<div class="panel"><h3>Calibration</h3><p class="sub small">When the favourite was given X%, how often did it win? Dots on the line = honest chances.</p>${calibSvg(cal)}</div>` : ""}</div></section>` : "";
   app.innerHTML = `<section class="hero court"><div class="wrap"><h1>Track record</h1><p class="sub" style="margin-top:8px">Every estimate is frozen at tip-off and scored after the final buzzer, against simpler methods — including the same model without its psychological layer.</p></div></section>
-  <div class="wrap">${demoBanner()}${verdict}
+  <div class="wrap">${demoBanner()}
+    ${a.live ? block("Live record: the number that counts", liveO, a.live.n, "Estimates frozen at tip-off with only what was known before the game, never changed afterwards.", a.live.calibration) : `<section><h2>Live record: the number that counts</h2><p class="note">No frozen estimates have been scored yet. The record starts with the first games after the site went live (9 November 2026); nothing is ever added afterwards. Everything below is research: made after the fact and, for the player-based checks, knowing who actually played, so it runs a little better than live estimates can.</p></section>`}
+    ${verdict}
     ${a.upgrade ? `<section class="section"><h2>Player-based strength <span class="sub">this season, weights fitted on earlier games only (${a.upgrade.games} games)</span></h2><div class="grid">${[["Winners called", "winners", true, v => pct(v)], ["Brier score", "brier", false, v => fx(v, 4)], ["Log loss", "logloss", false, v => fx(v, 4)], ["Margin miss", "mae_margin", false, v => fx(v, 2)]].map(([l, k, up, f]) => `<div class="panel"><h3>${l}</h3><div class="adv"><div><b>${f(a.upgrade.before[k])}</b>results-based only</div><div><b class="${(up ? a.upgrade.after[k] > a.upgrade.before[k] : a.upgrade.after[k] < a.upgrade.before[k]) ? "up" : "down"}">${f(a.upgrade.after[k])}</b>with player strength</div></div></div>`).join("")}</div>${a.market_blend && a.market_blend.n ? `<p class="sub small" style="margin-top:8px">Market blend: ${a.market_blend.on ? "on" : "off"} · model ${fx(a.market_blend.brier_model, 4)} vs Pinnacle ${fx(a.market_blend.brier_market, 4)} vs blend ${fx(a.market_blend.brier_blend, 4)} on ${a.market_blend.n} frozen games</p>` : ""}</section>` : ""}
-    ${a.live ? block("Live record", liveO, a.live.n, "Estimates frozen before tip-off.", a.live.calibration) : `<section><h2>Live record</h2><p class="note">No frozen estimates have been scored yet. The record starts with the first games after the site goes live; nothing is ever added afterwards.</p></section>`}
-    ${a.checks ? block("This season's model checks", chkO, a.checks.n, "Walk-forward: base ratings from games before each week, factor sizes from earlier seasons. Made after the fact, so not part of the live record.", a.checks.calibration) : ""}
+    ${a.checks ? block("This season's model checks", chkO, a.checks.n, "Research view. Walk-forward: base ratings from games before each week, factor sizes from earlier seasons, and the players who actually played (a live estimate cannot know late scratches). Made after the fact, so not part of the live record.", a.checks.calibration) : ""}
     ${bt && bt.test ? block(`Backtest: ${bt.test_season - 1}-${String(bt.test_season).slice(2)} season`, bt.test, bt.test.n, `Settings tuned on ${bt.tune_season - 1}-${String(bt.tune_season).slice(2)}, tested once on the next season, walk-forward by week. Half-life ${bt.tuned.half_life} days, last-season weight ${bt.tuned.carry}.`) : ""}
     <section class="section"><h2>What each factor is worth <span class="sub">measured on ${a.effects_games.toLocaleString("en-GB")} games</span></h2>
       <p class="sub">Points on the margin for the team in that spot, from one penalised regression of what the base ratings missed on all factors together. ± is the standard error.</p>
@@ -773,13 +774,21 @@ let PAR = null;
 function ncdf(x) { const t = 1 / (1 + 0.2316419 * Math.abs(x)), d = 0.3989423 * Math.exp(-x * x / 2); const p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274)))); return x > 0 ? 1 - p : p; }
 const lgt = p => Math.log(Math.max(p, 1e-6) / Math.max(1 - p, 1e-6)), sgm = x => 1 / (1 + Math.exp(-x));
 const lineOf = l => { const v = LS.get(`tipoff.line.${l.id}`, null); return v == null ? l.line : v; };
+/* player counts: negative binomial, mean mu, variance mu x dispersion (as on the server) */
+function nbOver(L, mu, disp) {
+  mu = Math.max(mu, 0.05); const d = Math.max(disp, 1.02), kMax = Math.floor(L);
+  if (kMax < 0) return 1;
+  const r = mu / (d - 1), q = 1 / d; let pk = Math.exp(r * Math.log(q)), cdf = pk;
+  for (let k = 0; k < kMax; k++) { pk *= (k + r) / (k + 1) * (1 - q); cdf += pk; }
+  return Math.min(1, Math.max(0, 1 - cdf));
+}
 function effP(l) {
   const L = lineOf(l);
   if (!l.dist || L == null || L === l.line) return l.p;
   const d = l.dist;
   let pm;
   if (l.kind === "spread") pm = ncdf((d.mu + L) / d.sd);
-  else { const po = 1 - ncdf((L - d.mu) / d.sd); pm = l.side === "under" ? 1 - po : po; }
+  else { const po = d.d ? nbOver(L, d.mu, d.d) : 1 - ncdf((L - d.mu) / d.sd); pm = l.side === "under" ? 1 - po : po; }
   const o = oddsOf(l.id);
   return o ? sgm(0.5 * lgt(sgm(d.model * lgt(pm))) + 0.5 * lgt(1 / (o * 1.05))) : sgm(d.alone * lgt(pm));
 }
@@ -864,6 +873,7 @@ function recordBet(name, legs, p) {
 function betClv(leg) {
   const c = PAR && PAR.leg_close && PAR.leg_close[leg.id];
   if (!c) return null;
+  if (leg.odds && c.pin_fair) return { txt: `${sgn((leg.odds * c.pin_fair - 1) * 100, 1)}% vs Pinnacle's closing fair odds ${fx(1 / c.pin_fair, 2)}`, v: leg.odds * c.pin_fair - 1 };
   if (leg.odds && c.price) return { txt: `${sgn((leg.odds / c.price - 1) * 100, 1)}% vs close ${fx(c.price, 2)}`, v: leg.odds / c.price - 1 };
   if (c.line != null && leg.line != null) {
     const d = leg.kind === "spread" ? leg.line - c.line : leg.side === "under" ? leg.line - c.line : c.line - leg.line;
@@ -883,7 +893,7 @@ function myBets() {
     const ev = b.odds ? b.p * b.odds - 1 : null;
     return `<tr><td class="small">${day(b.at.slice(0, 10))}</td><td>${h(b.name)}</td><td class="small">${legs}</td><td class="n">${b.odds ? fx(b.odds, 2) : "–"}</td><td class="n">${pct(b.p)}</td><td class="n ${ev == null ? "" : ev >= 0 ? "up" : "down"}">${ev == null ? "–" : sgn(ev * 100, 0) + "%"}</td><td class="n">${b.stake ?? "–"}</td><td class="${status === "won" ? "up" : status === "lost" ? "down" : "sub"}">${status}</td><td><button class="copybtn" data-del="${bi}">✕</button></td></tr>`;
   }).join("");
-  return `${clvN ? `<p class="verdict"><b>Your closing-line value:</b> you beat the closing price on ${clvBeat} of ${clvN} legs (${pct(clvBeat / clvN)}). Consistently above 50% is the earliest sign of a real edge.</p>` : ""}
+  return `${clvN ? `<p class="verdict"><b>Your closing-line value:</b> you beat the closing price on ${clvBeat} of ${clvN} legs (${pct(clvBeat / clvN)}). For winners the yardstick is Pinnacle's closing price with its margin removed: beating it on more than half of 200+ bets is the earliest reliable sign of a real edge.</p>` : ""}
     <div class="tscroll"><table><tr><th>Day</th><th>Ticket</th><th>Legs</th><th class="n">Odds</th><th class="n">Chance</th><th class="n">Value</th><th class="n">Stake</th><th>Status</th><th></th></tr>${rows}</table></div>`;
 }
 

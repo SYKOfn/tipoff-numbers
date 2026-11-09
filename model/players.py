@@ -390,6 +390,25 @@ def sd_for(stat, proj, disp):
     return max(0.6, math.sqrt(max(proj, 0.3) * disp.get(stat, 1.5)))
 
 
+def over_prob(stat, line, mu, disp):
+    """P(count > line) with a negative binomial of mean mu and variance mu x dispersion (Poisson when the
+    dispersion is ~1). Tested against the bell curve on 2024-25, 2025-26 and this season: lower log loss and
+    Brier for points, rebounds and assists in every season, most on low lines."""
+    mu = max(float(mu), 0.05)
+    d = max(disp.get(stat, 1.5) if isinstance(disp, dict) else float(disp), 1.02)
+    k_max = int(math.floor(line))
+    if k_max < 0:
+        return 1.0
+    r = mu / (d - 1.0)
+    q = 1.0 / d                    # success probability (scipy's p)
+    pk = math.exp(r * math.log(q))  # P(X = 0)
+    cdf = pk
+    for k in range(k_max):
+        pk *= (k + r) / (k + 1) * (1 - q)
+        cdf += pk
+    return max(0.0, min(1.0, 1.0 - cdf))
+
+
 def lines_for(stat, proj, disp):
     sd = sd_for(stat, proj, disp)
     base = math.floor(proj) + 0.5
@@ -399,7 +418,7 @@ def lines_for(stat, proj, disp):
         L = base + k * step
         if L <= 0:
             continue
-        out.append({"line": L, "over": round(1 - eff_mod.norm_cdf((L - proj) / sd), 3)})
+        out.append({"line": L, "over": round(over_prob(stat, L, proj, disp), 3)})
     return out
 
 

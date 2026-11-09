@@ -42,7 +42,7 @@ def sigmoid(x):
 # ------------------------------------------------------------------ calibration of player props
 def fit_prop_calibration(plogs, byg, disp):
     """Temperature per stat: p_cal = sigmoid(T * logit(p)), fitted by log loss on past player-games."""
-    from .players import sd_for
+    from .players import sd_for, over_prob
     actual = {}
     for gid, teams in byg.items():
         for rows in teams.values():
@@ -63,7 +63,7 @@ def fit_prop_calibration(plogs, byg, disp):
                 L = math.floor(proj + k * sd) + 0.5
                 if L <= 0:
                     continue
-                p = 1 - norm_cdf((L - proj) / sd)
+                p = over_prob(st, L, proj, disp)
                 ps.append(p)
                 ys.append(1.0 if a[st] > L else 0.0)
         if len(ps) < 500:
@@ -161,7 +161,7 @@ def prop_legs(game, players, calib, avg, disp, real=None):
     """Player props at the line a bookmaker would most likely post: books anchor main lines on the player's
     season average, so that line is estimated as his average rounded to .5. A leg is a candidate when the
     projection (matchup, minutes, teammates out, psychology) disagrees with that line."""
-    from .players import LABEL, sd_for
+    from .players import LABEL, sd_for, over_prob
     legs = []
     for side in ("home", "away"):
         team = game[side]
@@ -180,7 +180,7 @@ def prop_legs(game, players, calib, avg, disp, real=None):
                 if rl:  # a real posted line: test the projection against it and its no-margin price
                     L = float(rl["line"])
                     sd = sd_for(st, proj, disp)
-                    po = 1 - norm_cdf((L - proj) / sd)
+                    po = over_prob(st, L, proj, disp)
                     t = (calib.get(st) or {}).get("t", 0.75)
                     pm_over = novig(rl["over"], rl["under"])
                     for sd_, pm, price, mk in (("over", po, float(rl["over"]), pm_over), ("under", 1 - po, float(rl["under"]), 1 - pm_over)):
@@ -192,7 +192,7 @@ def prop_legs(game, players, calib, avg, disp, real=None):
                                              team=team, player=pl["id"], player_name=pl["name"], stat=st, line=L, side=sd_,
                                              proj=proj, avg=None if av is None or av != av else round(av, 1), price_est=False,
                                              book=rl["book"], market=round(mk, 3),
-                                             dist={"mu": round(proj, 2), "sd": round(sd, 2), "alone": t, "model": t},
+                                             dist={"mu": round(proj, 2), "sd": round(sd, 2), "d": round(disp.get(st, 1.5), 3), "alone": t, "model": t},
                                              note=f"projection {proj:.1f}; real {rl['book']} line, blended 50/50 with its no-margin price",
                                              mind=mind if sd_ == "over" else -mind, spots=[x["label"] for x in spots],
                                              sim=("prop", side, pl["id"], st, sd_, L)))
@@ -203,11 +203,11 @@ def prop_legs(game, players, calib, avg, disp, real=None):
                 # like team legs against the market: blend the projection 50/50 with the line's anchor
                 center = 0.5 * proj + 0.5 * av
                 sd = sd_for(st, center, disp)
-                po = 1 - norm_cdf((L - center) / sd)
+                po = over_prob(st, L, center, disp)
                 # the price a book would ask: fair on the season-average anchor, plus a 5% margin. For low counts
                 # (threes, assists) this is far from 1.85 - an under 1.5 threes for a one-a-game shooter is short.
                 sda = sd_for(st, av, disp)
-                pa_over = min(max(1 - norm_cdf((L - av) / sda), 0.03), 0.97)
+                pa_over = min(max(over_prob(st, L, av, disp), 0.03), 0.97)
                 t = (calib.get(st) or {}).get("t", 0.75)
                 for sd_, pm, pa in (("over", po, pa_over), ("under", 1 - po, 1 - pa_over)):
                     if sd_ not in PROP_SIDES:
@@ -216,7 +216,7 @@ def prop_legs(game, players, calib, avg, disp, real=None):
                     price = round(1 / (pa * 1.05), 2)
                     if 0.5 <= pc <= PROP_MAX and price >= 1.3:
                         legs.append(_leg(game, "prop", f"{pl['name']} {sd_} {L:.1f} {STAT_NAME[st]}", pm, pc, price,
-                                         dist={"mu": round(center, 2), "sd": round(sd, 2), "alone": t, "model": t},
+                                         dist={"mu": round(center, 2), "sd": round(sd, 2), "d": round(disp.get(st, 1.5), 3), "alone": t, "model": t},
                                          team=team, player=pl["id"], player_name=pl["name"], stat=st, line=L, side=sd_,
                                          proj=proj, avg=round(av, 1), price_est=True,
                                          note=f"projection {proj:.1f} vs season average {av:.1f} {LABEL.get(st, st).lower()} (blended 50/50); line and price estimated",
@@ -311,7 +311,8 @@ def book_legs(game, est, players, odds, offers, calib, disp, mind_gap):
         proj = pl[st]
         sd = sd_for(st, proj, disp)
         tt = (calib.get(st) or {}).get("t", 0.75)
-        po = sigmoid(tt * logit(1 - norm_cdf((L - proj) / sd)))
+        from .players import over_prob
+        po = sigmoid(tt * logit(min(max(over_prob(st, L, proj, disp), 1e-4), 1 - 1e-4)))
         both = novig(sides.get("over"), sides.get("under")) if len(sides) == 2 else None
         spots = pl.get("spots") or []
         mind = sum(x["pct"] for x in spots if x.get("layer") == "mind")
@@ -322,7 +323,7 @@ def book_legs(game, est, players, odds, offers, calib, disp, mind_gap):
             add("prop", f"{pl['name']} {sd_} {L:.1f} {STAT_NAME[st]}", po if sd_ == "over" else 1 - po, pb, price,
                 team=game[side], player=pl["id"], player_name=pl["name"], stat=st, line=L, side=sd_, proj=proj,
                 mind=mind if sd_ == "over" else -mind, spots=[x["label"] for x in spots], sim=("prop", side, pl["id"], st, sd_, L),
-                dist={"mu": round(proj, 2), "sd": round(sd, 2), "alone": tt, "model": tt})
+                dist={"mu": round(proj, 2), "sd": round(sd, 2), "d": round(disp.get(st, 1.5), 3), "alone": tt, "model": tt})
     return legs
 
 

@@ -626,6 +626,16 @@ def main(demo=False, now=None, collect_data=True):
                 leg_results[l["id"]] = l["result"]
         if pj.get("frozen"):
             leg_close.update(pj.get("last_seen", {}))
+            # winners: Pinnacle's closing fair chance, the sharpest yardstick for any price you took
+            for l in [l for pr in pj.get("parlays", []) for l in pr["legs"]] + pj.get("board", []) + pj.get("singles", []):
+                if l.get("kind") != "ml" or l["id"] not in leg_close:
+                    continue
+                gr = c.meta.get(l["game"])
+                pf = read_json(PRED / str(gr["season"]) / f"{l['game']}.json") if gr is not None else None
+                pc = (((pf or {}).get("books_last") or {}).get("pinnacle") or {})
+                fh = parlay.novig(pc.get("ml_home"), pc.get("ml_away"))
+                if fh is not None:
+                    leg_close[l["id"]] = {**leg_close[l["id"]], "pin_fair": round(fh if l.get("team") == gr["home"] else 1 - fh, 4)}
     write_json(SITE / "parlay.json", {"today": today_parlay, "calibration": calib, "record": rec,
                                       "leg_results": leg_results, "leg_close": leg_close,
                                       "odds_api": (read_json(STATE / "collect.json", {}) or {}).get("odds_api"),
