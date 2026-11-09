@@ -25,6 +25,6 @@ jobs:
       - run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/odds 2>/dev/null || true
+          git add data/odds tests/fixtures 2>/dev/null || true
           git commit -q -m "Research data" || echo "no changes"
           git pull -q --rebase -X theirs origin main && git push -q
