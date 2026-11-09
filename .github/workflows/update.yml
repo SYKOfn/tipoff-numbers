@@ -1,4 +1,5 @@
 name: update
+# runs hourly near tip-off; see pipeline/should_run.py
 on:
   schedule:
     - cron: "23 * * * *"       # hourly; the gate below skips quiet hours (full run every 3 h, hourly near tip-off)
