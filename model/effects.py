@@ -95,6 +95,15 @@ class Effects:
         self.cm, self.sem, self.actm = cm, sem, actm
         self.ct, self.set, self.actt = cs, set_, actt
         self.sd_margin, self.sd_total, self.n = sd_margin, sd_total, n
+        self.sdm_ab = None  # (a, b): margin spread = (a + b x |expected margin|) / sqrt(2/pi)
+
+    def sd_for(self, margin):
+        """Spread of the final margin around this game's estimate. Tested on 2023-24 to this season:
+        lopsided games are slightly less uncertain than close ones (better handicap and win chances)."""
+        if not self.sdm_ab:
+            return self.sd_margin
+        a, b = self.sdm_ab
+        return float(max(0.7 * self.sd_margin, min(1.3 * self.sd_margin, (a + b * abs(margin)) / np.sqrt(2 / np.pi))))
 
     def table(self):
         rows = []
@@ -111,7 +120,7 @@ class Effects:
                 "margin_n": dict(zip(MARGIN, map(int, self.actm))),
                 "total": dict(zip(TOTAL, map(float, self.ct))), "total_se": dict(zip(TOTAL, map(float, self.set))),
                 "total_n": dict(zip(TOTAL, map(int, self.actt))),
-                "sd_margin": self.sd_margin, "sd_total": self.sd_total, "n": self.n}
+                "sd_margin": self.sd_margin, "sd_total": self.sd_total, "n": self.n, "sdm_ab": self.sdm_ab}
 
     @classmethod
     def from_json(cls, j):
@@ -119,6 +128,12 @@ class Effects:
                    np.array([j["margin_n"].get(k, 0) for k in MARGIN]),
                    np.array([j["total"].get(k, 0) for k in TOTAL]), np.array([j["total_se"].get(k, np.nan) for k in TOTAL]),
                    np.array([j["total_n"].get(k, 0) for k in TOTAL]), j["sd_margin"], j["sd_total"], j["n"])
+
+    @classmethod
+    def from_json_full(cls, j):
+        e = cls.from_json(j)
+        e.sdm_ab = tuple(j["sdm_ab"]) if j.get("sdm_ab") else None
+        return e
 
 
 def estimate(rows, lam=150.0):
@@ -132,7 +147,13 @@ def estimate(rows, lam=150.0):
     yt = np.array([r[3] - r[4] for r in rows])
     cm, sem, am, sdm = fit(Xm, ym, lam)
     ct, set_, at, sdt = fit(Xt, yt, lam)
-    return Effects(cm, sem, am, ct, set_, at, sdm, sdt, len(rows))
+    e = Effects(cm, sem, am, ct, set_, at, sdm, sdt, len(rows))
+    pred = np.array([r[2] for r in rows]) + Xm @ cm
+    res = np.array([r[1] for r in rows]) - pred
+    A = np.c_[np.ones(len(pred)), np.abs(pred)]
+    a, b = np.linalg.lstsq(A, np.abs(res), rcond=None)[0]
+    e.sdm_ab = (float(a), float(b))
+    return e
 
 
 def contributions(eff, ctx):

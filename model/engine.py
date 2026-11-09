@@ -164,7 +164,7 @@ def predict(c, g, ctx, rts, eff=None, base_override=None, lineup_feat=None, stac
     mind_t = sum(p["pts"] for p in parts if p["target"] == "total" and p["layer"] == "mind")
     m = base_m + phys_m + mind_m
     t = base_t + phys_t + mind_t
-    sdm, sdt = eff.sd_margin, eff.sd_total
+    sdm, sdt = (eff.sd_for(m) if hasattr(eff, "sd_for") else eff.sd_margin), eff.sd_total
     win = effects.norm_cdf(m / sdm)
     win_nomind = effects.norm_cdf((m - mind_m) / sdm)
     pf_h, pa_h = baseline(c.games, int(g["season"]), h, g["day"])
