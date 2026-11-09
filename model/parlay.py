@@ -22,6 +22,7 @@ SIMS = 20000
 P_MIN, P_MAX = 0.55, 0.86
 PROP_MAX = 0.80          # alternate prop lines beyond this are priced too short to carry value
 EDGE_W = 3.0             # how much a measured price edge is worth against chance when ranking tickets
+EST_EDGE_W, EST_EDGE_CAP = 1.0, 0.12   # edges against an estimated line count less, and are capped
 SAFETY = 1.05            # ask 5% more than fair odds before calling a leg worth taking
 BETA = {"pts": 1.0, "pra": 0.85, "ast": 0.6, "reb": 0.3, "tpm": 0.8}
 STAT_NAME = {"pts": "points", "reb": "rebounds", "ast": "assists", "tpm": "threes", "pra": "pts+reb+ast"}
@@ -53,7 +54,7 @@ def fit_prop_calibration(plogs, byg, disp):
         ps, ys = [], []
         for key, pr in plogs.items():
             a = actual.get(key)
-            if not a or st not in pr:
+            if not a or st not in pr or a.get(st) is None:
                 continue
             proj = pr[st]
             sd = sd_for(st, proj, disp)
@@ -142,7 +143,6 @@ def team_legs(game, est, odds, mind_gap):
     return legs
 
 
-PROP_PRICE = 1.85        # typical price either side of a main player line
 
 
 def novig(a, b):
@@ -197,14 +197,19 @@ def prop_legs(game, players, calib, avg, disp, real=None):
                 center = 0.5 * proj + 0.5 * av
                 sd = sd_for(st, center, disp)
                 po = 1 - norm_cdf((L - center) / sd)
+                # the price a book would ask: fair on the season-average anchor, plus a 5% margin. For low counts
+                # (threes, assists) this is far from 1.85 - an under 1.5 threes for a one-a-game shooter is short.
+                sda = sd_for(st, av, disp)
+                pa_over = min(max(1 - norm_cdf((L - av) / sda), 0.03), 0.97)
                 t = (calib.get(st) or {}).get("t", 0.75)
-                for sd_, pm in (("over", po), ("under", 1 - po)):
+                for sd_, pm, pa in (("over", po, pa_over), ("under", 1 - po, 1 - pa_over)):
                     pc = sigmoid(t * logit(pm))
-                    if 0.5 <= pc <= PROP_MAX:
-                        legs.append(_leg(game, "prop", f"{pl['name']} {sd_} {L:.1f} {STAT_NAME[st]}", pm, pc, PROP_PRICE,
+                    price = round(1 / (pa * 1.05), 2)
+                    if 0.5 <= pc <= PROP_MAX and price >= 1.3:
+                        legs.append(_leg(game, "prop", f"{pl['name']} {sd_} {L:.1f} {STAT_NAME[st]}", pm, pc, price,
                                          team=team, player=pl["id"], player_name=pl["name"], stat=st, line=L, side=sd_,
                                          proj=proj, avg=round(av, 1), price_est=True,
-                                         note=f"projection {proj:.1f} vs season average {av:.1f} {LABEL.get(st, st).lower()} (blended 50/50); line estimated",
+                                         note=f"projection {proj:.1f} vs season average {av:.1f} {LABEL.get(st, st).lower()} (blended 50/50); line and price estimated",
                                          mind=mind if sd_ == "over" else -mind, spots=[x["label"] for x in spots],
                                          sim=("prop", side, pl["id"], st, sd_, L)))
     return legs
@@ -252,6 +257,13 @@ def outcome(sim, leg, game):
 
 
 # ------------------------------------------------------------------ choosing the parlays
+def edge_score(l):
+    e = l.get("edge") or 0.0
+    if l.get("price_est"):
+        return EST_EDGE_W * min(e, EST_EDGE_CAP)
+    return EDGE_W * e
+
+
 def _conflict(a, b):
     if a["game"] != b["game"]:
         return False
@@ -287,7 +299,7 @@ def joint(legs, sims, games):
 
 
 def search(cands, k, sims, games, max_per_game=2, min_games=None, beam=60):
-    cands = sorted(cands, key=lambda l: -(math.log(l["p"]) + EDGE_W * (l["edge"] or 0)))[:160]
+    cands = sorted(cands, key=lambda l: -(math.log(l["p"]) + edge_score(l)))[:160]
     states = [((), 1.0)]
     for _ in range(k):
         nxt = {}
@@ -305,7 +317,7 @@ def search(cands, k, sims, games, max_per_game=2, min_games=None, beam=60):
                 if key in nxt:
                     continue
                 pj, _ = joint(new, sims, games)
-                sc = math.log(max(pj, 1e-9)) + EDGE_W * sum(l["edge"] or 0 for l in new)
+                sc = math.log(max(pj, 1e-9)) + sum(edge_score(l) for l in new)
                 nxt[key] = (new, sc)
         states = sorted(nxt.values(), key=lambda s: -s[1])[:beam]
         if not states:
@@ -383,7 +395,7 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None):
 def board(cands, n=60):
     """The strongest legs, plus the correlation lift for every same-game pair (for the custom ticket builder)."""
     good = sorted([l for l in cands if P_MIN <= l["p"] <= P_MAX and l["mind_flag"] != "against"],
-                  key=lambda l: -(math.log(l["p"]) + EDGE_W * (l["edge"] or 0)))[:n]
+                  key=lambda l: -(math.log(l["p"]) + edge_score(l)))[:n]
     lifts = {}
     for i, a in enumerate(good):
         for b in good[i + 1:]:

@@ -25,7 +25,7 @@ def real_lines(first_last, frozen_proj, actual, disp, calib):
     rows = []
     for (gid, pl, st), (op, cl) in first_last.items():
         pr = (frozen_proj.get((gid, pl)) or {}).get(st)
-        a = (actual.get((gid, pl)) or {}).get(st)
+        a = (actual.get((gid, pl)) or {}).get(st)  # None when not recorded
         if pr is None or a is None or not cl:
             continue
         L = float(cl["line"])
@@ -99,7 +99,7 @@ def proxy_lines(plogs, byg, games_order, disp, calib, min_gp=5):
                 if proj:
                     for st, a in vals.items():
                         s, n = tot[pid][st]
-                        if n < min_gp or st not in proj:
+                        if a is None or n < min_gp or st not in proj:
                             continue
                         L = math.floor(s / n) + 0.5
                         if a == L:
@@ -116,6 +116,8 @@ def proxy_lines(plogs, byg, games_order, disp, calib, min_gp=5):
                             rr["strong_n"] += 1
                             rr["strong_right"] += right
                 for st, a in vals.items():
+                    if a is None:
+                        continue
                     tot[pid][st][0] += a
                     tot[pid][st][1] += 1
     return {st: {**v, "hit": round(v["right"] / v["n"], 3) if v["n"] else None,

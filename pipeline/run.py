@@ -281,8 +281,9 @@ def main(demo=False, now=None, collect_data=True):
                 for side, ab in (("home", g["home"]), ("away", g["away"])):
                     rows = sorted([r for r in byg.get(gid, {}).get(ab, []) if r["min"] > 0], key=lambda r: -r["min"])
                     pl[side] = [{"id": r["player_id"], "name": r["name"], "pos": r["pos"], "min": int(r["min"]), "pts": int(r["pts"]),
-                                 "reb": int(r["reb"]), "ast": int(r["ast"]), "tpm": int(r["tpm"]), "stl": int(r["stl"]),
-                                 "blk": int(r["blk"]), "tov": int(r["tov"]), "pm": int(r["pm"]),
+                                 "reb": int(r["reb"]), "ast": int(r["ast"]), "tpm": None if r["tpm"] is None else int(r["tpm"]),
+                                 "stl": None if r["stl"] is None else int(r["stl"]), "blk": None if r["blk"] is None else int(r["blk"]),
+                                 "tov": None if r["tov"] is None else int(r["tov"]), "pm": None if r["pm"] is None else int(r["pm"]),
                                  "proj": plogs.get((gid, r["player_id"]))} for r in rows]
                 payload = {**payload, "players_actual": pl}
             result_payloads[gid] = (g, payload)

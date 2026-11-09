@@ -80,7 +80,7 @@ class PlayerTracker:
 
     def rate(self, q, stat):
         num, den = q["rate"].get(stat, (0.0, 0.0))
-        mins = q["rate"].get("_min", (0.0, 0.0))[0]
+        mins = q["rate"].get("_min_" + stat, q["rate"].get("_min", (0.0, 0.0)))[0]
         pr = self.prior(q["pos"], stat)
         return (num + pr * K_PRIOR) / (mins + K_PRIOR) if (mins + K_PRIOR) else pr
 
@@ -183,21 +183,31 @@ class PlayerTracker:
                 q["gp"] += 1
                 ew_add(q["ew_min"], "m", mn, MIN_HL)
                 al = 0.5 ** (1 / RATE_HL)
-                for st in STATS + ["_min"]:
-                    v = mn if st == "_min" else float(r.get(st) or 0)
+                for k_ in list(q["rate"]):  # every stat's history decays once per game played
+                    a_, b_ = q["rate"][k_]
+                    q["rate"][k_] = (a_ * al, b_ * al)
+                for st in STATS:
+                    v = r.get(st)
+                    if v is None:  # not recorded for this game: no information, not a zero
+                        continue
                     s = q["rate"].get(st, (0.0, 0.0))
-                    q["rate"][st] = (s[0] * al + v, s[1] * al + 1.0)
-                for pos in (q["pos"] or "?", "ALL"):
-                    for st in STATS:
+                    q["rate"][st] = (s[0] + float(v), s[1] + 1.0)
+                    m_ = q["rate"].get("_min_" + st, (0.0, 0.0))
+                    q["rate"]["_min_" + st] = (m_[0] + mn, m_[1] + 1.0)
+                    for pos in (q["pos"] or "?", "ALL"):
                         acc = self.pos_rate[pos][st]
-                        acc[0] += float(r.get(st) or 0)
+                        acc[0] += float(v)
                         acc[1] += mn
+                s = q["rate"].get("_min", (0.0, 0.0))
+                q["rate"]["_min"] = (s[0] + mn, s[1] + 1.0)
             self.team_hist[team].append(played)
         for team, opp in ((h, a), (a, h)):
             rows = [r for r in (rows_by_team.get(team) or []) if float(r.get("min") or 0) > 0]
             if not rows:
                 continue
             for st in ("pts", "reb", "ast", "tpm"):
+                if any(r.get(st) is None for r in rows):
+                    continue
                 v = sum(float(r.get(st) or 0) for r in rows)
                 ew_add(self.allowed[opp], st, v, 20)
                 ew_add(self.league, st, v, 300)

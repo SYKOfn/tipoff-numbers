@@ -22,7 +22,10 @@ def rows_by_game(df):
     for r in df[cols].to_dict("records"):
         for k in PLAYER_STATS:
             v = r.get(k)
-            r[k] = 0.0 if v is None or (isinstance(v, float) and math.isnan(v)) else float(v)
+            missing = v is None or (isinstance(v, float) and math.isnan(v))
+            # minutes/points/rebounds/assists are always there; the rest was not stored in the first runs:
+            # keep those as None so they are never read as zeros
+            r[k] = (0.0 if k in ("min", "pts", "reb", "ast") else None) if missing else float(v)
         r["player_id"] = str(r["player_id"])
         out[str(r["game_id"])][r["team"]].append(r)
     return out
@@ -58,6 +61,8 @@ def walk(c, players_df, notes, cur):
                 act_pra = r["pts"] + r["reb"] + r["ast"]
                 for st in P.SHOW + ["pra"]:
                     a = act_pra if st == "pra" else r[st]
+                    if a is None:
+                        continue
                     sq[st] += (a - proj[st]) ** 2
                     sp[st] += proj[st]
                 if int(g["season"]) == cur:
