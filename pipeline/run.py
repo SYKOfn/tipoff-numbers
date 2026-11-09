@@ -310,6 +310,7 @@ def main(demo=False, now=None, collect_data=True):
         payload = game_payload(g, ctx, est, "estimate", {t: injuries.get(t, []) for t in (g["home"], g["away"])} if news else None)
         payload["news"] = news
         payload["refs"] = g.get("refs")
+        payload["style"] = {side: {"pace": c.style.pace_word(g[side])} for side in ("home", "away")}
         payload["made_at"] = now.isoformat()
         payload["players"] = proj_players
         if gid in analyst:
@@ -538,6 +539,8 @@ def main(demo=False, now=None, collect_data=True):
             full_menu = any((g.get("offers") or {}).get("offers") for g, _ in pre2)
             bet_book = oddsapi.env("ODDS_API_BET_BOOK", "winamax_fr") if (oddsapi.key() and full_menu) else None
             built, cands = parlay.build(pre2, pdisp, calib, avg, real_props=real, book_only=bet_book)
+            from model import story
+            story.annotate(built["parlays"], built.get("singles"), pre2)  # why each ticket, in plain words
             bl, lifts = parlay.board(cands)
             odds_by_game = {str(g["game_id"]): g.get("odds") for g, _ in slate}
             first_seen = dict((old or {}).get("first_seen", {}))

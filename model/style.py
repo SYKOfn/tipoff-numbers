@@ -58,6 +58,15 @@ class StyleTracker:
         s = self.lg.get(key)
         return s[0] / s[1] if s and s[1] else None
 
+    def pace_word(self, team):
+        """'fast' / 'slow' / None: the team's recent pace against the league."""
+        if self.n[team] < MIN_GAMES:
+            return None
+        p, l = self._get(team, "pace"), self._lg("pace")
+        if p is None or l is None:
+            return None
+        return "fast" if p >= l + 1.5 else "slow" if p <= l - 1.5 else None
+
     def team_luck(self, team):
         """Recent three-point luck, in points a game: own shooting above league average minus opponents'."""
         if self.n[team] < MIN_GAMES:

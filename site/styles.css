@@ -485,3 +485,6 @@ details.pl[open] > summary td { background: var(--floor); }
 .linein:focus { outline: none; border-color: var(--ball); border-style: solid; }
 .legs li { grid-template-columns: 26px minmax(0, 1fr) 70px 110px 190px; }
 @media (max-width: 680px) { .legs li { grid-template-columns: 22px 1fr 70px; } }
+
+.story{display:block;font-style:normal;color:var(--ink);opacity:.85;margin-top:4px;line-height:1.45}
+p.story{margin-top:8px}

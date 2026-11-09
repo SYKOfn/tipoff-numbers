@@ -203,7 +203,11 @@ def project_game(pt, pe, disp, g, ctx, injuries, notes, news=True, exp_margin=No
                     row_lineup = None
             else:
                 row_lineup = None
+            of = pt.opp_factor(opp, "pts")
+            matchup = "soft" if of >= 1.03 else "tough" if of <= 0.97 else None
+            wo_names = [pt.p[b]["name"] for b in pt.key_absent(team, absent - {pid}) if (pt.p[pid].get("wo") or {}).get(b)]
             row = {"id": pid, "name": q["name"], "pos": q["pos"], "out": False, "lineup": row_lineup,
+                   "matchup": matchup, "without_names": wo_names[:2], "started": int(bool(q.get("started"))),
                    "status": status.get("status") if status else None, "detail": status.get("detail") if status else None,
                    "play": status.get("play") if status else None, "spots": spots}
             for st in ("min", "pts", "reb", "ast", "tpm", "stl", "blk", "tov", "pra", "fga", "fta"):
