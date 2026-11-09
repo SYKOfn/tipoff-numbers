@@ -238,6 +238,8 @@ def main(demo=False, now=None, collect_data=True):
         ahead = (date.fromisoformat(g["day"]) - today).days
         news = ahead <= 3
         ctx = trc.pre_game(g, injuries=injuries if news else None)
+        for side in ("home", "away"):
+            ctx[side]["luck"] = round(c.style.team_luck(g[side]), 3)
         for side in ("home", "away"):  # last-result spots only apply to a team's next game
             if g[side] in seen:
                 ctx[side]["bounce"] = ctx[side]["letdown"] = 0

@@ -15,8 +15,9 @@ LUCK_HL = 10     # games
 CARRY = 0.5      # weight kept at a new season
 MIN_GAMES = 10   # per team before the features switch on
 
-KEYS = ["pace", "tpa", "tpa_alw", "orb", "orb_alw", "tov", "tov_frc", "ftr", "ftr_alw", "luck_own", "luck_opp"]
-MARGIN_F = ["orb_match", "tov_match", "three_match", "ft_match", "luck"]
+KEYS = ["pace", "tpa", "tpa_alw", "orb", "orb_alw", "tov", "tov_frc", "ftr", "ftr_alw", "ast", "ast_alw",
+        "blk", "blkd", "luck_own", "luck_opp"]
+MARGIN_F = ["orb_match", "tov_match", "three_match", "ft_match", "pass_match", "rim_match", "luck"]
 TOTAL_F = ["pace_match", "three_volume", "luck_total"]
 
 
@@ -24,8 +25,8 @@ def _box(g, side):
     p = "h_" if side == "home" else "a_"
     o = "a_" if side == "home" else "h_"
     try:
-        v = {k: float(g[p + k]) for k in ("fgm", "fga", "tpm", "tpa", "ftm", "fta", "oreb", "reb", "tov")}
-        w = {k: float(g[o + k]) for k in ("fgm", "fga", "tpm", "tpa", "ftm", "fta", "oreb", "reb", "tov")}
+        v = {k: float(g[p + k]) for k in ("fgm", "fga", "tpm", "tpa", "ftm", "fta", "oreb", "reb", "tov", "ast", "blk")}
+        w = {k: float(g[o + k]) for k in ("fgm", "fga", "tpm", "tpa", "ftm", "fta", "oreb", "reb", "tov", "ast", "blk")}
     except (TypeError, ValueError, KeyError):
         return None
     if any(x != x for x in list(v.values()) + list(w.values())) or v["fga"] <= 0 or w["fga"] <= 0:
@@ -57,6 +58,13 @@ class StyleTracker:
         s = self.lg.get(key)
         return s[0] / s[1] if s and s[1] else None
 
+    def team_luck(self, team):
+        """Recent three-point luck, in points a game: own shooting above league average minus opponents'."""
+        if self.n[team] < MIN_GAMES:
+            return 0.0
+        a, b = self._get(team, "luck_own"), self._get(team, "luck_opp")
+        return 0.0 if a is None or b is None else a - b
+
     def features(self, g):
         h, a = g["home"], g["away"]
         if self.n[h] < MIN_GAMES or self.n[a] < MIN_GAMES or not self.lg:
@@ -77,6 +85,9 @@ class StyleTracker:
             "tov_match": match("tov_frc", "tov", 1000),
             "three_match": match("tpa", "tpa_alw", 1000),
             "ft_match": match("ftr", "ftr_alw", 1000),
+            # ball-movement offence vs a defence that gives up assisted baskets; shot blockers vs teams that get blocked
+            "pass_match": match("ast", "ast_alw", 1000),
+            "rim_match": match("blk", "blkd", 1000),
             "luck": (H["luck_own"] - H["luck_opp"]) - (A["luck_own"] - A["luck_opp"]),
             "luck_off": H["luck_own"] - A["luck_own"],
             "luck_def": A["luck_opp"] - H["luck_opp"],
@@ -107,6 +118,8 @@ class StyleTracker:
                 "orb": v["oreb"] / max(v["oreb"] + dreb_w, 1), "orb_alw": w["oreb"] / max(w["oreb"] + dreb_v, 1),
                 "tov": v["tov"] / max(poss, 1), "tov_frc": w["tov"] / max(opp_poss, 1),
                 "ftr": v["fta"] / v["fga"], "ftr_alw": w["fta"] / w["fga"],
+                "ast": v["ast"] / max(v["fgm"], 1), "ast_alw": w["ast"] / max(w["fgm"], 1),
+                "blk": v["blk"] / w["fga"], "blkd": w["blk"] / v["fga"],
                 # points above or below league-average three-point shooting on the same attempts
                 "luck_own": 3 * (v["tpm"] - lg3 * v["tpa"]), "luck_opp": 3 * (w["tpm"] - lg3 * w["tpa"]),
             }

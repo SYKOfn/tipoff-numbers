@@ -34,10 +34,16 @@ FACTORS = {
     "hot": ("mind", "Hot / cold hand", "per 10% his last 5 games beat (or missed) the projection"),
     "contract_year": ("mind", "Contract year", "final year of his contract (from the notes file)"),
     "usage": ("physical", "Teammates out", "per 10% of the team's regular production missing"),
+    "vs_opp": ("mind", "Matchup history", "per 10% he beat (or missed) his projection in past games against this opponent"),
     "b2b": ("physical", "Back-to-back", "second night of a back-to-back"),
     "home": ("physical", "Home floor", "home game"),
 }
 EFFECT_STATS = ["min", "pts", "reb", "ast"]
+# Applied only where out-of-sample tests (fit on earlier seasons, scored on the next) showed a gain.
+# "Teammates out" and "home" are still measured and shown, but the minutes model already covers the first,
+# and applying either made projections worse. The overall bias term helps points only.
+APPLY = {"hot", "vs_opp", "returning", "former_team", "contract_year", "b2b"}
+BIAS_STATS = {"pts"}
 
 
 MIN_FEATS = ["const", "m8", "m3", "season", "last", "started", "gain_same", "gain_other", "blowout", "b2b",
@@ -101,6 +107,9 @@ class PlayerTracker:
         self.allowed = defaultdict(dict)              # team -> ew state of what opponents produced per stat
         self.league = {}                              # ew of team production per stat
         self.pos_rate = defaultdict(lambda: defaultdict(lambda: [0.0, 0.0]))  # pos -> stat -> [sum, min]
+        self.allowed_pos = defaultdict(dict)          # team -> (pos group, stat) -> (sum, minutes), recency-weighted
+        self.league_pos = {}
+        self.opp_mode = "team"                        # "team": team allowed only; "pos": by position group, blended
         self.mm = MinutesModel()
         self.use_mm = True
         self.last_mf = None
@@ -136,6 +145,15 @@ class PlayerTracker:
         if not lg or al is None:
             return 1.0
         return 1.0 + 0.5 * (al / lg - 1.0)
+
+    def opp_factor_pos(self, opp, pos, stat):
+        """What players at this position have produced per minute against this team, versus the league."""
+        g = pos_group(pos)
+        a = self.allowed_pos[opp].get((g, stat))
+        l = self.league_pos.get((g, stat))
+        if not a or not l or a[1] < 400 or l[1] <= 0 or l[0] <= 0:
+            return None
+        return 1.0 + 0.5 * ((a[0] / a[1]) / (l[0] / l[1]) - 1.0)
 
     def rotation(self, team):
         """Players currently on the team with recent minutes."""
@@ -205,18 +223,24 @@ class PlayerTracker:
         gap = self.team_games[team] - q["last_team_game"].get(team, self.team_games[team])
         x = {"former_team": former, "returning": int(q["back_left"] > 0 or (gap >= BACK_GAP and q["gp"] > 5)), "hot": hot / 0.1,
              "contract_year": int(bool((notes or {}).get("contract_year"))), "usage": missing_share / 0.1,
-             "b2b": int(b2b), "home": int(is_home)}
+             "vs_opp": self.vs_opp(q, opp), "b2b": int(b2b), "home": int(is_home)}
         mult = {}
         for st in EFFECT_STATS:
             mult[st] = 1.0
             if eff and st in eff:
-                mult[st] = max(0.5, min(1.6, 1.0 + eff[st].get("bias", 0.0)
-                                        + sum(eff[st]["coef"][k] * v for k, v in x.items() if usable(eff[st], k))))
+                mult[st] = max(0.5, min(1.6, 1.0 + (eff[st].get("bias", 0.0) if st in BIAS_STATS else 0.0)
+                                        + sum(eff[st]["coef"][k] * v for k, v in x.items() if k in APPLY and usable(eff[st], k))))
         use = {"min": "min", "pts": "pts", "reb": "reb", "ast": "ast", "tpm": "pts", "fgm": "pts", "fga": "pts",
                "ftm": "pts", "fta": "pts", "stl": "min", "blk": "min", "tov": "min"}
         proj = {"min": mins * mult["min"]}
         for st in STATS:
-            r = self.rate(q, st) * mins * self.opp_factor(opp, st if st in ("pts", "reb", "ast", "tpm") else "_")
+            key_ = st if st in ("pts", "reb", "ast", "tpm") else "_"
+            of = self.opp_factor(opp, key_)
+            if self.opp_mode == "pos" and key_ != "_":
+                fp = self.opp_factor_pos(opp, q["pos"], st)
+                if fp is not None:
+                    of = 0.5 * of + 0.5 * fp
+            r = self.rate(q, st) * mins * of
             proj[st] = max(0.0, r * mult[use[st]])
         proj["pra"] = proj["pts"] + proj["reb"] + proj["ast"]
         return proj, x
@@ -284,15 +308,41 @@ class PlayerTracker:
             rows = [r for r in (rows_by_team.get(team) or []) if float(r.get("min") or 0) > 0]
             if not rows:
                 continue
+            dec = 0.5 ** (1 / 20)
+            for k_, (a_, b_) in list(self.allowed_pos[opp].items()):
+                self.allowed_pos[opp][k_] = (a_ * dec, b_ * dec)
+            ld = 0.5 ** (1 / 300)  # league: per team-game
+            for k_, (a_, b_) in list(self.league_pos.items()):
+                self.league_pos[k_] = (a_ * ld, b_ * ld)
             for st in ("pts", "reb", "ast", "tpm"):
                 if any(r.get(st) is None for r in rows):
                     continue
+                for r in rows:
+                    gk = (pos_group(r.get("pos")), st)
+                    v_, m_ = float(r.get(st) or 0), float(r.get("min") or 0)
+                    a_ = self.allowed_pos[opp].get(gk, (0.0, 0.0))
+                    self.allowed_pos[opp][gk] = (a_[0] + v_, a_[1] + m_)
+                    l_ = self.league_pos.get(gk, (0.0, 0.0))
+                    self.league_pos[gk] = (l_[0] + v_, l_[1] + m_)
                 v = sum(float(r.get(st) or 0) for r in rows)
                 ew_add(self.allowed[opp], st, v, 20)
                 ew_add(self.league, st, v, 300)
 
-    def note_result(self, pid, actual_pts, proj_pts):
-        self.p[pid]["recent"].append((actual_pts, proj_pts))
+    def note_result(self, pid, actual_pts, proj_pts, opp=None):
+        q = self.p[pid]
+        q["recent"].append((actual_pts, proj_pts))
+        if opp and proj_pts > 3:
+            v = q.setdefault("vs", {}).get(opp, (0.0, 0.0))
+            q["vs"][opp] = (v[0] + actual_pts, v[1] + proj_pts)
+
+    @staticmethod
+    def vs_opp(q, opp):
+        """Past points vs this opponent over what was projected, shrunk towards 0 (per 10%)."""
+        v = (q.get("vs") or {}).get(opp)
+        if not v or v[1] <= 0:
+            return 0.0
+        n = v[1] / 15.0  # roughly games
+        return max(-0.5, min(0.5, v[0] / v[1] - 1.0)) * n / (n + 5) / 0.1
 
 
 def usable(e, k):
@@ -353,5 +403,5 @@ def effects_table(pe):
             c, s = d["coef"][k], d["se"][k]
             rows.append({"stat": st, "key": k, "layer": layer, "label": label, "means": means,
                          "pct": round(100 * c, 1), "se": None if s is None else round(100 * s, 1), "n": d["n"][k],
-                         "evidence": eff_mod.evidence(c, s) if s else "none"})
+                         "evidence": eff_mod.evidence(c, s) if s else "none", "applied": k in APPLY and usable(d, k)})
     return rows

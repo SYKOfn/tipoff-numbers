@@ -21,6 +21,9 @@ def spot_text(key, f, team, opp):
         return f"{t} cross {f['tz_east']} time zone{'s' if f['tz_east'] > 1 else ''} heading east."
     if key == "travel" and f["km"] >= 1500:
         return f"{t} travelled about {f['km']:,} km since their last game."
+    if key == "luck" and abs(f.get("luck", 0.0)) >= 3:
+        return (f"{t} have been {'lucky' if f['luck'] > 0 else 'unlucky'} from three lately: about "
+                f"{abs(f['luck']):.1f} points a game {'above' if f['luck'] > 0 else 'below'} league-average shooting (theirs and their opponents').")
     if key == "missing" and f["missing"] > 0.04:
         names = ", ".join(x["name"] for x in f["missing_list"][:3])
         return f"{t} are without about {round(f['missing'] * 100)}% of their regular production ({names})."

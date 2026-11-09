@@ -31,10 +31,11 @@ def rows_by_game(df):
     return out
 
 
-def walk(c, players_df, notes, cur, use_mm=True, ev=None):
+def walk(c, players_df, notes, cur, use_mm=True, ev=None, opp_mode="team"):
     """ev: optional dict filled with out-of-sample errors per season and stat (for model tests)."""
     pt = P.PlayerTracker()
     pt.use_mm = use_mm
+    pt.opp_mode = opp_mode
     byg = rows_by_game(players_df)
     rows_eff, logs = [], {}
     sq = defaultdict(float)
@@ -72,6 +73,8 @@ def walk(c, players_df, notes, cur, use_mm=True, ev=None):
                         e[1] += abs(a - proj[st])
                         e[2] += (a - proj[st]) ** 2
                 rows_eff.append((x, {st: (r[st] if st != "min" else r["min"], proj[st]) for st in P.EFFECT_STATS}))
+                if ev is not None:
+                    ev.setdefault("rows", []).append(int(g["season"]))
                 act_pra = r["pts"] + r["reb"] + r["ast"]
                 for st in P.SHOW + ["pra"]:
                     a = act_pra if st == "pra" else r[st]
@@ -86,7 +89,7 @@ def walk(c, players_df, notes, cur, use_mm=True, ev=None):
                         acc["n"] += 1
                         acc["mae"] += abs(r["pts"] - proj["pts"])
                         acc["mae_base"] += abs(r["pts"] - season_sum[key][0] / season_sum[key][1])
-                done.append((pid, r["pts"], proj["pts"]))
+                done.append((pid, r["pts"], proj["pts"], opp))
         for team in (g["home"], g["away"]):
             for r in rows.get(team, []):
                 if r["min"] > 0:
@@ -96,9 +99,11 @@ def walk(c, players_df, notes, cur, use_mm=True, ev=None):
         pt.post_game(g, rows)
         for f, y in mrows:
             pt.mm.add(f, y)
-        for pid, a, p in done:
-            pt.note_result(pid, a, p)
+        for pid, a, p, o in done:
+            pt.note_result(pid, a, p, o)
     pe = P.estimate_effects(rows_eff)
+    if ev is not None:
+        ev["rows_eff"] = rows_eff
     disp = {st: (sq[st] / sp[st]) if sp[st] else 1.5 for st in sp}
     track = None
     if acc["n"]:
@@ -145,14 +150,17 @@ def project_game(pt, pe, disp, g, ctx, injuries, notes, news=True, exp_margin=No
             for k, v in x.items():
                 if not v or k in ("home",):
                     continue
-                c = pe.get("pts", {}).get("coef", {}).get(k, 0.0) if ("pts" in pe and P.usable(pe["pts"], k)) else 0.0
+                c = pe.get("pts", {}).get("coef", {}).get(k, 0.0) if ("pts" in pe and P.usable(pe["pts"], k) and k in P.APPLY) else 0.0
                 if k == "hot" and abs(v) < 1.5:
                     continue
                 if k == "usage" and v < 0.5:
                     continue
+                if k == "vs_opp" and abs(v) < 1.0:
+                    continue
                 txt = STORY.get(k, "").format(opp=opp) if k in STORY else (
                     ("Hot: last 5 games " if v > 0 else "Cold: last 5 games ") + f"{abs(v) * 10:.0f}% {'above' if v > 0 else 'below'} projection." if k == "hot"
                     else f"Teammates out: {v * 10:.0f}% of the team's production missing." if k == "usage"
+                    else f"Against the {opp} he has scored {abs(v) * 10:.0f}% {'more' if v > 0 else 'less'} than projected (shrunk for sample size)." if k == "vs_opp"
                     else "Second night of a back-to-back." if k == "b2b" else "")
                 se = pe.get("pts", {}).get("se", {}).get(k)
                 label = ("Hot hand" if v > 0 else "Cold hand") if k == "hot" else P.FACTORS[k][1]

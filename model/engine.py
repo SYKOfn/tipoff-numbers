@@ -12,6 +12,7 @@ import numpy as np
 from . import effects, ratings
 from .features import Tracker
 from .lineup import LineupTracker
+from .style import StyleTracker
 
 STACK_LAM = 50.0   # ridge on the player-strength weights (tested walk-forward on 2025-26 and 2026-27)
 
@@ -42,6 +43,7 @@ def build_context(games, players, upcoming, tuned=None, effects_until=None):
     from .player_engine import rows_by_game
     byg = rows_by_game(players)
     lt = LineupTracker()
+    sty = StyleTracker()
     lfeat = {}
     tr = Tracker()
     tr.names.update(names)
@@ -56,6 +58,9 @@ def build_context(games, players, upcoming, tuned=None, effects_until=None):
         if box and g["home"] in box and g["away"] in box:
             played = {t: {pid for pid, v in box[t].items() if v[0] > 0} for t in (g["home"], g["away"])}
         ctx = tr.pre_game(g, played=played)
+        for side in ("home", "away"):
+            ctx[side]["luck"] = round(sty.team_luck(g[side]), 3)
+        sty.post_game(g)
         ctxs[gid] = ctx
         b = base.get(gid)
         rows_ = byg.get(gid)
@@ -80,7 +85,7 @@ def build_context(games, players, upcoming, tuned=None, effects_until=None):
     eff = effects.estimate([r[:5] for r in use], tuned["lam_effects"])
     c = Context()
     c.tuned, c.base, c.ctxs, c.rows, c.eff, c.tracker, c.games, c.meta = tuned, base, ctxs, rows, eff, tr, fin, meta
-    c.lineup, c.lfeat, c.stack, c.rows_raw = lt, lfeat, stack, rows_raw
+    c.lineup, c.lfeat, c.stack, c.rows_raw, c.style = lt, lfeat, stack, rows_raw, sty
     return c
 
 

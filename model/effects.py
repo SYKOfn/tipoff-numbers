@@ -17,6 +17,8 @@ MARGIN = {
     "rest": ("physical", "Rest days", "per day off since the last game (0-3)", lambda f: min(f["rest"], 3)),
     "tz_east": ("physical", "Body clock", "per hour of time zones crossed heading east", lambda f: f["tz_east"]),
     "travel": ("physical", "Travel", "per 1,000 km travelled since the last game", lambda f: f["km"] / 1000),
+    "luck": ("physical", "Shooting luck", "per point a game the team (and its opponents) shot threes above or below league average lately; luck does not last",
+             lambda f: f.get("luck", 0.0)),
     "missing": ("physical", "Missing players", "if the whole regular rotation's production were missing (scaled by the share out)",
                 lambda f: f["missing"]),
     # ---- psychological
