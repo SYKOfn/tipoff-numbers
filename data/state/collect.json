@@ -1,1 +1,1 @@
-{"calls":30,"errors":["no games parsed from the scoreboard; kept the previous schedule"],"finished_seen":0,"upcoming":0,"summaries":4,"odds_api":{"enabled":false}}
+{"calls":172,"errors":[],"finished_seen":25,"upcoming":112,"summaries":4,"odds_api":{"enabled":true,"books":"","fetched":false,"remaining":null,"error":"HTTP Error 401: Unauthorized"},"season_rest_at":"2026-11-09T11:15:03.768670+00:00"}
