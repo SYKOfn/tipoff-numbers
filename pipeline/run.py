@@ -36,6 +36,21 @@ BLEND_W = 0.4  # model weight in the Pinnacle blend (log-odds), from the 1,368-g
 LOCK_HOURS = float(os.environ.get("LOCK_HOURS", "3"))  # the day's tickets are chosen this long before the first tip
 
 
+def card_story(p):
+    """One plain line for a game card: who is missing, who is tired."""
+    bits = []
+    for side in ("away", "home"):
+        t = p.get(side) or {}
+        miss = [m["name"] for m in (t.get("missing_list") or [])][:2]
+        if miss and (t.get("missing") or 0) >= 0.06:
+            bits.append(f"{t['short']} without {' and '.join(miss)}")
+    for side in ("away", "home"):
+        t = p.get(side) or {}
+        if t.get("b2b") and len(bits) < 2:
+            bits.append(f"{t['short']} on a back-to-back")
+    return ("; ".join(bits[:2]) + ".") if bits else None
+
+
 def status_info(now, upcoming, cs):
     """For the status line: odds credits today, the next refresh, collector errors."""
     from . import oddsapi, should_run
@@ -223,7 +238,7 @@ def main(demo=False, now=None, collect_data=True):
               "home": p["home"]["abbr"], "away": p["away"]["abbr"],
               "home_rec": p["home"]["record"], "away_rec": p["away"]["record"],
               "win_home": e["win_home"], "margin": e["margin"], "total": e["total"], "mind": e["mind"]["margin"],
-              "tags": tags[:3], "tv": p["national_tv"]}
+              "tags": tags[:3], "tv": p["national_tv"], "story": card_story(p)}
         if result:
             c_.update(result)
         if live:

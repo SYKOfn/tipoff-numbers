@@ -124,66 +124,121 @@ function standingsTable(rows, short = false) {
 }
 
 /* ---------------------------------------------------------------- home */
+/* ---------------------------------------------------------------- Tonight (home) */
+function teamInk(ab) {
+  // a team colour that reads on the dark ground: the primary if it is bright enough, else the alternate
+  const t = T(ab), lum = c => { const n = parseInt((c || "#555").slice(1), 16); const r = n >> 16 & 255, g = n >> 8 & 255, b = n & 255; return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+  return lum(t.color) >= 60 ? t.color : (lum(t.alt) >= 60 ? t.alt : "#5B6070");
+}
+const mono = (ab, cls = "") => `<span class="mono ${cls}" style="background:${teamInk(ab)}">${h(T(ab).abbr)}</span>`;
+function tnLeg(l) {
+  const teams = matchTeams(l), p = effP(l);
+  const badge = l.kind === "total" ? `<span class="mono" style="background:#2A2D3A">O/U</span>` : mono(l.team || teams[1]);
+  return `<li class="tk-leg">${badge}<div class="body"><p class="meta">${h(KIND[l.kind] || l.kind)} · ${h(T(teams[0]).short)} at ${h(T(teams[1]).short)} · ${tipTime(l.tip)}</p>
+    <p class="what">${h(legDesc(l))}</p>${l.story ? `<p class="why">${h(l.story)}</p>` : ""}${l.alert ? `<p class="alert">⚠ ${h(l.alert)}</p>` : ""}</div>
+    <div class="take"><p class="k">Take at</p><p class="v num">${fx(1.05 / p, 2)}+</p><p class="s num">${pct(p)} chance</p></div></li>`;
+}
+const tipTime = iso => (iso ? new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false }) : "");
 async function home() {
-  const [sch, hm, st, acc, pl, md, par] = await Promise.all([get("schedule.json"), get("home.json"), get("standings.json"), get("accuracy.json"), get("players.json"), get("mind.json"), get("parlay.json").catch(() => ({}))]);
+  const [sch, acc, par, pl] = await Promise.all([get("schedule.json"), get("accuracy.json"), get("parlay.json").catch(() => ({})), get("players.json").catch(() => [])]);
+  PAR = par;
   setTitle("");
-  const up = sch.upcoming.filter(c => !c.live);
   const days = byDay(sch.upcoming);
-  const [d1, d2] = [...days.keys()];
-  const soon = sch.upcoming.filter(c => c.day === d1);
-  const feat = [...soon].sort((a, b) => Math.abs(b.mind) - Math.abs(a.mind))[0] || up[0];
-  const featHtml = feat ? `<a class="feature" href="#/game/${h(feat.id)}">
-      <div class="feature-top"><span>Spotlight · ${tip(feat.tip)}</span><span>biggest mental edge on the next slate</span></div>
-      <div class="feature-teams"><div class="t">${disc(feat.away, "md")}<span>${h(T(feat.away).short)}</span></div><div class="x">at</div><div class="t a"><span>${h(T(feat.home).short)}</span>${disc(feat.home, "md")}</div></div>
-      ${strip(feat.win_home, feat.home, feat.away)}
-      <div class="feature-exp"><span>Spread <b>${spreadTxt(feat)}</b></span><span>Total <b>${fx(feat.total, 0)}</b></span><span>Mind edge <b class="m">${mindTxt(feat)}</b></span></div></a>` : "";
+  const d1 = [...days.keys()][0];
+  const tonight = sch.upcoming.filter(c => c.day === d1).sort((a, b) => a.tip.localeCompare(b.tip));
+  const t = par.today && par.today.day === d1 ? par.today : par.today;
+  const locked = t && t.locked !== false && t.parlays && t.parlays.length;
+  const first = tonight.length ? tonight[0].tip : null;
+  const live = acc.live && acc.live.n ? acc.live : null;
+
+  // hero
+  const heroTitle = locked ? "Tonight's picks<br>are in." : t && t.locked === false ? "Tonight's picks<br>are on the way." : "Tonight in<br>the NBA.";
+  const heroText = locked ? `Chosen once by the full model${t.locked_at ? ` at ${tipTime(t.locked_at)}` : ""}, three hours before the first tip-off, after the main injury news. Locked now: they will not change.`
+    : t && t.locked === false ? `The full model picks tonight's tickets once, at ${tipTime(t.lock_at)}, three hours before the first tip-off, when the main injury news is in. Until then, the games and prices below keep updating.`
+    : "Win chances, scores and player projections for every game, from team and player ratings, rest, travel, who is missing and a measured psychological layer.";
+  const hero = `<section class="tn-hero"><div class="lead"><p class="eyebrow">${d1 ? h(longDay(d1)) : ""}${tonight.length ? ` · ${tonight.length} game${tonight.length > 1 ? "s" : ""}` : ""}</p>
+    <h1>${heroTitle}</h1><p class="sublede">${heroText}</p></div>
+    <div class="tiles"><div class="tile"><p class="k">First tip-off</p><p class="v num">${first ? tipTime(first) : "–"}</p></div>
+    <div class="tile"><p class="k">Live record</p>${live ? `<p class="v num">${Math.round(live.hit * live.n)}/${live.n}</p>` : `<p class="v sm">Starts with tonight's games</p>`}</div></div></section>`;
+
+  // tickets
+  let tickets = "";
+  if (locked) {
+    const [main, ...rest] = t.parlays;
+    const long = rest.filter(pr => pr.name === "The daily 6"), side = rest.filter(pr => pr.name !== "The daily 6");
+    tickets = `<section class="tk-row" aria-label="Tonight's tickets">
+      <article class="tk-main"><span class="tk-tag">Main pick</span> <span class="sub small" style="margin-left:10px">${new Set(main.legs.map(l => l.game)).size} game${main.n_legs > 1 ? "s" : ""}${t.locked_at ? ` · locked ${tipTime(t.locked_at)}` : ""}</span>
+        <h2>${h(main.name)}</h2>${main.story ? `<p class="tk-story">${h(main.story)}</p>` : ""}
+        <ul class="tk-legs">${main.legs.map(tnLeg).join("")}</ul>
+        <div class="tk-foot"><div><p class="k">All land</p><p class="v num">${pct(main.p)}</p></div><div><p class="k">Fair combined odds</p><p class="v num">${fx(main.fair, 2)}</p></div>
+          <div><p class="k">Worth placing at</p><p class="v go num">${fx(main.min_odds, 2)}+</p></div>
+          <div class="acts"><button type="button" class="pill-btn" data-copy="${h(ticketText(main))}">Copy ticket</button><a class="pill-btn primary" href="#/parlay">Enter Winamax odds</a></div></div></article>
+      <div class="tk-side">${side.map(pr => `<a class="tk-mini" href="#/parlay"><div class="hd"><h3>${h(pr.name)}</h3><span class="nums num">${pct(pr.p)} · take ${fx(pr.min_odds, 2)}+</span></div>
+          ${pr.story ? `<p>${h(pr.story)}</p>` : ""}<ul>${pr.legs.slice(0, 4).map(l => `<li><span>${h(legDesc(l))}</span><span class="num">${fx(l.min_odds, 2)}+</span></li>`).join("")}</ul></a>`).join("")}
+        ${long.map(pr => `<a class="tk-mini tk-long" href="#/parlay"><div><p class="k">Long shot</p><h3>${h(pr.name)}</h3></div><span class="v num">${fx(pr.min_odds, 2)}+</span></a>`).join("")}</div></section>`;
+  } else if (t && t.locked === false) {
+    tickets = `<section class="tk-row"><div class="tk-wait"><p class="eyebrow">Tonight's tickets</p><h2>Chosen once, then locked</h2><p class="clock num" id="lockclock">${tipTime(t.lock_at)}</p>
+      <p class="sub2" style="color:var(--muted);max-width:620px;margin-top:16px">Three hours before the first tip-off, once the main injury reports are in, the full model picks the day's tickets and explains each one in plain words. They never change after that.</p></div></section>`;
+  }
+
+  // Winamax vs Pinnacle
+  const val = (t && t.value) || [];
+  const boosts = t ? LS.get("tipoff.boost." + t.day, {}) : {};
+  const anyVal = val.some(v => v.value);
+  const vrow = v => {
+    const key = v.game + v.side, odds = boosts[key] || v.price, e = v.fair_p == null ? null : odds * v.fair_p - 1;
+    const w = e == null ? 0 : Math.min(50, Math.abs(e) * 400);
+    return `<div class="vb-row ${v.value ? "val" : ""}"><span class="team"><span class="dotc" style="background:${teamInk(v.team)}"></span><b>${h(T(v.team).short)}</b><span class="sub">vs ${h(T(v.opp).short)}</span></span>
+      <span class="r num" style="font-weight:600">${fx(v.price, 2)}</span><span class="r num sub">${v.fair_odds ? fx(v.fair_odds, 2) : "–"}</span>
+      <span class="edgebar"><span class="tr"><span class="fl" style="${e != null && e >= 0 ? `left:50%;background:var(--accent)` : "right:50%;background:#5B5F70"};width:${w}%"></span></span><span class="n num ${e != null && e >= 0 ? "ok-t" : "sub"}" data-vedge="${key}">${e == null ? "–" : sgn(e * 100, 1) + "%"}</span></span>
+      <span class="r num sub">${v.model_p == null ? "–" : pct(v.model_p)}</span>
+      <input class="boostin" data-vid="${key}" data-fair="${v.fair_p ?? ""}" type="number" step="0.01" min="1.01" placeholder="Boost?" value="${boosts[key] || ""}" aria-label="Boosted Winamax odds for ${h(T(v.team).short)}"></div>`;
+  };
+  const valueSec = val.length ? `<section class="tn-sec" aria-labelledby="vbh"><div class="hd"><div><h2 id="vbh">Winamax vs Pinnacle</h2>
+      <p class="sub2">When Winamax pays more than Pinnacle's fair price, the bet pays off in the long run. Got a boosted price? Type it in the last column.</p></div>
+      <span class="chip ${anyVal ? "ok" : "warn"}">${anyVal ? `${val.filter(v => v.value).length} with value` : "No value right now"}</span></div>
+      <div class="vb"><div class="vb-in"><div class="vb-row head"><span>Winner</span><span class="r">Winamax</span><span class="r">Pinnacle fair</span><span>Edge</span><span class="r">Our model</span><span class="r">Boosted odds</span></div>
+      ${val.slice(0, 6).map(vrow).join("")}<div id="vbrest" hidden>${val.slice(6).map(vrow).join("")}</div></div>
+      ${val.length > 6 ? `<button type="button" class="vb-more" id="vbmore">Show all ${val.length} winners</button>` : ""}</div></section>` : "";
+
+  // games
+  const gcard = c => {
+    const ph = c.win_home, pa = 1 - ph, ln = c.margin >= 0 ? `${T(c.home).abbr} by ${fx(Math.abs(c.margin), 0)}` : `${T(c.away).abbr} by ${fx(Math.abs(c.margin), 0)}`;
+    return `<a class="gm" href="#/game/${h(c.id)}"><div class="top2"><span class="num">${c.live ? `<span class="live">Live</span>` : tipTime(c.tip)}</span><span class="num">${Math.abs(c.margin) < 1 ? "Even" : ln} · total ${fx(c.total, 0)}</span></div>
+      <div class="teams"><div class="tm">${mono(c.away, "sm")}<span class="nm">${h(T(c.away).short)}<span class="rec">${h(c.away_rec || "")}</span></span><span class="p num">${pct(pa)}</span></div>
+      <div class="tm">${mono(c.home, "sm")}<span class="nm">${h(T(c.home).short)}<span class="rec">${h(c.home_rec || "")}</span></span><span class="p num">${pct(ph)}</span></div></div>
+      <div class="split"><span style="width:${pa * 100}%;background:${teamInk(c.away)}"></span><span style="width:${ph * 100}%;background:${teamInk(c.home)}"></span></div>
+      ${c.story ? `<p class="story2">${h(c.story)}</p>` : ""}</a>`;
+  };
+  const gamesSec = tonight.length ? `<section class="tn-sec" aria-labelledby="gmh"><div class="hd"><h2 id="gmh">Tonight's games</h2><a href="#/games">All games and estimates</a></div>
+      <div class="gm-grid">${tonight.map(gcard).join("")}</div></section>` : "";
+
+  // last night + players to watch
   const lastDay = sch.results.length ? sch.results[0].day : null;
   const last = sch.results.filter(c => c.day === lastDay);
-  const resultsHtml = last.map(c => {
-    const hw = c.home_pts > c.away_pts;
-    return `<li><a href="#/game/${h(c.id)}"><span><span class="r-t ${hw ? "l" : ""}">${disc(c.away, "xs")}${h(T(c.away).short)}</span><span class="r-t ${hw ? "" : "l"}">${disc(c.home, "xs")}${h(T(c.home).short)}</span></span>
-      <span class="r-s"><span class="${hw ? "" : "w"}">${c.away_pts}</span><br><span>${c.home_pts}</span></span>
-      <span class="r-e">${c.kind === "frozen" ? "Estimate" : "Model check"}: ${T(fav(c)).abbr} ${pct(Math.max(c.win_home, 1 - c.win_home))} <span class="res-hit ${c.hit ? "y" : "n"}">${c.hit ? "✓" : "✗"}</span></span></a></li>`;
-  }).join("");
-  const spots = (hm.spots || []).map(s => `<li><a href="#/game/${h(s.game)}">${disc(s.team, "sm")}
-      <span><span class="g">${h(T(s.team).short)} · ${h(s.label)}</span><br><span class="sub">${h(T(s.away).short)} at ${h(T(s.home).short)} · ${tip(s.tip)}</span></span>
-      <span class="eff ${effCls(s.pts)} num">${sgn(s.pts)} pts</span></a></li>`).join("");
-  const rec = acc.live && acc.live.n ? acc.live : null;
-  const chk = acc.checks;
-  const bt = acc.backtest && acc.backtest.test;
-  app.innerHTML = `<section class="hero home-hero court"><div class="wrap">
-    <h1>Every NBA game, <em>by the numbers</em> — and <i>in the head</i>.</h1>
-    <p class="lede">Win chances, scores and totals from team ratings, rest, travel and who is missing — plus a psychological layer (streaks, bounce-backs, revenge, letdowns, stakes) whose size is measured from past games, not assumed. Every estimate shows its inputs, its uncertainty and its track record.</p>
-    ${featHtml}</div></section>
-  <div class="wrap">${demoBanner()}${BANNER}
-    ${d1 ? `<section><h2>${h(longDay(d1))} <span class="sub">${soon.length} game${soon.length > 1 ? "s" : ""} · US date, tip-off times in your time zone</span></h2><div class="cards">${soon.map(fcard).join("")}</div></section>` : `<p class="empty">No games scheduled in the next two weeks.</p>`}
-    ${par.today && par.today.locked !== false && par.today.parlays && par.today.parlays.length ? `<section class="section"><h2>Today's parlay <span class="sub"><a href="#/parlay">all tickets, value singles and the maths</a></span></h2>${ticket(par.today.parlays[0], true, 0)}</section>` : ""}
-    ${(() => {
-      const ids = new Set(soon.map(c => c.id));
-      const top = pl.filter(p => p.next_pts != null && ids.has(p.next_game)).sort((a, b) => b.next_pts - a.next_pts).slice(0, 8);
-      const hot = md.filter(r => r.cat === "Hot").slice(0, 4), cold = md.filter(r => r.cat === "Cold").slice(-4).reverse();
-      if (!top.length && !md.length) return "";
-      return `<section class="section duo"><div><h2>Top scorers ${d1 ? h(day(d1)) : ""} <span class="sub">projected points</span></h2><ul class="toplist">${top.map(p => `<li><span>${disc(p.team, "xs")} ${plink(p.id, p.name)} <span class="sub small">${h(T(p.team).abbr)}${p.status ? ` · ${h(p.status)}` : ""}</span>${ptags({ ...p, out: false, status: null })}</span><span class="v">${fx(p.next_pts)}</span></li>`).join("") || `<li><span class="sub">No projections yet.</span></li>`}</ul><p style="margin-top:12px"><a class="btn" href="#/players">All players</a></p></div>
-        <div><h2 class="mind">State of mind <span class="sub">hottest and coldest teams</span></h2><ul class="toplist">${hot.concat(cold).map(r => `<li><span>${tlink(r.abbr)} ${catTag(r.cat)} <span class="sub small">${h(r.why[0] || "")}</span></span><span class="v ${effCls(r.score)}">${sgn(r.score)}</span></li>`).join("")}</ul><p style="margin-top:12px"><a class="btn" href="#/mind">Mind ranking</a></p></div></section>`;
-    })()}
-    ${spots ? `<section class="section"><h2 class="mind">Mind games <span class="sub">the psychological spots worth most in the coming days</span></h2><ul class="spotlist">${spots}</ul></section>` : ""}
-    ${d2 ? `<section class="section"><h2>${h(longDay(d2))}</h2><div class="cards">${days.get(d2).map(fcard).join("")}</div><p class="more" style="margin-top:14px"><a class="btn" href="#/games">All games</a></p></section>` : ""}
-    ${last.length ? `<section class="section"><h2>${h(longDay(lastDay))} <span class="sub">results</span></h2><ul class="results">${resultsHtml}</ul></section>` : ""}
-    <section class="section duo">${["East", "West"].map(cf => `<div class="panel mini-t"><div class="mt-head"><h3>${cf}</h3><a href="#/standings">Full table</a></div>${standingsTable(st[cf].slice(0, 10), true).replace('class="tscroll"', 'class=""')}</div>`).join("")}</section>
-    <section class="section"><h2>Track record</h2><div class="panel proof">
-      ${rec ? `<div><b>${pct(rec.hit)}</b><span>winners called, ${rec.n} frozen estimates</span></div><div><b>${fx(rec.mae_m, 1)}</b><span>points average miss on the margin</span></div>`
-            : `<div><b>0</b><span>frozen estimates scored so far — the live record starts with the first games after launch</span></div>`}
-      ${chk ? `<div><b>${pct(chk.hit)}</b><span>winners in this season's ${chk.n} model checks</span></div>` : ""}
-      ${bt ? `<div><b>${pct(bt.full.hit)}</b><span>winners in the ${acc.backtest.test_season - 1}-${String(acc.backtest.test_season).slice(2)} backtest (${bt.n} games)</span></div>` : ""}
-      <div><a class="btn" href="#/accuracy">See the track record</a></div></div></section>
-  </div>`;
+  const lastHtml = last.length ? `<div><h2 style="font-size:28px;margin:0">Last night</h2><div class="listcard" style="margin-top:16px">${last.map(c => {
+      const hw = c.home_pts > c.away_pts;
+      return `<a class="row" href="#/game/${h(c.id)}">${mono(hw ? c.home : c.away, "sm")}<span class="grow"><b>${h(T(c.away).short)} ${c.away_pts}</b> <span class="muted">at</span> <b>${h(T(c.home).short)} ${c.home_pts}</b></span>
+        <span class="muted">${c.kind === "frozen" ? "Estimate" : "Check"}</span><span class="val ${c.hit ? "ok-t" : "bad-t"}">${c.hit ? "✓" : "✗"}</span></a>`; }).join("")}</div></div>` : "";
+  const ids = new Set(tonight.map(c => c.id));
+  const top = (pl || []).filter(p => p.next_pts != null && ids.has(p.next_game)).sort((a, b) => b.next_pts - a.next_pts).slice(0, 8);
+  const topHtml = top.length ? `<div><h2 style="font-size:28px;margin:0">Players to watch</h2><div class="listcard" style="margin-top:16px">${top.map(p => `<a class="row" href="#/player/${h(p.id)}">${mono(p.team, "sm")}<span class="grow"><b>${h(p.name)}</b><br><span class="muted">${h(T(p.team).short)}${p.status ? ` · ${h(p.status)}` : ""}</span></span><span class="val num">${fx(p.next_pts, 1)}</span><span class="muted">pts</span></a>`).join("")}</div></div>` : "";
+
+  app.innerHTML = `<div class="wrap tn">${demoBanner()}${hero}${tickets}${valueSec}${gamesSec}${lastHtml || topHtml ? `<section class="tn-sec duo2">${lastHtml}${topHtml}</section>` : ""}</div>`;
+  const vm = document.getElementById("vbmore");
+  if (vm) vm.onclick = () => { document.getElementById("vbrest").hidden = false; vm.remove(); };
+  app.oninput = e => {
+    const bi = e.target.closest(".boostin[data-vid]");
+    if (!bi || !t) return;
+    const all = LS.get("tipoff.boost." + t.day, {}), v = parseFloat(bi.value), fair = parseFloat(bi.dataset.fair);
+    if (v > 1) all[bi.dataset.vid] = v; else delete all[bi.dataset.vid];
+    LS.set("tipoff.boost." + t.day, all);
+    const row = val.find(x => x.game + x.side === bi.dataset.vid), cell = app.querySelector(`[data-vedge="${bi.dataset.vid}"]`);
+    const ed = isNaN(fair) ? null : (v > 1 ? v : row.price) * fair - 1;
+    if (cell) { cell.textContent = ed == null ? "–" : sgn(ed * 100, 1) + "%"; cell.className = "n num " + (ed != null && ed >= 0 ? "ok-t" : "sub"); }
+  };
 }
 
-/* ---------------------------------------------------------------- games */
-const FILTERS = [["all", "All games", () => true], ["mind", "Strong mental edge", c => Math.abs(c.mind || 0) >= 0.75 || (c.tags || []).some(t => t.ev === "strong" || t.ev === "moderate"), "m"],
-  ["tv", "National TV", c => c.tv], ["close", "Toss-ups (40-60%)", c => c.win_home >= 0.4 && c.win_home <= 0.6], ["fav", "Big favourites (75%+)", c => Math.max(c.win_home, 1 - c.win_home) >= 0.75],
-  ["high", "High totals (232+)", c => c.total >= 232], ["low", "Low totals (under 220)", c => c.total < 220]];
-let GFILTER = "all";
 async function games(sel) {
   const sch = await get("schedule.json");
   setTitle("Games");
@@ -614,6 +669,11 @@ async function route() {
   const parts = location.hash.replace(/^#\/?/, "").split("/");
   const [page, arg] = parts;
   document.querySelectorAll("[data-nav]").forEach(a => a.setAttribute("aria-current", a.dataset.nav === (page || "home") || (page === "game" && a.dataset.nav === "games") || (page === "team" && a.dataset.nav === "teams") || (page === "player" && a.dataset.nav === "players") ? "page" : "false"));
+  const more = document.querySelector("[data-nav-more]");
+  if (more) {
+    more.setAttribute("aria-current", document.querySelector(".more-menu [aria-current='page']") ? "page" : "false");
+    more.parentElement.open = false;
+  }
   try {
     if (!page) await home();
     else if (page === "games") await games(arg);
@@ -653,6 +713,12 @@ async function statusLine() {
   if (st.next_refresh) parts.push(`Next refresh about ${hm(st.next_refresh)} (your local time)`);
   if (st.collector_errors && st.collector_errors.length) parts.push(`<span class="down" title="${h(st.collector_errors.join(" | "))}">feed warnings: ${st.collector_errors.length}</span>`);
   el.innerHTML = parts.join(" · ");
+  const pill = document.getElementById("statuspill");
+  if (pill) {
+    const bad = blocked || (chk && !chk.ok) || ageMin > 200;
+    pill.innerHTML = `<span class="dot ${bad ? "bad" : ""}"></span>Updated ${hm(META.updated)} · ${blocked ? "showing last good version" : chk ? (chk.ok ? "Safety checks passed" : "Safety checks failed") : "checks pending"}`;
+    pill.hidden = false;
+  }
 }
 
 (async function init() {
