@@ -4,7 +4,7 @@ First run backfills three full seasons plus the current one (box scores fill ove
 MAX_SUMMARIES per run, newest first). Later runs re-read the last few days and the next two weeks.
 """
 import os
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import pandas as pd
 
@@ -138,17 +138,22 @@ def collect(today=None):
     odds_status = oddsapi.collect(ups)
     write_json(STATE / "upcoming.json", ups)
 
-    # rest of the regular season (for playoff chances)
-    rest = []
+    # rest of the regular season (for playoff chances): refreshed twice a day, it barely changes
+    rest_old = read_json(STATE / "season_rest.json", None)
+    rest_at = (read_json(STATE / "collect.json", {}) or {}).get("season_rest_at")
+    fresh = rest_old is not None and rest_at and espn.now_utc() - datetime.fromisoformat(rest_at) < timedelta(hours=12)
+    rest = [] if not fresh else rest_old
     d, last = end + timedelta(days=1), date(cur, 4, 20)
-    while d <= last:
+    while d <= last and not fresh:
         d2 = min(d + timedelta(days=6), last)
         for g in espn.scoreboard(d.strftime("%Y%m%d"), d2.strftime("%Y%m%d")) or []:
             if g["stype"] == 2 and not g["completed"]:
                 rest.append({"game_id": g["game_id"], "day": g["day"], "home": g["home"], "away": g["away"]})
         d = d2 + timedelta(days=1)
-    write_json(STATE / "season_rest.json", rest)
+    if not fresh:
+        write_json(STATE / "season_rest.json", rest)
+        rest_at = espn.now_utc().isoformat()
     write_json(STATE / "collect.json", {"calls": espn.CALLS["n"], "errors": espn.CALLS["errors"][-30:],
                                         "finished_seen": len(finished), "upcoming": len(upcoming),
-                                        "summaries": len(need), "odds_api": odds_status})
+                                        "summaries": len(need), "odds_api": odds_status, "season_rest_at": rest_at})
     return {"games": len(games), "upcoming": len(upcoming), "calls": espn.CALLS["n"], "errors": len(espn.CALLS["errors"])}

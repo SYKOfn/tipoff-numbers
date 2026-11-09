@@ -59,17 +59,23 @@ def _int(x):
 
 # ------------------------------------------------------------------ scoreboard
 def scoreboard(day_from, day_to=None):
-    """Events between two US-Eastern dates (YYYYMMDD), inclusive."""
-    q = day_from if not day_to or day_to == day_from else f"{day_from}-{day_to}"
-    data = fetch(f"{BASE}/scoreboard?dates={q}&limit=1000")
-    if data is None:
-        return None
-    out = []
-    for e in data.get("events", []) or []:
-        g = parse_event(e)
-        if g:
-            out.append(g)
-    return out
+    """Events between two US-Eastern dates (YYYYMMDD), inclusive, one day per request
+    (ESPN answers 400 to date ranges). None if every request failed."""
+    from datetime import date as _date, timedelta as _td
+    d0 = _date(int(day_from[:4]), int(day_from[4:6]), int(day_from[6:]))
+    d1 = d0 if not day_to else _date(int(day_to[:4]), int(day_to[4:6]), int(day_to[6:]))
+    out, ok = [], False
+    d = d0
+    while d <= d1:
+        data = fetch(f"{BASE}/scoreboard?dates={d.strftime('%Y%m%d')}&limit=200")
+        if data is not None:
+            ok = True
+            for e in data.get("events", []) or []:
+                g = parse_event(e)
+                if g:
+                    out.append(g)
+        d += _td(days=1)
+    return out if ok else None
 
 
 def parse_event(e):
