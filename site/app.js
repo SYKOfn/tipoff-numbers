@@ -144,7 +144,7 @@ function gameCard(c) {
   const right = (side, p) => done ? `<span class="p num ${(side === "home") === (c.home_pts > c.away_pts) ? "" : "sub"}">${side === "home" ? c.home_pts : c.away_pts}</span>` : `<span class="p num">${pct(p)}</span>`;
   const top = done ? `<span class="num">Final</span><span class="num">Estimate: ${ln} <b class="${c.hit ? "ok-t" : "bad-t"}">${c.hit ? "✓" : "✗"}</b></span>`
     : `<span class="num">${c.live ? `<span class="live">Live${c.live.home_pts != null ? ` ${c.live.away_pts}-${c.live.home_pts}` : ""}</span>` : tipTime(c.tip)}</span><span class="num">${ln} · total ${fx(c.total, 0)}</span>`;
-  return `<a class="gm" href="#/game/${h(c.id)}"><div class="top2">${top}</div>
+  return `<a class="gm" href="#/game/${h(c.id)}" style="--ga:${teamInk(c.away)};--gh:${teamInk(c.home)}"><div class="top2">${top}</div>
     <div class="teams"><div class="tm">${mono(c.away, "sm")}<span class="nm">${h(T(c.away).short)}<span class="rec">${h(c.away_rec || "")}</span></span>${right("away", pa)}</div>
     <div class="tm">${mono(c.home, "sm")}<span class="nm">${h(T(c.home).short)}<span class="rec">${h(c.home_rec || "")}</span></span>${right("home", ph)}</div></div>
     <div class="split"><span style="width:${pa * 100}%;background:${teamInk(c.away)}"></span><span style="width:${ph * 100}%;background:${teamInk(c.home)}"></span></div>
@@ -618,56 +618,101 @@ async function accuracy() {
 }
 
 /* ---------------------------------------------------------------- about */
+const ICON = {
+  data: '<path d="M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3Z"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/>',
+  rate: '<path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/>',
+  adjust: '<circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/><path d="M9.5 7H21M3 17h11.5M3 7h1.5M19.5 17H21"/>',
+  lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  team: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3v18M6 5.5c3 3 3 10 0 13M18 5.5c-3 3-3 10 0 13"/>',
+  player: '<circle cx="12" cy="7" r="3.5"/><path d="M5 21v-2a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v2"/>',
+  who: '<path d="M9 11l3 3 7-7"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/>',
+  body: '<path d="M12 21s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.6-7 10-7 10Z"/>',
+  mind: '<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3Z"/>',
+  market: '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+};
+const ic = (k, size = 22) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[k]}</svg>`;
+
 async function about() {
   const a = await get("accuracy.json");
   setTitle("How it works");
   const tuned = META.tuned || {};
-  app.innerHTML = `<section class="hero court"><div class="wrap"><h1>How it works</h1></div></section>
-  <div class="wrap prose">${demoBanner()}
-    <p>Tip-Off Numbers estimates every NBA game in the next two weeks: each team's chance to win, the likely margin and total, and threes, rebounds and assists. One recipe for every game:</p>
-    <p class="verdict"><b>estimate = base ratings + rest, travel &amp; availability + psychological spots</b></p>
-    <h2>Where the data comes from</h2>
-    <p>ESPN's public feed: results, schedule and box scores for five full seasons plus the current one, head coaches per season, and the league injury report (logged before every game, so the site can check what each status really meant). A scheduled job refreshes everything every three hours, and every hour near tip-off.</p>
-    <h2>1. Base ratings</h2>
-    <p>For every team-game: points scored = league average + home court + the team's attack − the opponent's defence. One penalised regression per stat; recent games count more (half-life ${tuned.half_life ?? "–"} days), last season's games are discounted again (×${tuned.carry ?? "–"}) because rosters change, and every team is pulled towards average until the evidence says otherwise.</p>
-    <p><b>Player-based strength.</b> Every player also carries his own per-minute rating (game score: points, shooting efficiency, rebounds, assists, steals, blocks, fouls and turnovers; and on-court plus-minus), pulled towards average until he has played enough minutes. A team's strength for a game is the sum over the players who actually play, weighted by their expected minutes. Because it follows players, it reacts to injuries, rest days and trades the day they happen. The two estimates are combined with weights measured on past games; on this season's games, measured out of sample, this lifted winners called from 65.8% to 69.2%. A pace-based estimate of totals was tested too and left out: it did not improve the totals.</p>
-    <p><b>Market blend.</b> Pinnacle, the sharpest bookmaker, often prices in news the model cannot see. Tested on 1,368 past games with Pinnacle's price 30 minutes before each day's first tip-off, a 40% model / 60% Pinnacle blend of the win chances beat both on their own (2025-26: Brier 0.1991 model, 0.1971 Pinnacle, about 0.1966 blend), so every game with a Pinnacle price shows the blend. It switches off by itself if this season's frozen games show it doing worse than the model alone.</p>
-    <p><b>Adjusted plus-minus.</b> Plain plus-minus credits a bench player for his starters' work. A third player rating solves every stored game at once (margin = home court + each side's players weighted by minutes), so a player's rating is measured alongside his teammates and opponents. Tested on later seasons, it improved the win chances on 2024-25 (Brier 0.2076 to 0.2038, winners 67.4% to 67.8%), 2025-26 (0.2029 to 0.1996; winners 69.3% to 69.1%) and this season, and helped most in the first 15 games of a season, when rosters have changed: it follows players to their new teams.</p>
-    <p><b>Who plays.</b> Close to tip-off the site refreshes every 15 minutes, reads each game's own injury report and, once ESPN posts them, the starting fives (a starter plays whatever the report said). Earlier in the day, a key player not on the report still sits about 6% of the time, about 10% on the second night of a back-to-back and about 13% late in the season (measured on every stored game; almost never in the playoffs). Until the news is in, team strength counts his minutes at that chance.</p>
-    <h2 class="body">2. Rest, travel and availability</h2>
-    <ul><li><b>Back-to-backs</b> and <b>three games in four nights</b>; days of rest.</li><li><b>Body clock</b>: time zones crossed heading east; <b>travel</b> distance since the last game.</li>
-    <li><b>Missing players</b>: each rotation regular's share of the team's production (points + ½ rebounds + assists, last 15 games). For past games, who actually didn't play; for the next three days, the injury report (out = 100%, doubtful 75%, questionable 40%, day-to-day 30%).</li></ul>
-    <h2 class="mind">3. The psychological layer</h2>
-    <p>Basketball people talk about momentum, letdowns and revenge all the time. Here each of those stories becomes a precise, checkable condition, and its size is measured from what actually happened afterwards:</p>
-    <ul><li><b>Streak</b>: current winning or losing run.</li><li><b>Confidence</b>: how far the last five games beat (or fell short of) what the ratings expected.</li>
-    <li><b>Bounce-back</b>: lost the previous game by 20 or more.</li><li><b>Letdown</b>: beat a top team (.600+) last time out, now face a weak one (under .450).</li>
-    <li><b>Revenge</b>: lost the last meeting between the two teams this season (in the playoffs, the previous game of the series).</li>
-    <li><b>Look-ahead</b>: a weak opponent tonight and a top team (.620+) within two days.</li><li><b>Homecoming</b>: first home game after a road trip of four or more; <b>long road trip</b>: fourth or later straight road game.</li>
-    <li><b>Stakes</b>: from game 55 on, within three games of a seed line (6/7 or 10/11) counts as a race; far out of the play-in, or a settled seed with few games left, counts as nothing to play for.</li>
-    <li><b>Facing elimination</b> in the playoffs. Division rivalry, playoff intensity and dead-rubber games are measured on the total.</li></ul>
-    <h2>Players</h2>
-    <p>Every rotation player gets a projection for his next game: <b>expected minutes × his per-minute production × the opponent</b>, then the measured player effects. Minutes come from a minutes model fitted only on earlier games: his last few games, his season average, whether he started, minutes freed by teammates who are out (at his position and elsewhere), how crowded the rotation is, blowout risk for heavy-minute players, back-to-backs and returns from absence. Tested out of sample on 2025-26, it cut the average minutes miss from 5.08 to 4.84 and the points miss from 4.64 to 4.59. Players on the injury report get their chance to play from the measured rate for their status, and fewer minutes when that status has meant fewer minutes. Per-minute numbers are recency-weighted and pulled towards the average for his position until he has enough minutes; a new season counts last season's numbers much less. The opponent factor is what that team has allowed in the stat, half-shrunk to the league average.</p>
-    <p>Player storylines are measured the same way as the team ones, on every stored player-game: <b>facing a former team</b>, <b>first games back</b> from a long absence, <b>hot or cold hand</b>, <b>contract year</b> (from a notes file the daily analyst keeps), <b>teammates out</b>, back-to-backs and home floor. Over/under chances use the spread of past misses for each stat.</p>
-    <p>Player pages add true shooting (TS%), effective FG%, usage (share of team plays while on the floor), rebound and assist rates, per-36 numbers, splits and the full game log with the projection made before each game.</p>
-    <h2>The daily parlay</h2>
-    <p>Every leg for the next slate is checked: winners, handicaps and totals at the market's line (from ESPN's odds feed when it has them), and points, rebounds, assists, threes and pts+reb+ast for every rotation player. Team chances are blended 50/50 with the market's no-margin price; player chances are shrunk towards 50% by a factor fitted on past player-games. Each game is simulated 20,000 times so legs from the same game are priced together. Tickets: the <b>daily 6</b> (chance of landing balanced against measured value, at most two legs per game), the <b>Core 3</b> (fewer legs, less margin) and the best <b>same-game 3</b>. Each leg shows the minimum price worth taking; tickets are frozen at the first tip-off and scored afterwards.</p>
-    <h2>Real prices and closing-line value</h2>
-    <p>With an odds key (The Odds API), the site reads Winamax's and Pinnacle's prices for every game, archives every snapshot, and records player-prop lines. Every published leg keeps the market's view when it first appeared and the last one before tip-off; the difference is its <b>closing-line value</b>. Beating the closing price consistently is the fastest evidence of a real edge, long before wins and losses can tell. Bets you record on the parlay page are checked against the same closing prices. In the three hours before tip-off the site refreshes every hour to catch team news.</p>
-    <h2>Quarters, playoff chances, mind ranking</h2>
-    <ul><li><b>Quarters and halves</b>: the game estimate split by each team's usual share of points per quarter (pulled towards the league's).</li>
-    <li><b>Playoff chances</b>: the rest of the regular season simulated 4,000 times from the ratings (with their uncertainty), then the play-in (7v8, 9v10, and the last game for the 8th seed).</li>
-    <li><b>Mind ranking</b>: a description of each team's state — streak, last ten, results versus expectations, races, dead rubbers and missing players — next to the measured psychological edge in its next games.</li></ul>
-    <h2>How big is each effect?</h2>
-    <p>Measured, not assumed. The base ratings make an out-of-sample prediction for every past game (refit every week on earlier games only). What they missed is regressed on all the factors at once, with a penalty that pulls each factor towards zero unless the evidence is there. That gives each factor its size in points, its uncertainty and a label: <b>strong</b>, <b>moderate</b>, <b>weak</b> or <b>no clear evidence</b>. A popular story that the data doesn't support simply ends up worth almost nothing. The current sizes are on the <a href="#/accuracy">track record</a> page; they're re-measured on every run.</p>
-    <h2>From numbers to chances</h2>
-    <p>Margins are treated as normally distributed around the estimate with the spread of past misses (${a.sd_margin ?? "–"} points); totals the same (${a.sd_total ?? "–"}). The win chance is the share of that distribution on each side of zero.</p>
-    <h2>Keeping it honest</h2>
-    <ul><li>An estimate is rewritten on every run until tip-off, then <b>frozen</b> and never touched again; after the game it is scored. The git history of <code>data/predictions/</code> proves each one existed before tip-off.</li>
-    <li>Scores are compared with plain averages (points for and against) and with the same model <b>without</b> the psychological layer, so you can see whether the mind actually adds anything.</li>
-    <li>Settings are tuned on one season and tested once on the next.</li></ul>
-    <h2>Limits</h2>
-    <ul><li>Psychology is noisy. Most spots are worth a point or two at most, and some are worth nothing.</li><li>Late scratches after the last refresh, trades and coaching changes are not in the numbers until the data shows them.</li>
-    <li>These are statistical estimates, not advice.</li></ul>
+  const step = (n, k, title, text) => `<div class="hw-step"><div class="hw-n"><span>${n}</span>${ic(k, 20)}</div><h3>${title}</h3><p>${text}</p></div>`;
+  const card = (k, color, title, line, more) => `<details class="hw-card" style="--c:${color}"><summary><span class="hw-ic">${ic(k)}</span><span><b>${title}</b><span class="hw-line">${line}</span></span><span class="hw-plus" aria-hidden="true">+</span></summary><div class="hw-more">${more}</div></details>`;
+  const spot = (name, what) => `<div class="hw-spot"><b>${name}</b><span>${what}</span></div>`;
+  const proof = (big, label, note) => `<div class="hw-proof"><p class="v">${big}</p><p class="k">${label}</p><p class="s">${note}</p></div>`;
+  app.innerHTML = `<div class="wrap tn">${demoBanner()}
+  <section class="tn-hero"><div class="lead"><p class="eyebrow">How it works</p><h1>From box scores<br>to tonight's picks.</h1>
+    <p class="sublede">Every game goes through the same four steps. Everything that moves a number has been measured on past games, and the model only keeps an idea when it improves results on games it has never seen.</p></div></section>
+
+  <section class="hw-steps" aria-label="The four steps">
+    ${step(1, "data", "Collect", "Every result and box score of the last six seasons, tonight's injury report, starting fives, referee crews, and Winamax and Pinnacle prices, refreshed up to every 15 minutes before tip-off.")}
+    ${step(2, "rate", "Rate", "How good each team is from its results, and how good the players who will actually play are, each rated alongside his teammates and opponents.")}
+    ${step(3, "adjust", "Adjust", "Rest, travel, missing players, shooting luck and the psychological spots that have actually mattered in the past, each sized by the data.")}
+    ${step(4, "lock", "Decide", "Blend with Pinnacle's price, simulate every game thousands of times, then choose the day's tickets once, three hours before tip-off, and lock them.")}
+  </section>
+
+  <section class="tn-sec"><div class="hd"><div><h2>What goes into a game</h2><p class="sub2">Tap any card for the detail.</p></div></div>
+    <div class="hw-grid">
+      ${card("team", "#8EC5FF", "Team ratings", "Attack and defence from every result, recent games counting most.",
+        `<p>For every game: points = league average + home court + the team's attack − the opponent's defence, fitted on all results at once. Recent games count more (half-life ${tuned.half_life ?? "–"} days), last season is discounted (×${tuned.carry ?? "–"}) because rosters change, and every team is pulled towards average until the evidence is there.</p>`)}
+      ${card("player", "#3DF0A5", "Player strength", "The team is the sum of the players who actually play tonight.",
+        `<p>Each player carries three ratings: a box-score rating, his plus-minus, and an <b>adjusted plus-minus</b> measured alongside his teammates and opponents, so a bench player is not credited for his starters' work. A team's strength is the sum over tonight's players, weighted by expected minutes, so it reacts to injuries, rest days and trades straight away.</p><p>Tested on later seasons it made the win chances clearly better (2025-26: Brier 0.2029 → 0.1996), most of all in the first weeks of a season, when rosters have changed.</p>`)}
+      ${card("who", "#FFB86B", "Who plays", "Injury reports, starting fives and the chance a star sits.",
+        `<p>Each game's own injury report is read, and its statuses are checked against who really played, so "questionable" means what it has meant in practice. Once ESPN posts the starting fives, a starter plays whatever the report said.</p><p>Earlier in the day a key player with no news still sits about 6% of the time, about 9% on the second night of a back-to-back and about 13% late in the season. Until the news is in, his minutes count at that chance.</p>`)}
+      ${card("body", "#FF8A7A", "Rest and travel", "Back-to-backs, time zones, distance, and who is missing.",
+        `<p>Back-to-backs and three games in four nights, days of rest, time zones crossed heading east, distance travelled since the last game, and the share of the team's regular production that is missing tonight.</p>`)}
+      ${card("mind", "#B79CFF", "The mind", "Momentum, letdowns, revenge and stakes, sized by what actually happened.",
+        `<p>Every story basketball people tell becomes a precise condition, and its size comes from what happened in thousands of past games. A story the data doesn't support ends up worth almost nothing. See the spots below.</p>`)}
+      ${card("market", "#5AA9FF", "The market", "Pinnacle's price, the sharpest in the world, blended in.",
+        `<p>Pinnacle often prices in news the model can't see. On 1,368 past games, a 40% model / 60% Pinnacle blend of the win chances beat both on their own, so every game with a Pinnacle price shows the blend. Winamax's prices are compared with Pinnacle's fair price on the Tonight page: when Winamax pays more, it's marked as value.</p>`)}
+    </div></section>
+
+  <section class="tn-sec"><div class="hd"><div><h2>The mental game</h2><p class="sub2">The psychological spots the model checks before every game. Each one's size is measured, not assumed.</p></div></div>
+    <div class="hw-spots">
+      ${spot("Streak", "a winning or losing run")}${spot("Confidence", "beating or missing expectations lately")}${spot("Bounce-back", "after a heavy defeat")}
+      ${spot("Letdown", "after beating a top team, facing a weak one")}${spot("Revenge", "lost the last meeting")}${spot("Look-ahead", "a big game coming up next")}
+      ${spot("Homecoming", "first game home after a long trip")}${spot("Long road trip", "fourth straight game away")}${spot("Stakes", "a race for a playoff place, or nothing left to play for")}
+      ${spot("Elimination", "one more loss ends the season")}${spot("Former team", "a player facing his old club")}${spot("Hot hand", "a player beating his projection lately")}
+    </div></section>
+
+  <section class="tn-sec"><div class="hd"><div><h2>Proven, not assumed</h2><p class="sub2">Every change is trained on earlier seasons and scored on the next one. These are some of the results.</p></div></div>
+    <div class="hw-proofs">
+      ${proof("68–70%", "winners called", "on full past seasons; the betting market itself sits around 68–71%")}
+      ${proof("4.59", "points missed per player", "on average this season, measured before each game (4.72 before today's changes)")}
+      ${proof("1.0", "calibration factor", "player-leg chances need almost no correction: 60% lands about 60% of the time")}
+      ${proof("20+", "ideas tested today", "about half were kept; play-style matchups, coaching and a second model type were left out")}
+    </div></section>
+
+  <section class="tn-sec"><div class="hd"><div><h2>A day of tickets</h2><p class="sub2">The same rhythm every game day.</p></div></div>
+    <ol class="hw-time">
+      <li><span class="dot"></span><b>All day</b><span>Estimates and prices update as news comes in.</span></li>
+      <li><span class="dot"></span><b>3 hours before tip-off</b><span>The full model picks the tickets once, explains each in plain words, and locks them.</span></li>
+      <li><span class="dot"></span><b>Tip-off</b><span>Every estimate is frozen and can never be changed afterwards.</span></li>
+      <li><span class="dot"></span><b>After the buzzer</b><span>Everything is scored: winners, tickets, legs, and how your prices compared with Pinnacle's closing price.</span></li>
+    </ol></section>
+
+  <section class="tn-sec duo2" style="align-items:start">
+    <div><h2 style="font-size:28px;margin:0">Keeping it honest</h2><ul class="hw-checks">
+      <li>${ic("check", 18)}<span>Estimates are frozen at tip-off; the public history of the site proves each one existed before the game.</span></li>
+      <li>${ic("check", 18)}<span>The model is always compared with plain averages and with itself without the psychological layer.</span></li>
+      <li>${ic("check", 18)}<span>Safety checks run before every update; a bad run never reaches the site.</span></li>
+      <li>${ic("check", 18)}<span>The live record is the headline number, not the research figures.</span></li></ul></div>
+    <div><h2 style="font-size:28px;margin:0">Limits</h2><ul class="hw-checks warn">
+      <li>${ic("clock", 18)}<span>Psychology is noisy: most spots are worth a point or two at most.</span></li>
+      <li>${ic("clock", 18)}<span>A late scratch after the last refresh isn't in the numbers.</span></li>
+      <li>${ic("clock", 18)}<span>About 3 in 10 games go against even the best estimate. That is basketball.</span></li>
+      <li>${ic("clock", 18)}<span>Statistical estimates, not advice. 18+.</span></li></ul></div>
+  </section>
+
+  <details class="hw-deep"><summary>The full technical detail</summary><div class="prose">
+    <p><b>Margins and totals</b> are treated as normally distributed around the estimate with the spread of past misses (${a.sd_margin ?? "–"} points for margins, ${a.sd_total ?? "–"} for totals); the win chance is the share of that distribution on each side of zero.</p>
+    <p><b>Factor sizes</b>: the ratings make an out-of-sample prediction for every past game (refit weekly on earlier games only); what they missed is regressed on all factors at once, with a penalty that pulls each towards zero unless the evidence is there. Each gets its size, its uncertainty and a label: strong, moderate, weak or no clear evidence. Current sizes are on the <a href="#/accuracy">Record</a> page.</p>
+    <p><b>Players</b>: expected minutes (a minutes model fitted on earlier games, scaled so each team's minutes add up to 240) × per-minute production × the opponent, then the measured player effects (hot hand, matchup history, minutes and points without a key teammate, returns, back-to-backs). Over/under chances use a count distribution fitted to each stat.</p>
+    <p><b>Tickets</b>: every winner, handicap, total and player leg is checked; each game is simulated 20,000 times so legs from the same game are priced together; the Value 2 (main pick), Core 3, Same-game 3 and the daily 6 (long shot) are chosen once, three hours before the first tip-off.</p>
+    <p><b>Quarters, playoff chances, mind ranking</b>: the estimate split by each team's usual share per quarter; the rest of the season simulated 4,000 times with the play-in; and a description of each team's state next to its measured psychological edge.</p>
+  </div></details>
   </div>`;
 }
 
@@ -704,7 +749,13 @@ async function route() {
     more.setAttribute("aria-current", document.querySelector(".more-menu [aria-current='page']") ? "page" : "false");
     more.parentElement.open = false;
   }
+  // leave: a quick fade of the old page while the next one loads
+  app.classList.remove("entering");
+  app.classList.add("leaving");
+  const leaveDone = new Promise(r => setTimeout(r, REDUCED ? 0 : 140));
+  if (!app.firstElementChild || app.querySelector(".loading")) app.innerHTML = skeleton();
   try {
+    await leaveDone;
     if (!page) await home();
     else if (page === "games") await games(arg);
     else if (page === "game") await game(arg);
@@ -722,7 +773,46 @@ async function route() {
     app.innerHTML = `<div class="wrap" style="padding-top:40px"><p class="empty">Couldn't load this page (${h(err.message)}).</p><p><a href="#/">Back home</a></p></div>`;
   }
   window.scrollTo(0, 0);
+  app.classList.remove("leaving");
+  void app.offsetWidth;  // restart the entrance animation
+  app.classList.add("entering");
+  enhance(app);
   app.focus({ preventScroll: true });
+}
+
+/* ---------------------------------------------------------------- motion */
+const REDUCED = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+function skeleton() {
+  const blk = (w, hgt, r = 18) => `<div class="sk" style="width:${w};height:${hgt}px;border-radius:${r}px"></div>`;
+  return `<div class="wrap" style="padding-top:72px">${blk("180px", 14, 7)}<div style="height:18px"></div>${blk("60%", 64, 14)}<div style="height:14px"></div>${blk("40%", 20, 8)}
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin-top:48px">${blk("100%", 190, 22).repeat(4)}</div></div>`;
+}
+let revealObs = null;
+function enhance(root) {
+  // numbers count up the first time they appear
+  if (!REDUCED) root.querySelectorAll(".tile .v.num, .take .v, .tk-foot .v, .rec-tiles .v.num, .ph-tiles .v, .count").forEach(el => countUp(el));
+  // sections further down rise in as they scroll into view
+  if (!("IntersectionObserver" in window) || REDUCED) return;
+  if (revealObs) revealObs.disconnect();
+  revealObs = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add("in"); revealObs.unobserve(e.target); } }), { rootMargin: "0px 0px -8% 0px", threshold: 0.06 });
+  root.querySelectorAll(".tn-sec, .section, .gm, .panel, .tk-mini, .hw-card, .hw-step, .listcard .row").forEach((el, i) => {
+    const r = el.getBoundingClientRect();
+    if (r.top > window.innerHeight * 0.92) { el.classList.add("reveal"); el.style.setProperty("--d", `${(i % 6) * 45}ms`); revealObs.observe(el); }
+  });
+}
+function countUp(el) {
+  const txt = el.textContent.trim(), m = txt.match(/^([^0-9\-−+]*)([+\-−]?)([0-9]+(?:[.,][0-9]+)?)(.*)$/);
+  if (!m || el.dataset.counted || /[:\/]/.test(txt)) return;
+  el.dataset.counted = "1";
+  const [, pre, sign, num, post] = m, target = parseFloat(num.replace(",", ".")), dec = (num.split(/[.,]/)[1] || "").length;
+  if (!isFinite(target) || target === 0) return;
+  const t0 = performance.now(), dur = 700;
+  const step = t => {
+    const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+    el.textContent = `${pre}${sign}${(target * e).toFixed(dec)}${post}`;
+    if (k < 1) requestAnimationFrame(step); else el.textContent = txt;
+  };
+  requestAnimationFrame(step);
 }
 
 /* status line: is everything working? */
