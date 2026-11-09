@@ -13,6 +13,7 @@ from .store import (BOX, STATE, load_games, load_players, read_json, save_games,
 
 MAX_SUMMARIES = int(os.environ.get("MAX_SUMMARIES", "1000"))
 AHEAD_DAYS = 14
+REF_BACKFILL = int(os.environ.get("REF_BACKFILL", "900"))
 HIST_SEASONS = int(os.environ.get("HIST_SEASONS", "5"))  # full seasons kept before the current one
 
 
@@ -80,7 +81,7 @@ def collect(today=None):
             r["q"] = 0
         if old is not None and gid in old.index and int(old.loc[gid, "box"] or 0):
             for c in old.columns:
-                if (c.startswith(("h_", "a_")) and "_q" not in c) or c == "box":
+                if (c.startswith(("h_", "a_")) and "_q" not in c) or c in ("box", "refs"):
                     r[c] = old.loc[gid, c]
         else:
             r["box"] = 0
@@ -103,8 +104,19 @@ def collect(today=None):
             for c in BOX:
                 games.loc[gid, f"{side}_{c}"] = s["teams"].get(ab, {}).get(c)
         games.loc[gid, "box"] = 1
+        if s.get("officials"):
+            games.loc[gid, "refs"] = ";".join(s["officials"])
         for p in s["players"]:
             new_players.append({"game_id": gid, **p})
+    # referee crews for games stored before crews were kept (one-time backfill, REF_BACKFILL per run)
+    have_refs = games["refs"].notna() & (games["refs"].astype(str) != "")
+    todo = games[(games["box"].fillna(0).astype(int) == 1) & ~have_refs].sort_values("date", ascending=False)
+    for gid in list(todo.index)[:REF_BACKFILL]:
+        s = espn.summary(gid)
+        if s and s.get("officials"):
+            games.loc[gid, "refs"] = ";".join(s["officials"])
+        elif s is not None:
+            games.loc[gid, "refs"] = "-"  # none listed: do not ask again
     games = games.reset_index()
     save_games(games)
     if new_players:
@@ -168,6 +180,16 @@ def collect(today=None):
         prev = read_json(STATE / "upcoming.json", []) or []
         ups = [g for g in prev if g.get("date", "") >= espn.now_utc().strftime("%Y-%m-%dT%H:%M")]
         espn.CALLS["errors"].append("no games parsed from the scoreboard; kept the previous schedule")
+    from . import refs as refs_mod
+    try:
+        crews = refs_mod.today_crews()
+    except Exception as e:  # never let the referee page break a run
+        crews = {}
+        espn.CALLS["errors"].append(f"referee page: {e}")
+    for g in ups:
+        c_ = crews.get((g["away"], g["home"]))
+        if c_:
+            g["refs"] = c_
     odds_status = oddsapi.collect(ups)
     write_json(STATE / "upcoming.json", ups)
 

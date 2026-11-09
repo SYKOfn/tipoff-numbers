@@ -293,6 +293,7 @@ def main(demo=False, now=None, collect_data=True):
             est["win_home"] = 1 / (1 + math.exp(-(BLEND_W * lo(est["win_home"]) + (1 - BLEND_W) * lo(p_mkt))))
         payload = game_payload(g, ctx, est, "estimate", {t: injuries.get(t, []) for t in (g["home"], g["away"])} if news else None)
         payload["news"] = news
+        payload["refs"] = g.get("refs")
         payload["made_at"] = now.isoformat()
         payload["players"] = proj_players
         if gid in analyst:

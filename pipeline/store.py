@@ -15,7 +15,7 @@ SITE = ROOT / "site" / "data"
 
 BOX = ["fgm", "fga", "tpm", "tpa", "ftm", "fta", "oreb", "reb", "ast", "tov", "stl", "blk"]
 GAME_COLS = (["game_id", "date", "day", "season", "stype", "home", "away", "home_pts", "away_pts", "ot",
-              "neutral", "national_tv", "venue", "box", "q"]
+              "neutral", "national_tv", "venue", "box", "q", "refs"]
              + [f"h_q{i}" for i in range(1, 5)] + [f"a_q{i}" for i in range(1, 5)]
              + [f"h_{c}" for c in BOX] + [f"a_{c}" for c in BOX])
 PLAYER_STATS = ["min", "pts", "reb", "ast", "fgm", "fga", "tpm", "tpa", "ftm", "fta", "oreb", "stl", "blk", "tov", "pf", "pm"]

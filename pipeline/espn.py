@@ -270,7 +270,8 @@ def parse_summary(s):
                 players.append(row)
             break  # first statistics group holds the full line
     injuries = parse_injury_blocks(s.get("injuries") or [])
-    return {"teams": teams, "players": players, "injuries": injuries}
+    officials = [o.get("displayName") or o.get("fullName") for o in ((s.get("gameInfo") or {}).get("officials") or [])]
+    return {"teams": teams, "players": players, "injuries": injuries, "officials": [o for o in officials if o]}
 
 
 # ------------------------------------------------------------------ injuries

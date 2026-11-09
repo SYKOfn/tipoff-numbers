@@ -388,7 +388,7 @@ async function game(id) {
       <div>${center}</div>
       <div class="mteam home">${disc(H, "lg")}<a href="#/team/${H}">${h(T(H).short)}</a><span class="rec">${h(g.home.record)}${g.home.seed ? ` · ${g.home.conf} #${g.home.seed}` : ""}</span></div></div>
     ${strip(e.win_home, H, A)}
-    <p class="mmeta"><span class="pill">${h(kind)}</span><span>${tip(g.tip)}</span><span>${h(stypeLabel(g.stype))}${series}</span>${g.venue ? `<span>${h(g.venue)}</span>` : ""}${g.national_tv ? `<span>National TV</span>` : ""}${g.rivalry ? `<span>Division rivals</span>` : ""}</p>
+    <p class="mmeta"><span class="pill">${h(kind)}</span><span>${tip(g.tip)}</span><span>${h(stypeLabel(g.stype))}${series}</span>${g.venue ? `<span>${h(g.venue)}</span>` : ""}${g.national_tv ? `<span>National TV</span>` : ""}${g.rivalry ? `<span>Division rivals</span>` : ""}${g.refs && g.refs.length ? `<span>Referees: ${h(g.refs.join(", "))}</span>` : ""}</p>
   </div></section>
   <div class="wrap">${demoBanner()}${BANNER}${scored}
     <section class="grid">
