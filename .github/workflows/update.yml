@@ -50,6 +50,17 @@ jobs:
           if [ ! -f backtest/results.json ]; then
             python -m backtest.run && python -m pipeline.run --no-collect
           fi
+      - name: Safety checks (a failed check keeps the last good site and fails the run, which emails the owner)
+        id: checks
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          rm -f site/data/checks_failed.json
+          if ! python -m pipeline.checks; then
+            cp site/data/checks.json /tmp/checks.json
+            git checkout HEAD -- site/data
+            cp /tmp/checks.json site/data/checks_failed.json
+            echo "failed=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Save data
         if: steps.gate.outputs.run == 'true'
         run: |
@@ -63,6 +74,12 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: site
+      - name: Report a failed safety check
+        if: steps.checks.outputs.failed == 'true'
+        run: |
+          echo "Safety checks failed: the site kept its last good version."
+          cat site/data/checks_failed.json
+          exit 1
   # Needs Settings -> Pages -> Source: "GitHub Actions".
   publish:
     needs: update

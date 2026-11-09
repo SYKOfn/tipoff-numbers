@@ -276,7 +276,7 @@ def main(demo=False, now=None, collect_data=True):
                 for x in proj_players.get(side, []):
                     if not x.get("out") and not x.get("status") and x["min"] >= rest.KEY_MIN and p_sit:
                         x["sit"] = round(p_sit, 3)
-        em_ = lambda x: x["min"] * (1 - x.get("sit", 0.0))  # expected minutes
+        em_ = lambda x: x["min"] * x.get("p_play", 1.0) * (1 - x.get("sit", 0.0))  # expected minutes
         sh_ = c.lineup.strength([(x["id"], em_(x)) for x in proj_players.get("home", []) if not x.get("out")])
         sa_ = c.lineup.strength([(x["id"], em_(x)) for x in proj_players.get("away", []) if not x.get("out")])
         rh_ = c.rapm.strength([(x["id"], em_(x)) for x in proj_players.get("home", []) if not x.get("out")])
@@ -532,6 +532,7 @@ def main(demo=False, now=None, collect_data=True):
                     l["open"] = first_seen[l["id"]]
             today_parlay = {"day": sday, "made_at": now.isoformat(), "first_tip": first_tip.isoformat(), "frozen": False,
                             **built, "board": bl, "lifts": lifts, "first_seen": first_seen, "last_seen": last_seen,
+                            "value": parlay.value_board(pre2),
                             "odds_source": sorted({(o or {}).get("provider") or "none" for o in odds_by_game.values()})}
             write_json(path, today_parlay)
     # score finished slates
@@ -558,13 +559,33 @@ def main(demo=False, now=None, collect_data=True):
                 for l in pj.get("singles", []) + pj.get("board", []):
                     if l["game"] in fin_rows:
                         sc(l)
+                for v in pj.get("value", []):  # Winamax vs Pinnacle: result, and Pinnacle's closing view
+                    gr = fin_rows.get(v["game"])
+                    if gr is None:
+                        continue
+                    hw = gr["home_pts"] > gr["away_pts"]
+                    v["won"] = bool(hw if v["side"] == "home" else not hw)
+                    pf = read_json(PRED / str(gr["season"]) / f"{v['game']}.json") or {}
+                    pc = ((pf.get("books_last") or {}).get("pinnacle") or {})
+                    fc = parlay.novig(pc.get("ml_home"), pc.get("ml_away"))
+                    if fc is not None:
+                        fc = fc if v["side"] == "home" else 1 - fc
+                        v["close_fair_p"] = round(fc, 4)
+                        v["clv"] = round(v["price"] * fc - 1, 4)  # the Winamax price vs Pinnacle's closing fair price
                 pj["scored"] = True
                 pj["frozen"] = True
                 write_json(path, pj)
         if pj.get("scored"):
             history.append(pj)
+    vb = [v for h_ in history for v in h_.get("value", []) if v.get("value") and "won" in v]
+    value_record = {"n": len(vb), "won": sum(v["won"] for v in vb),
+                    "profit": round(sum((v["price"] - 1) if v["won"] else -1 for v in vb), 2),
+                    "expected_won": round(sum(v["fair_p"] for v in vb if v.get("fair_p")), 1),
+                    "clv_n": sum(1 for v in vb if v.get("clv") is not None),
+                    "clv_beat": sum(1 for v in vb if (v.get("clv") or 0) > 0),
+                    "clv_avg": round(sum(v["clv"] for v in vb if v.get("clv") is not None) / max(1, sum(1 for v in vb if v.get("clv") is not None)), 4)} if vb else None
     rec = {}
-    for pr_name in ("The daily 6", "Core 3", "Same-game 3"):
+    for pr_name in ("Value 2", "Core 3", "Same-game 3", "The daily 6"):
         items = [pr for h_ in history for pr in h_["parlays"] if pr["name"] == pr_name]
         if items:
             legs = [l for pr in items for l in pr["legs"] if l.get("result") in ("hit", "miss")]
@@ -609,6 +630,7 @@ def main(demo=False, now=None, collect_data=True):
                                       "leg_results": leg_results, "leg_close": leg_close,
                                       "odds_api": (read_json(STATE / "collect.json", {}) or {}).get("odds_api"),
                                       "clv": {"tickets": clv_summary(clv_legs), "all_legs": clv_summary(clv_all), "model": model_clv},
+                                      "value_record": value_record,
                                       "history": [{"day": h_["day"], "parlays": [{"name": pr["name"], "p": pr["p"], "fair": pr["fair"],
                                                                                    "result": pr.get("result"),
                                                                                    "legs": [{"desc": l["desc"], "p": l["p"], "result": l.get("result"),

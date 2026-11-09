@@ -166,7 +166,7 @@ def prop_legs(game, players, calib, avg, disp, real=None):
     for side in ("home", "away"):
         team = game[side]
         for pl in players.get(side, []):
-            if pl.get("out") or pl.get("status") or (pl.get("min") or 0) < 24:
+            if pl.get("out") or pl.get("status") or (pl.get("min") or 0) < 24 or (pl.get("p_play") or 1.0) < 0.6 or pl.get("lineup") == "not in the starting five":
                 continue
             a = avg.get(pl["id"])
             if not a or a.get("gp", 0) < 3:
@@ -488,15 +488,26 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None)
            "not_on_book": out_skip}
     if not elig or n_games == 0:
         return out, cands
+    # Main picks are short: the bookmaker's margin multiplies with every leg, so two or three legs from
+    # different games (where Winamax simply multiplies the odds) keep the most of any edge.
+    priced = [l for l in elig if l.get("edge") is not None and not l.get("price_est") and l["edge"] >= 0.02]
+    two = search(priced, 2, sims, games, max_per_game=1) if len(priced) >= 2 else None
+    if not two and len(elig) >= 2:
+        two = search(elig, 2, sims, games, max_per_game=1, min_games=2 if n_games >= 2 else None)
+    if two:
+        out["parlays"].append(package("Value 2", "The main pick: two legs from different games, each worth its price on its "
+                                      "own where a real price is known. Two legs keep the bookmaker's margin small (about "
+                                      "9% at standard prices against about 24% for six).", list(two), sims, games))
+    if n_games >= 3:
+        core = search(elig, 3, sims, games, max_per_game=1, min_games=3)
+        if core:
+            out["parlays"].append(package("Core 3", "Three legs from three different games: the strongest combination of "
+                                          "chance and value without stacking one game.", list(core), sims, games))
     six = search(elig, min(6, len(elig)), sims, games, max_per_game=2 if n_games >= 3 else 3, min_games=min(4, n_games))
     if six:
-        out["parlays"].append(package("The daily 6", "Six legs balancing the chance of all landing together with measured value against "
-                                      "the market: at most two per game, every priced leg worth taking on its own, none with a "
-                                      "psychological spot against it.", list(six), sims, games))
-        core = search(list(six), min(3, len(six)), sims, games, max_per_game=2)
-        if core:
-            out["parlays"].append(package("Core 3", "The three strongest legs of the daily 6. Fewer legs, much less bookmaker margin: "
-                                          "the mathematically sounder ticket.", list(core), sims, games))
+        out["parlays"].append(package("The daily 6", "The long shot: six legs, at most two per game. It pays big but lands "
+                                      "rarely, and the bookmaker's margin compounds over six legs, so it needs every leg to "
+                                      "carry real value. Treat it as the optional extra, not the main bet.", list(six), sims, games))
     best_sg = None
     for gid in games:
         gl = [l for l in elig if l["game"] == gid]
@@ -510,7 +521,8 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None)
                 best_sg = (score, sg)
     if best_sg:
         out["parlays"].append(package("Same-game 3", "Three legs from one game that tend to land together (positive correlation). "
-                                      "Bookmakers reprice same-game combos, so compare their price with the minimum odds.", list(best_sg[1]), sims, games))
+                                      "Winamax's same-game builder already prices in that the legs move together, so the "
+                                      "extra chance is mostly paid away: only worth it if Winamax's price beats the minimum odds.", list(best_sg[1]), sims, games))
     singles = sorted([l for l in cands if l.get("edge") is not None and l["edge"] > 0.02 and l["mind_flag"] != "against"
                       and not l.get("price_est") and P_MIN <= l["p"] <= P_MAX],
                      key=lambda l: -l["edge"])[:6]
@@ -608,3 +620,37 @@ def score_leg(leg, game_row, players_rows):
         v = r["pts"] + r["reb"] + r["ast"] if leg["stat"] == "pra" else r.get(leg["stat"], 0)
         return "hit" if (v > leg["line"]) == (leg["side"] == "over") else "miss"
     return None
+
+
+# ------------------------------------------------------------------ Winamax vs Pinnacle
+VALUE_MIN_EDGE = 0.02     # Winamax price beats Pinnacle's fair price by 2%+
+VALUE_MAX_DISAGREE = 0.04  # and the model does not rate the side 4+ points lower than Pinnacle does
+
+
+def value_board(slate, bet_book="winamax_fr", sharp="pinnacle"):
+    """Winners where the betting book pays more than the sharp book's fair price (margin removed).
+    edge = Winamax odds x Pinnacle fair chance - 1: positive means a long-run profit at that price,
+    whatever our model says. The model's view is shown next to it as a second opinion."""
+    out = []
+    for g, pay in slate:
+        books = g.get("odds_books") or {}
+        wb, sh = books.get(bet_book) or {}, books.get(sharp) or {}
+        fair_h = novig(sh.get("ml_home"), sh.get("ml_away"))
+        est = (pay or {}).get("est") or {}
+        for side, team in (("home", g["home"]), ("away", g["away"])):
+            price = wb.get(f"ml_{side}")
+            fair = None if fair_h is None else (fair_h if side == "home" else 1 - fair_h)
+            mod = est.get("win_home_model")
+            mod = None if mod is None else (mod if side == "home" else 1 - mod)
+            if not price:
+                continue
+            edge = None if fair is None else price * fair - 1
+            row = {"game": str(g["game_id"]), "team": team, "opp": g["away"] if side == "home" else g["home"],
+                   "side": side, "price": price, "pin_price": sh.get(f"ml_{side}"), "fair_p": None if fair is None else round(fair, 4),
+                   "fair_odds": None if not fair else round(1 / fair, 3), "model_p": None if mod is None else round(mod, 4),
+                   "edge": None if edge is None else round(edge, 4), "tip": g.get("date")}
+            row["agree"] = None if (mod is None or fair is None) else bool(mod >= fair - VALUE_MAX_DISAGREE)
+            row["value"] = bool(edge is not None and edge >= VALUE_MIN_EDGE and row["agree"] is not False)
+            out.append(row)
+    out.sort(key=lambda r: -(r["edge"] if r["edge"] is not None else -9))
+    return out

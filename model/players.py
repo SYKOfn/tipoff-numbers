@@ -35,6 +35,8 @@ FACTORS = {
     "contract_year": ("mind", "Contract year", "final year of his contract (from the notes file)"),
     "usage": ("physical", "Teammates out", "per 10% of the team's regular production missing"),
     "vs_opp": ("mind", "Matchup history", "per 10% he beat (or missed) his projection in past games against this opponent"),
+    "without": ("physical", "Without a key teammate", "per 10% he has beaten (or missed) his projection in past games without the teammates who are out today"),
+    "without_min": ("physical", "Minutes without a key teammate", "per 10% more (or fewer) minutes than projected in past games without those teammates"),
     "b2b": ("physical", "Back-to-back", "second night of a back-to-back"),
     "home": ("physical", "Home floor", "home game"),
 }
@@ -42,7 +44,10 @@ EFFECT_STATS = ["min", "pts", "reb", "ast"]
 # Applied only where out-of-sample tests (fit on earlier seasons, scored on the next) showed a gain.
 # "Teammates out" and "home" are still measured and shown, but the minutes model already covers the first,
 # and applying either made projections worse. The overall bias term helps points only.
-APPLY = {"hot", "vs_opp", "returning", "former_team", "contract_year", "b2b"}
+APPLY = {"hot", "vs_opp", "returning", "former_team", "contract_year", "b2b", "without", "without_min"}
+ONLY_FOR = {"without": {"pts", "min"}, "without_min": {"pts", "min"}}  # tested: helped points and minutes, not rebounds/assists
+KEY_TEAMMATE_MIN = 26.0  # a teammate whose absence is tracked
+WO_K = 4.0               # shrinkage: games of evidence needed for half weight
 BIAS_STATS = {"pts"}
 
 
@@ -223,13 +228,15 @@ class PlayerTracker:
         gap = self.team_games[team] - q["last_team_game"].get(team, self.team_games[team])
         x = {"former_team": former, "returning": int(q["back_left"] > 0 or (gap >= BACK_GAP and q["gp"] > 5)), "hot": hot / 0.1,
              "contract_year": int(bool((notes or {}).get("contract_year"))), "usage": missing_share / 0.1,
-             "vs_opp": self.vs_opp(q, opp), "b2b": int(b2b), "home": int(is_home)}
+             "vs_opp": self.vs_opp(q, opp), "without": 0.0, "without_min": 0.0, "b2b": int(b2b), "home": int(is_home)}
+        wo = self.without_feats(pid, absent)
+        x["without"], x["without_min"] = wo
         mult = {}
         for st in EFFECT_STATS:
             mult[st] = 1.0
             if eff and st in eff:
                 mult[st] = max(0.5, min(1.6, 1.0 + (eff[st].get("bias", 0.0) if st in BIAS_STATS else 0.0)
-                                        + sum(eff[st]["coef"][k] * v for k, v in x.items() if k in APPLY and usable(eff[st], k))))
+                                        + sum(eff[st]["coef"][k] * v for k, v in x.items() if k in APPLY and st in ONLY_FOR.get(k, {st}) and usable(eff[st], k))))
         use = {"min": "min", "pts": "pts", "reb": "reb", "ast": "ast", "tpm": "pts", "fgm": "pts", "fga": "pts",
                "ftm": "pts", "fta": "pts", "stl": "min", "blk": "min", "tov": "min"}
         proj = {"min": mins * mult["min"]}
@@ -335,6 +342,34 @@ class PlayerTracker:
             v = q.setdefault("vs", {}).get(opp, (0.0, 0.0))
             q["vs"][opp] = (v[0] + actual_pts, v[1] + proj_pts)
 
+    def key_absent(self, team, absent):
+        """Absent teammates who matter (26+ recent minutes)."""
+        return [b for b in absent if b in self.p and (ew_get(self.p[b]["ew_min"], "m") or 0) >= KEY_TEAMMATE_MIN]
+
+    def without_feats(self, pid, absent):
+        """Shrunk ratio of actual to projected (points, minutes) in his past games without these teammates."""
+        q = self.p.get(pid)
+        if not q or not absent:
+            return 0.0, 0.0
+        tot = [0.0, 0.0, 0.0, 0.0, 0.0]
+        for b in absent:
+            w = (q.get("wo") or {}).get(b)
+            if w:
+                for i in range(5):
+                    tot[i] += w[i]
+        ap, pp, am, pm, n = tot
+        if n <= 0 or pp <= 0 or pm <= 0:
+            return 0.0, 0.0
+        sh = n / (n + WO_K)
+        return (max(-0.6, min(0.6, ap / pp - 1)) * sh / 0.1, max(-0.6, min(0.6, am / pm - 1)) * sh / 0.1)
+
+    def note_without(self, pid, absent_keys, act_pts, proj_pts, act_min, proj_min):
+        q = self.p[pid]
+        wo = q.setdefault("wo", {})
+        for b in absent_keys:
+            w = wo.get(b, (0.0, 0.0, 0.0, 0.0, 0))
+            wo[b] = (w[0] + act_pts, w[1] + proj_pts, w[2] + act_min, w[3] + proj_min, w[4] + 1)
+
     @staticmethod
     def vs_opp(q, opp):
         """Past points vs this opponent over what was projected, shrunk towards 0 (per 10%)."""
@@ -403,5 +438,5 @@ def effects_table(pe):
             c, s = d["coef"][k], d["se"][k]
             rows.append({"stat": st, "key": k, "layer": layer, "label": label, "means": means,
                          "pct": round(100 * c, 1), "se": None if s is None else round(100 * s, 1), "n": d["n"][k],
-                         "evidence": eff_mod.evidence(c, s) if s else "none", "applied": k in APPLY and usable(d, k)})
+                         "evidence": eff_mod.evidence(c, s) if s else "none", "applied": k in APPLY and st in ONLY_FOR.get(k, {st}) and usable(d, k)})
     return rows

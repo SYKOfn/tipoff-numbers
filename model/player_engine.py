@@ -31,7 +31,15 @@ def rows_by_game(df):
     return out
 
 
-def walk(c, players_df, notes, cur, use_mm=True, ev=None, opp_mode="team"):
+MIN_TEAM = 240.0
+
+
+def team_minutes_scale(total, lo=0.85, hi=1.15):
+    """Factor that brings a team's projected minutes to the 240 available."""
+    return max(lo, min(hi, MIN_TEAM / total)) if total > 0 else 1.0
+
+
+def walk(c, players_df, notes, cur, use_mm=True, ev=None, opp_mode="team", norm=True):
     """ev: optional dict filled with out-of-sample errors per season and stat (for model tests)."""
     pt = P.PlayerTracker()
     pt.use_mm = use_mm
@@ -51,18 +59,27 @@ def walk(c, players_df, notes, cur, use_mm=True, ev=None, opp_mode="team"):
         ctx = c.ctxs.get(gid)
         b = c.base.get(gid)
         em = (b[0] - b[1]) if b else None
-        done, mrows = [], []
+        done, mrows, wo_upd = [], [], []
         for team, opp, side in ((g["home"], g["away"], "home"), (g["away"], g["home"], "away")):
             trs = rows.get(team, [])
             played = {r["player_id"] for r in trs if r["min"] > 0}
             absent = set(pt.rotation(team)) - played
+            team_proj = []
             for r in trs:
                 pid = r["player_id"]
                 if r["min"] <= 0 or pid not in pt.p or pt.p[pid]["gp"] < 3:
                     continue
                 proj, x = pt.project(pid, team, opp, side == "home", ctx[side]["b2b"] if ctx else 0, absent,
                                      ctx[side]["missing"] if ctx else 0.0, notes.get(pid), exp_margin=em)
-                mrows.append((pt.last_mf, r["min"]))
+                team_proj.append((r, pid, proj, x, pt.last_mf))
+            if norm:  # scale the team's projected minutes to the 240 available (newcomers counted at 12)
+                k = team_minutes_scale(sum(t[2]["min"] for t in team_proj) + 12.0 * (len(played) - len(team_proj)))
+                team_proj = [(r, pid, {kk: v * k for kk, v in proj.items()}, x, mf) for r, pid, proj, x, mf in team_proj]
+            keys_out = pt.key_absent(team, absent)
+            for r, pid, proj, x, mf in team_proj:
+                mrows.append((mf, r["min"]))
+                if keys_out:
+                    wo_upd.append((pid, keys_out, r["pts"], proj["pts"], r["min"], proj["min"]))
                 if ev is not None:
                     for st in ("min", "pts", "reb", "ast", "tpm", "pra"):
                         a = (r["pts"] + r["reb"] + r["ast"]) if st == "pra" else r[st]
@@ -99,6 +116,8 @@ def walk(c, players_df, notes, cur, use_mm=True, ev=None, opp_mode="team"):
         pt.post_game(g, rows)
         for f, y in mrows:
             pt.mm.add(f, y)
+        for u in wo_upd:
+            pt.note_without(*u)
         for pid, a, p, o in done:
             pt.note_result(pid, a, p, o)
     pe = P.estimate_effects(rows_eff)
@@ -161,10 +180,13 @@ def project_game(pt, pe, disp, g, ctx, injuries, notes, news=True, exp_margin=No
                     continue
                 if k == "vs_opp" and abs(v) < 1.0:
                     continue
+                if k == "without_min" or (k == "without" and abs(v) < 1.0):
+                    continue
                 txt = STORY.get(k, "").format(opp=opp) if k in STORY else (
                     ("Hot: last 5 games " if v > 0 else "Cold: last 5 games ") + f"{abs(v) * 10:.0f}% {'above' if v > 0 else 'below'} projection." if k == "hot"
                     else f"Teammates out: {v * 10:.0f}% of the team's production missing." if k == "usage"
                     else f"Against the {opp} he has scored {abs(v) * 10:.0f}% {'more' if v > 0 else 'less'} than projected (shrunk for sample size)." if k == "vs_opp"
+                    else f"Without today's missing teammates he has scored {abs(v) * 10:.0f}% {'more' if v > 0 else 'less'} than projected (shrunk for sample size)." if k == "without"
                     else "Second night of a back-to-back." if k == "b2b" else "")
                 se = pe.get("pts", {}).get("se", {}).get(k)
                 label = ("Hot hand" if v > 0 else "Cold hand") if k == "hot" else P.FACTORS[k][1]
@@ -186,7 +208,18 @@ def project_game(pt, pe, disp, g, ctx, injuries, notes, news=True, exp_margin=No
                    "play": status.get("play") if status else None, "spots": spots}
             for st in ("min", "pts", "reb", "ast", "tpm", "stl", "blk", "tov", "pra", "fga", "fta"):
                 row[st] = round(proj[st], 1)
-            row["lines"] = {st: P.lines_for(st, proj[st], disp) for st in ("pts", "reb", "ast", "tpm", "pra")}
+            recent = list(pt.team_hist[team])[-5:]
+            seen = (sum(pid in s_ for s_ in recent) / len(recent)) if recent else 1.0
+            # chance he plays: recent participation (fringe players rarely do) x the injury report
+            row["p_play"] = round(max(0.05, seen if pid not in five else 1.0) * (row["play"] if row["play"] is not None else 1.0), 3)
             lst.append(row)
+        # the team has 240 minutes: scale projections so expected minutes add up (tested: better on every stat)
+        k = team_minutes_scale(sum(r["min"] * r["p_play"] for r in lst if not r["out"]))
+        for r in lst:
+            if r["out"]:
+                continue
+            for st in ("min", "pts", "reb", "ast", "tpm", "stl", "blk", "tov", "pra", "fga", "fta"):
+                r[st] = round(r[st] * k, 1)
+            r["lines"] = {st: P.lines_for(st, r[st], disp) for st in ("pts", "reb", "ast", "tpm", "pra")}
         out[side] = lst
     return out

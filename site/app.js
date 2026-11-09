@@ -423,7 +423,7 @@ function playersSection(g) {
       if (!rows.length) return `<p class="sub">No rotation data yet.</p>`;
       return `<div class="tscroll"><table class="ptable"><tr><th>${disc(ab, "xs")} ${h(T(ab).short)}</th><th class="n">MIN</th><th class="n">PTS</th><th class="n">REB</th><th class="n">AST</th><th class="n">3PM</th><th class="n">STL</th><th class="n">BLK</th><th class="n">PRA</th></tr>
         ${rows.map((p, i) => p.out ? `<tr class="out"><td class="nm">${plink(p.id, p.name)}<span class="ptag out">${h(p.status || "Out")}</span></td><td class="n" colspan="8">${h(p.detail || "")}</td></tr>`
-          : `<tr><td class="nm">${plink(p.id, p.name)}<span class="sub">${h(p.pos || "")}</span>${p.status ? `<span class="ptag q">${h(p.status)}</span>` : ""}${p.lineup ? `<span class="ptag${p.lineup === "starting" ? "" : " q"}">${p.lineup === "starting" ? "Starting" : "Not starting"}</span>` : ""}${p.sit ? `<span class="ptag" title="Before any news: how often a key player in this spot sits (measured). Used in the team-strength estimate until the injury report is in.">Sits ${Math.round(p.sit * 100)}% in this spot</span>` : ""}${(p.spots || []).filter(x => ["former_team", "returning", "contract_year"].includes(x.key) || (x.key === "hot")).map(x => `<span class="ptag" title="${h(x.text)}">${h(x.label)}</span>`).join("")}</td>
+          : `<tr><td class="nm">${plink(p.id, p.name)}<span class="sub">${h(p.pos || "")}</span>${p.status ? `<span class="ptag q">${h(p.status)}</span>` : ""}${p.lineup ? `<span class="ptag${p.lineup === "starting" ? "" : " q"}">${p.lineup === "starting" ? "Starting" : "Not starting"}</span>` : ""}${p.sit ? `<span class="ptag" title="Before any news: how often a key player in this spot sits (measured). Used in the team-strength estimate until the injury report is in.">Sits ${Math.round(p.sit * 100)}% in this spot</span>` : ""}${(p.spots || []).filter(x => ["former_team", "returning", "contract_year", "without", "vs_opp"].includes(x.key) || (x.key === "hot")).map(x => `<span class="ptag" title="${h(x.text)}">${h(x.label)}</span>`).join("")}</td>
             <td class="n">${fx(p.min, 0)}</td><td class="n hl">${fx(p.pts)}</td><td class="n">${fx(p.reb)}</td><td class="n">${fx(p.ast)}</td><td class="n">${fx(p.tpm)}</td><td class="n">${fx(p.stl)}</td><td class="n">${fx(p.blk)}</td><td class="n">${fx(p.pra)}</td></tr>`).join("")}</table></div>
         <details class="more"><summary>Over/under chances for every player</summary>${rows.filter(p => !p.out && p.lines).map(p => `<h3 style="margin-top:12px">${h(p.name)}</h3>${linesBlock(p.lines)}`).join("")}</details>`;
     };
@@ -923,6 +923,13 @@ async function parlayPage() {
   const calHtml = `<div class="tscroll"><table><tr><th>Stat</th><th class="n">Shrink</th><th class="n">Lines tested</th><th>When we said… it happened</th></tr>${Object.entries(cal).map(([k, c]) => `<tr><td>${h({ pts: "Points", reb: "Rebounds", ast: "Assists", tpm: "Threes", pra: "Pts+Reb+Ast" }[k] || k)}</td><td class="n">${fx(c.t, 2)}</td><td class="n">${(c.n || 0).toLocaleString("en-GB")}</td><td class="small">${(c.bins || []).map(b => `${pct(b.p)} → ${pct(b.hit)}`).join(" · ") || "not enough history yet"}</td></tr>`).join("")}</table></div>`;
   const picked = t ? LS.get("tipoff.pick." + t.day, []) : [];
   const board = t && t.board ? `<div class="tscroll"><table class="ptable"><tr><th></th><th>Leg</th><th>Game</th><th class="n">Chance</th><th class="n">Fair</th><th class="n">Take at</th><th>Winamax line · odds</th><th>Mind</th></tr>${t.board.map(l => `<tr><td><input type="checkbox" class="pick" data-leg="${l.id}" ${picked.includes(l.id) ? "checked" : ""} aria-label="Add to my ticket"></td><td><span class="kind ${l.kind}">${KIND[l.kind]}</span><span data-d="${l.id}">${h(legDesc(l))}</span></td><td class="small"><a href="#/game/${h(l.game)}">${h(l.matchup)}</a></td><td class="n hl" data-p="${l.id}">${pct(effP(l))}</td><td class="n" data-f="${l.id}">${fx(1 / effP(l), 2)}</td><td class="n">${fx(l.min_odds, 2)}</td><td>${oddsCell(l)}</td><td><span class="mflag ${l.mind_flag}">${l.mind_flag}</span></td></tr>`).join("")}</table></div>` : "";
+  const vr = d.value_record;
+  const boosts = t ? LS.get("tipoff.boost." + t.day, {}) : {};
+  const vEdge = (v, odds) => (v.fair_p == null || !odds) ? null : odds * v.fair_p - 1;
+  const valueHtml = t && t.value && t.value.length ? `<div class="tscroll"><table class="ptable"><tr><th>Winner</th><th>Game</th><th class="n">Winamax</th><th class="n">Pinnacle fair odds</th><th class="n">Edge</th><th class="n">Our model</th><th>Boosted odds?</th></tr>${t.value.map(v => {
+      const key = v.game + v.side, bo = boosts[key], e = vEdge(v, bo || v.price);
+      return `<tr class="${v.value ? "hot" : ""}"><td><b>${h(T(v.team).short)}</b>${v.value ? ` <span class="pill strong">value</span>` : ""}</td><td class="small">${h(T(v.team).abbr)} vs ${h(T(v.opp).abbr)}</td><td class="n">${fx(v.price, 2)}</td><td class="n">${v.fair_odds ? fx(v.fair_odds, 2) : "–"}</td><td class="n ${e == null ? "" : e > 0 ? "up" : "down"}" data-vedge="${key}">${e == null ? "–" : sgn(e * 100, 1) + "%"}</td><td class="n">${v.model_p == null ? "–" : pct(v.model_p)}${v.agree === false ? ` <span class="sub small">disagrees</span>` : ""}</td><td><input class="boostin oddsin" data-vid="${key}" data-fair="${v.fair_p ?? ""}" type="number" step="0.01" min="1.01" placeholder="${fx(v.price, 2)}" value="${bo || ""}" aria-label="Boosted Winamax odds"></td></tr>`; }).join("")}</table></div>` : `<p class="sub">No Winamax and Pinnacle prices for this slate yet (they appear with the odds key, refreshed before tip-off).</p>`;
+  const valueRec = vr && vr.n ? `<p class="verdict"><b>Track record of the value board:</b> ${vr.won}/${vr.n} won (Pinnacle's fair prices expected ${fx(vr.expected_won, 1)}), ${sgn(vr.profit, 2)} units at Winamax's prices for 1 unit each; ${vr.clv_beat}/${vr.clv_n} beat Pinnacle's closing price (average ${sgn((vr.clv_avg || 0) * 100, 1)}%).</p>` : "";
   const singles = t && t.singles && t.singles.length ? `<div class="ticket"><ul class="legs">${t.singles.map(legRow).join("")}</ul></div>` : `<p class="sub">No single market price is worth taking today.</p>`;
   app.innerHTML = `<section class="hero court"><div class="wrap"><h1>Daily parlay</h1>
     <p class="lede" style="margin-top:10px">${t ? `Slate of ${h(longDay(t.day))} (US date): ${t.games} game${t.games === 1 ? "" : "s"}, ${t.candidates} possible legs checked, ${t.eligible} worth considering. ${t.frozen ? "Frozen at the first tip-off." : `Updates every hour before the first tip-off (${tip(t.first_tip)}).`}` : "No games on the board right now."}</p></div></section>
@@ -932,10 +939,13 @@ async function parlayPage() {
     ${t && t.book ? `<p class="verdict"><b>Every leg below is listed on ${t.book === "winamax_fr" ? "Winamax" : h(t.book)}</b>, at its own line and price (from the last refresh: prices move, so check the slip). ${t.not_on_book && t.not_on_book.length ? `Not on ${t.book === "winamax_fr" ? "Winamax" : h(t.book)} yet, so left out: ${t.not_on_book.map(x => h(x.split(" at ").map(a => T(a).short).join(" at "))).join(", ")}.` : ""}</p>` : ""}
     <div class="principles">
       <div><span class="n">1</span><b>Every leg must stand alone</b>A leg goes in only if its chance beats its price. A parlay of bad bets is a worse bet, not a better one.</div>
-      <div><span class="n">2</span><b>Fewer legs, less margin</b>The margin compounds with every leg: about 9% with two legs and around 24% with six at standard prices. The Core 3 is the sounder ticket.</div>
+      <div><span class="n">2</span><b>Fewer legs, less margin</b>The margin compounds with every leg: about 9% with two legs and around 24% with six at standard prices. The Value 2 is the main pick; the daily 6 is the optional long shot.</div>
       <div><span class="n">3</span><b>Beat the closing price</b>The quickest proof of an edge is getting better odds than the final price before tip-off, long before wins and losses can tell.</div>
       <div><span class="n">4</span><b>Psychology both ways</b>Team and player spots are inside the chances, and no leg is picked with a psychological spot working against it.</div>
     </div>
+    <section class="section"><h2>Winamax vs Pinnacle <span class="sub">winners where Winamax pays more than the sharpest price</span></h2>
+      <p class="sub small">Pinnacle's odds with its margin removed are the best available estimate of the true chance. When Winamax pays more than that, the bet profits in the long run whatever any model says. "Value" = an edge of 2% or more and our model not rating the side clearly lower. Got a boost (<i>cote boostée</i>)? Type the boosted odds: the edge recalculates against Pinnacle's fair price.</p>
+      ${valueHtml}${valueRec}</section>
     ${t && t.parlays && t.parlays.length ? t.parlays.map((pr, i) => ticket(pr, i === 0, i)).join("") : `<p class="empty">No ticket today: not enough legs pass the filters. That is an answer too.</p>`}
     <section class="section"><h2>Value singles <span class="sub">market prices worth taking on their own — the research favours these over parlays</span></h2>${singles}</section>
     <section class="section"><h2>Build your own ticket</h2><div class="panel"><div id="custom">${custom()}</div><p class="sub small" style="margin-top:10px">Optional stake to record with your bets (for your own log; the site never suggests stakes): <input id="stake" type="number" min="0" step="0.5" class="oddsin" style="width:90px"></p></div></section>
@@ -955,6 +965,16 @@ async function parlayPage() {
     <section class="section"><h2>Track record</h2>${recHtml}${hist}</section>
     <section class="section"><h2>All strong legs today <span class="sub">tick to build your own ticket</span></h2>${board}</section></div>`;
   app.oninput = e => {
+    const bi = e.target.closest(".boostin[data-vid]");
+    if (bi && t) {
+      const all = LS.get("tipoff.boost." + t.day, {}), v = parseFloat(bi.value), fair = parseFloat(bi.dataset.fair);
+      if (v > 1) all[bi.dataset.vid] = v; else delete all[bi.dataset.vid];
+      LS.set("tipoff.boost." + t.day, all);
+      const cell = app.querySelector(`[data-vedge="${bi.dataset.vid}"]`), row = t.value.find(x => x.game + x.side === bi.dataset.vid);
+      const odds = v > 1 ? v : row.price, ed = isNaN(fair) ? null : odds * fair - 1;
+      if (cell) { cell.textContent = ed == null ? "–" : sgn(ed * 100, 1) + "%"; cell.className = "n " + (ed == null ? "" : ed > 0 ? "up" : "down"); }
+      return;
+    }
     const inp = e.target.closest(".oddsin[data-leg], .linein[data-leg]");
     if (!inp) return;
     const id = inp.dataset.leg, v = parseFloat(inp.value);
