@@ -72,6 +72,7 @@ def full(season, t0):
     old_st = load_stints()
     old_st = old_st[old_st["game_id"].astype(str).isin(set(games["game_id"].astype(str)))]
     games = games.set_index("game_id")
+    games["refs"] = games["refs"].astype(object)  # an empty column reads back as float
     need = [g for g in games.index if int(games.loc[g, "box"] or 0) == 0]
     print(f"{season}: {len(need)} box scores to fetch")
     new_p, new_s, done = [], [], 0

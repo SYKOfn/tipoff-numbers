@@ -16,7 +16,7 @@ from model import players as PM
 from model.features import Tracker
 from . import player_pages
 from . import espn
-from .store import (OVR, PRED, ROOT, SITE, STATE, load_games, load_players, read_json, write_json)
+from .store import (OVR, PRED, ROOT, SITE, STATE, load_games, load_players, load_stints, read_json, write_json)
 from .teams import TEAMS, info
 
 STAT_NAMES = {"tpm": "Threes made", "reb": "Rebounds", "ast": "Assists"}
@@ -108,7 +108,8 @@ def main(demo=False, now=None, collect_data=True):
     analyst = (read_json(OVR / "analyst.json", {}) or {}).get("games", {})
 
     cur = espn.season_of(today.isoformat())
-    c = engine.build_context(games, players, upcoming, tuned)
+    stints = load_stints(min_season=cur_s - 1) if engine.SRAPM_MODE != "off" else None
+    c = engine.build_context(games, players, upcoming, tuned, stints=stints)
     rest_table = rest.measure(games, players, c.ctxs)
     rts = engine.fit_all(games, today.isoformat(), c.tuned)
     season_start = games[games["season"] == cur]["day"].min() if (games["season"] == cur).any() else today.isoformat()
@@ -318,7 +319,12 @@ def main(demo=False, now=None, collect_data=True):
         rh_ = c.rapm.strength([(x["id"], em_(x)) for x in proj_players.get("home", []) if not x.get("out")])
         ra_ = c.rapm.strength([(x["id"], em_(x)) for x in proj_players.get("away", []) if not x.get("out")])
         if sh_ and sa_ and rh_ is not None and ra_ is not None:
-            lf = (sh_[0] - sa_[0], sh_[1] - sa_[1], rh_ - ra_)
+            sg_ = None
+            if c.srapm is not None:
+                s1 = c.srapm.strength([(x["id"], em_(x)) for x in proj_players.get("home", []) if not x.get("out")])
+                s2 = c.srapm.strength([(x["id"], em_(x)) for x in proj_players.get("away", []) if not x.get("out")])
+                sg_ = None if s1 is None or s2 is None else s1 - s2
+            lf = engine.player_features((sh_[0] - sa_[0], sh_[1] - sa_[1], rh_ - ra_), sg_)
         est = engine.predict(c, g, ctx, rts, lineup_feat=lf)
         pin = ((g.get("odds_books") or {}).get("pinnacle") or {})
         p_mkt = parlay.novig(pin.get("ml_home"), pin.get("ml_away"))

@@ -7,13 +7,15 @@ predict(): the estimate for one game, with every piece shown.
 from collections import defaultdict
 from datetime import date
 
+import os
+
 import numpy as np
 
 from . import effects, ratings
 from .features import Tracker
 from .lineup import LineupTracker
 from .style import StyleTracker
-from .rapm import RAPM
+from .rapm import RAPM, StintRAPM
 from .officials import OfficialsTracker
 
 STACK_LAM = 50.0   # ridge on the player-strength weights (tested walk-forward on 2025-26 and 2026-27)
@@ -37,7 +39,10 @@ class Context:
     pass
 
 
-def build_context(games, players, upcoming, tuned=None, effects_until=None):
+SRAPM_MODE = os.environ.get("SRAPM_MODE", "off")  # stint ratings: "off", "add" (a fourth player feature), "replace"
+
+
+def build_context(games, players, upcoming, tuned=None, effects_until=None, stints=None):
     tuned = {**DEFAULT, **(tuned or {})}
     fin = games.sort_values(["date", "game_id"]).reset_index(drop=True)
     base = ratings.walk_forward(fin, half_life=tuned["half_life"], lam=tuned["lam"], carry=tuned["carry"])
@@ -47,6 +52,11 @@ def build_context(games, players, upcoming, tuned=None, effects_until=None):
     lt = LineupTracker()
     sty = StyleTracker()
     rp = RAPM()
+    sr, byst = None, {}
+    if stints is not None and len(stints) and SRAPM_MODE != "off":
+        sr = StintRAPM()
+        byst = {gid: [(r.dur, r.h_pts, r.a_pts, tuple(r.home_ids.split(";")), tuple(r.away_ids.split(";"))) for r in d.itertuples()]
+                for gid, d in stints.groupby(stints["game_id"].astype(str))}
     otr = OfficialsTracker()
     lfeat = {}
     tr = Tracker()
@@ -74,9 +84,19 @@ def build_context(games, players, upcoming, tuned=None, effects_until=None):
             rp.maybe_refit(g["day"])
             rh = rp.strength([(r["player_id"], r["min"]) for r in rows_[g["home"]] if r["min"] > 0])
             ra = rp.strength([(r["player_id"], r["min"]) for r in rows_[g["away"]] if r["min"] > 0])
+            srh = sra = None
+            if sr is not None:
+                sr.maybe_refit(g["day"])
+                srh = sr.strength([(r["player_id"], r["min"]) for r in rows_[g["home"]] if r["min"] > 0])
+                sra = sr.strength([(r["player_id"], r["min"]) for r in rows_[g["away"]] if r["min"] > 0])
             if sh and sa and rh is not None and ra is not None:
-                lfeat[gid] = (sh[0] - sa[0], sh[1] - sa[1], rh - ra)
+                f = player_features((sh[0] - sa[0], sh[1] - sa[1], rh - ra),
+                                    None if sr is None or srh is None or sra is None else srh - sra)
+                if f is not None:
+                    lfeat[gid] = f
             rp.add(g, rows_[g["home"]], rows_[g["away"]])
+        if sr is not None and gid in byst:
+            sr.add_stints(g, byst[gid])
         lt.post_game(g, rows_)
         margin = g["home_pts"] - g["away_pts"]
         total = g["home_pts"] + g["away_pts"]
@@ -97,8 +117,22 @@ def build_context(games, players, upcoming, tuned=None, effects_until=None):
     c = Context()
     c.tuned, c.base, c.ctxs, c.rows, c.eff, c.tracker, c.games, c.meta = tuned, base, ctxs, rows, eff, tr, fin, meta
     rp.fit(fin["day"].max() if len(fin) else date.today().isoformat())  # latest ratings for upcoming games
+    if sr is not None:
+        sr.fit(fin["day"].max())
     c.lineup, c.lfeat, c.stack, c.rows_raw, c.style, c.rapm, c.officials = lt, lfeat, stack, rows_raw, sty, rp, otr
+    c.srapm = sr
     return c
+
+
+def player_features(base3, stint_gap):
+    """(gamescore gap, plus-minus gap, adjusted plus-minus gap) plus the stint-rating gap per SRAPM_MODE."""
+    if SRAPM_MODE == "off":
+        return base3
+    if stint_gap is None:
+        return base3 if SRAPM_MODE == "replace" else None
+    if SRAPM_MODE == "replace":
+        return (base3[0], base3[1], stint_gap)
+    return base3 + (stint_gap,)
 
 
 def fit_stack(rows, lfeat, min_rows=300):
