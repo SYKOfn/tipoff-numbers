@@ -1,0 +1,25 @@
+name: backtest
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "41 6 1 * *"       # monthly re-tune
+permissions:
+  contents: write
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python -m backtest.run
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add model/tuned.json backtest/results.json
+          git commit -q -m "Backtest $(date -u +%Y-%m-%d)" || echo "no changes"
+          git pull -q --rebase -X theirs origin main && git push -q
