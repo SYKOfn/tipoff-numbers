@@ -596,18 +596,15 @@ def main(demo=False, now=None, collect_data=True):
                     if k in old:
                         today_parlay[k] = old[k]
                 today_parlay["locked"] = True
-                # news after the lock: flag legs whose player is now out or doubtful (the ticket itself stays)
+                # news after the lock: flag legs hit by it (player out or doubtful, no longer starting, or the
+                # model's chance clearly lower) and suggest a replacement; the ticket itself stays
                 now_pl = {}
                 for g_, pay_ in slate:
                     for side_ in ("home", "away"):
                         for x in (pay_.get("players") or {}).get(side_, []):
                             now_pl[str(x["id"])] = x
-                for pr in today_parlay["parlays"]:
-                    for l in pr["legs"]:
-                        x = now_pl.get(str(l.get("player") or ""))
-                        l.pop("alert", None)
-                        if x is not None and (x.get("out") or x.get("status")):
-                            l["alert"] = f"{x.get('status') or 'Out'} since the picks were locked: if he does not play, Winamax voids this leg"
+                started_ = {str(g_["game_id"]) for g_, _ in slate if g_.get("state") in ("in", "post")}
+                parlay.late_check(today_parlay["parlays"], cands, now_pl, started_)
             elif now >= lock_at:
                 today_parlay["locked"] = True
                 today_parlay["locked_at"] = now.isoformat()

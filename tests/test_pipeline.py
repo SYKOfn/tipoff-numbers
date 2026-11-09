@@ -335,3 +335,25 @@ def test_market_weight_measured():
     w = market_weight(rows)
     assert w["measured"] and w["w"] <= 0.4
     assert market_weight(rows[:100])["w"] == 0.5
+
+
+def test_late_check_flags_and_swaps():
+    from model import parlay
+    ml = {"id": "a", "game": "1", "kind": "ml", "team": "BOS", "desc": "BOS to win", "p_model": 0.80, "p": 0.75, "price": 1.30}
+    pr_ = {"id": "b", "game": "2", "kind": "prop", "player": "77", "stat": "pts", "line": 19.5, "desc": "X over 19.5 points",
+           "p_model": 0.62, "p": 0.58, "price": 1.80}
+    tot = {"id": "c", "game": "3", "kind": "total", "side": "over", "line": 220.5, "desc": "Over 220.5", "p_model": 0.6, "p": 0.57, "price": 1.85}
+    tickets = [{"name": "T", "games": 3, "legs": [ml, pr_, tot]}]
+    cands = [
+        {**ml, "p_model": 0.66},                                                  # star ruled out: chance falls 14 points
+        {**tot, "id": "c2", "line": 222.5, "dist": {"mu": 226.0, "sd": 18.0}},    # line moved, chance about the same
+        {"id": "d", "game": "4", "kind": "ml", "team": "NYK", "desc": "NYK to win", "p_model": 0.8, "p": 0.78, "price": 1.32, "edge": 0.03},
+        {"id": "e", "game": "2", "kind": "ml", "team": "MIA", "desc": "MIA to win", "p_model": 0.6, "p": 0.6, "price": 1.70, "edge": 0.0},
+    ]
+    parlay.late_check(tickets, cands, {"77": {"id": "77", "status": "Questionable"}}, started=set())
+    a, b, c = tickets[0]["legs"]
+    assert "less likely" in a["alert"] and a["swap"]["id"] == "d" and a["p_now"] == 0.66
+    assert "Questionable" in b["alert"] and b["swap"]["id"] == "e"   # same game allowed when it replaces that game's leg
+    assert "alert" not in c and abs(c["p_now"] - 0.627) < 0.01      # judged at the locked line 220.5
+    parlay.late_check(tickets, cands, {}, started={"1", "2"})      # games under way are left alone
+    assert "alert" not in tickets[0]["legs"][0] and "alert" not in tickets[0]["legs"][1]

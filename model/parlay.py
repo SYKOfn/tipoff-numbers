@@ -657,3 +657,78 @@ def value_board(slate, bet_book="winamax_fr", sharp="pinnacle"):
             out.append(row)
     out.sort(key=lambda r: -(r["edge"] if r["edge"] is not None else -9))
     return out
+
+
+# ---------------------------------------------------------------- after the lock: late news on locked legs
+LATE_DROP = 0.07   # flag a locked leg when the model's chance for it falls by this much (absolute)
+
+
+def _leg_key(l):
+    return (str(l.get("game")), l.get("kind"), l.get("team") or l.get("side"), str(l.get("player") or ""), l.get("stat"))
+
+
+def chance_now(l, cur):
+    """Model chance today for locked leg l, at its own locked line, from the matching fresh leg cur."""
+    from .players import over_prob
+    d = cur.get("dist") or {}
+    k = l["kind"]
+    if k == "ml":
+        return cur.get("p_model")
+    if not d.get("sd") or d.get("mu") is None:
+        return None
+    if k == "spread":
+        return norm_cdf((d["mu"] + float(l["line"])) / d["sd"])
+    if k == "total":
+        p = norm_cdf((d["mu"] - float(l["line"])) / d["sd"])
+        return p if l.get("side", "over") == "over" else 1 - p
+    if k == "prop":
+        return over_prob(l["stat"], float(l["line"]), d["mu"], d.get("d", 1.5))
+    return None
+
+
+def late_check(parlays, cands, players_now, started):
+    """Flag locked legs hit by news after the lock and suggest a replacement leg; the tickets themselves stay.
+    players_now: {player id: current player block}; started: game ids already under way (left alone)."""
+    fresh = {}
+    for c in cands:
+        fresh.setdefault(_leg_key(c), c)
+    used = {l["id"] for pr in parlays for l in pr["legs"]}
+    for pr in parlays:
+        games_in = {l["game"] for l in pr["legs"]}
+        same_game = pr.get("games") == 1
+        for l in pr["legs"]:
+            for k_ in ("alert", "swap", "p_now"):
+                l.pop(k_, None)
+            if l["game"] in started:
+                continue
+            reason = None
+            x = players_now.get(str(l.get("player") or "")) if l.get("kind") == "prop" else None
+            cur = fresh.get(_leg_key(l))
+            if x is not None and (x.get("out") or x.get("status")):
+                reason = f"{x.get('status') or 'Out'} since the picks were locked: if he does not play, Winamax voids this leg"
+            elif l.get("kind") == "prop" and cur is None and x is not None and (
+                    x.get("lineup") == "not in the starting five" or (x.get("min") or 0) < 24 or (x.get("p_play") or 1.0) < 0.6):
+                reason = ("not in the starting five tonight" if x.get("lineup") == "not in the starting five"
+                          else "expected minutes have dropped since the lock") + ": his line is now less likely to be reached"
+            elif cur is not None:
+                p_now = chance_now(l, cur)
+                if p_now is not None:
+                    l["p_now"] = round(p_now, 3)
+                    if l.get("p_model") is not None and l["p_model"] - p_now >= LATE_DROP:
+                        reason = (f"late news has made this leg less likely: the model now gives it {round(100 * p_now)}% "
+                                  f"instead of {round(100 * l['p_model'])}% at the lock")
+            if not reason:
+                continue
+            l["alert"] = reason
+            ref_price = l.get("price") or l.get("min_odds") or 1.5
+            pool = [c for c in cands if c["id"] not in used and c["game"] not in started
+                    and ((c["game"] == l["game"]) if same_game else (c["game"] not in games_in or c["game"] == l["game"]))
+                    and _leg_key(c) != _leg_key(l)
+                    and 0.8 * ref_price <= (c.get("price") or c.get("min_odds") or 0) <= 1.25 * ref_price
+                    and c.get("p", 0) >= min(l.get("p", 0), 0.9) - 0.02]
+            pool = [c for c in pool if not (c.get("kind") == "prop" and (players_now.get(str(c.get("player"))) or {}).get("status"))]
+            if pool:
+                b = max(pool, key=lambda c: (c.get("edge") or 0) + c.get("p", 0))
+                used.add(b["id"])
+                l["swap"] = {k_: b.get(k_) for k_ in ("id", "desc", "matchup", "p", "price", "min_odds", "game", "tip")}
+    return parlays

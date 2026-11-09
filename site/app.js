@@ -135,7 +135,7 @@ function tnLeg(l) {
   const teams = matchTeams(l), p = effP(l);
   const badge = l.kind === "total" ? `<span class="mono" style="background:#2A2D3A">O/U</span>` : mono(l.team || teams[1]);
   return `<li class="tk-leg">${badge}<div class="body"><p class="meta">${h(KIND[l.kind] || l.kind)} · ${h(T(teams[0]).short)} at ${h(T(teams[1]).short)} · ${tipTime(l.tip)}</p>
-    <p class="what">${h(legDesc(l))}</p>${l.story ? `<p class="why">${h(l.story)}</p>` : ""}${l.alert ? `<p class="alert">⚠ ${h(l.alert)}</p>` : ""}</div>
+    <p class="what">${h(legDesc(l))}</p>${l.story ? `<p class="why">${h(l.story)}</p>` : ""}${l.alert ? `<p class="alert">⚠ ${h(l.alert)}</p>` : ""}${l.swap ? `<p class="swap">Suggested swap: <b>${h(l.swap.desc)}</b> · ${h(l.swap.matchup || "")} · ${pct(l.swap.p)} chance · take at ${fx(l.swap.min_odds || 1.05 / l.swap.p, 2)}+</p>` : ""}</div>
     <div class="take"><p class="k">Take at</p><p class="v num">${fx(1.05 / p, 2)}+</p><p class="s num">${pct(p)} chance</p></div>${addBtn(l)}</li>`;
 }
 function gameCard(c) {
@@ -1176,7 +1176,7 @@ function legRow(l, i) {
   const clv = l.clv ? ` · CLV ${l.clv.p != null ? sgn(l.clv.p * 100, 1) + " pts of chance" : sgn(l.clv.pts) + " pts of line"}` : "";
   return `<li class="${res.trim()}"><span class="no">${i + 1}</span>
     <span class="d"><span class="kind ${l.kind}">${KIND[l.kind] || l.kind}</span><b data-d="${l.id}">${h(legDesc(l))}</b><span class="mflag ${l.mind_flag}">${l.mind_flag === "with" ? "mind with it" : l.mind_flag === "against" ? "mind against" : "mind neutral"}</span>
-    <span class="sub"><a href="#/game/${h(l.game)}">${h(T(matchTeams(l)[0]).short)} at ${h(T(matchTeams(l)[1]).short)}</a> · ${tip(l.tip)} · ${h(l.note || "")} · market: ${h(mkt)}${clv}${l.result ? ` · <b class="${l.result === "hit" ? "up" : l.result === "miss" ? "down" : ""}">${l.result}</b>` : ""}${l.story ? `<br><span class="story">${h(l.story)}</span>` : ""}${l.alert ? `<br><b class="down">⚠ ${h(l.alert)}</b>` : ""}</span></span>
+    <span class="sub"><a href="#/game/${h(l.game)}">${h(T(matchTeams(l)[0]).short)} at ${h(T(matchTeams(l)[1]).short)}</a> · ${tip(l.tip)} · ${h(l.note || "")} · market: ${h(mkt)}${clv}${l.result ? ` · <b class="${l.result === "hit" ? "up" : l.result === "miss" ? "down" : ""}">${l.result}</b>` : ""}${l.story ? `<br><span class="story">${h(l.story)}</span>` : ""}${l.alert ? `<br><b class="down">⚠ ${h(l.alert)}</b>` : ""}${l.swap ? `<br>Suggested swap: <b>${h(l.swap.desc)}</b> (${h(l.swap.matchup || "")}, ${pct(l.swap.p)})` : ""}</span></span>
     <span class="c"><b data-p="${l.id}">${pct(effP(l))}</b><span>chance</span></span><span class="c"><b data-f="${l.id}">${fx(1 / effP(l), 2)}</b><span data-m="${l.id}">fair · take ≥ ${fx(1.05 / effP(l), 2)}</span></span>${oddsCell(l)}</li>`;
 }
 function jointOf(legs) {
