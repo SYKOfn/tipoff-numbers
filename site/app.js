@@ -138,6 +138,18 @@ function tnLeg(l) {
     <p class="what">${h(legDesc(l))}</p>${l.story ? `<p class="why">${h(l.story)}</p>` : ""}${l.alert ? `<p class="alert">⚠ ${h(l.alert)}</p>` : ""}</div>
     <div class="take"><p class="k">Take at</p><p class="v num">${fx(1.05 / p, 2)}+</p><p class="s num">${pct(p)} chance</p></div></li>`;
 }
+function gameCard(c) {
+  const done = c.home_pts != null, ph = c.win_home, pa = 1 - ph;
+  const ln = Math.abs(c.margin) < 1 ? "Even" : `${T(c.margin >= 0 ? c.home : c.away).abbr} by ${fx(Math.abs(c.margin), 0)}`;
+  const right = (side, p) => done ? `<span class="p num ${(side === "home") === (c.home_pts > c.away_pts) ? "" : "sub"}">${side === "home" ? c.home_pts : c.away_pts}</span>` : `<span class="p num">${pct(p)}</span>`;
+  const top = done ? `<span class="num">Final</span><span class="num">Estimate: ${ln} <b class="${c.hit ? "ok-t" : "bad-t"}">${c.hit ? "✓" : "✗"}</b></span>`
+    : `<span class="num">${c.live ? `<span class="live">Live${c.live.home_pts != null ? ` ${c.live.away_pts}-${c.live.home_pts}` : ""}</span>` : tipTime(c.tip)}</span><span class="num">${ln} · total ${fx(c.total, 0)}</span>`;
+  return `<a class="gm" href="#/game/${h(c.id)}"><div class="top2">${top}</div>
+    <div class="teams"><div class="tm">${mono(c.away, "sm")}<span class="nm">${h(T(c.away).short)}<span class="rec">${h(c.away_rec || "")}</span></span>${right("away", pa)}</div>
+    <div class="tm">${mono(c.home, "sm")}<span class="nm">${h(T(c.home).short)}<span class="rec">${h(c.home_rec || "")}</span></span>${right("home", ph)}</div></div>
+    <div class="split"><span style="width:${pa * 100}%;background:${teamInk(c.away)}"></span><span style="width:${ph * 100}%;background:${teamInk(c.home)}"></span></div>
+    ${c.story ? `<p class="story2">${h(c.story)}</p>` : (c.tags && c.tags.length ? `<p class="story2">${h(c.tags.map(t => t.label).join(" · "))}</p>` : "")}</a>`;
+}
 const tipTime = iso => (iso ? new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false }) : "");
 async function home() {
   const [sch, acc, par, pl] = await Promise.all([get("schedule.json"), get("accuracy.json"), get("parlay.json").catch(() => ({})), get("players.json").catch(() => [])]);
@@ -202,16 +214,8 @@ async function home() {
       ${val.length > 6 ? `<button type="button" class="vb-more" id="vbmore">Show all ${val.length} winners</button>` : ""}</div></section>` : "";
 
   // games
-  const gcard = c => {
-    const ph = c.win_home, pa = 1 - ph, ln = c.margin >= 0 ? `${T(c.home).abbr} by ${fx(Math.abs(c.margin), 0)}` : `${T(c.away).abbr} by ${fx(Math.abs(c.margin), 0)}`;
-    return `<a class="gm" href="#/game/${h(c.id)}"><div class="top2"><span class="num">${c.live ? `<span class="live">Live</span>` : tipTime(c.tip)}</span><span class="num">${Math.abs(c.margin) < 1 ? "Even" : ln} · total ${fx(c.total, 0)}</span></div>
-      <div class="teams"><div class="tm">${mono(c.away, "sm")}<span class="nm">${h(T(c.away).short)}<span class="rec">${h(c.away_rec || "")}</span></span><span class="p num">${pct(pa)}</span></div>
-      <div class="tm">${mono(c.home, "sm")}<span class="nm">${h(T(c.home).short)}<span class="rec">${h(c.home_rec || "")}</span></span><span class="p num">${pct(ph)}</span></div></div>
-      <div class="split"><span style="width:${pa * 100}%;background:${teamInk(c.away)}"></span><span style="width:${ph * 100}%;background:${teamInk(c.home)}"></span></div>
-      ${c.story ? `<p class="story2">${h(c.story)}</p>` : ""}</a>`;
-  };
   const gamesSec = tonight.length ? `<section class="tn-sec" aria-labelledby="gmh"><div class="hd"><h2 id="gmh">Tonight's games</h2><a href="#/games">All games and estimates</a></div>
-      <div class="gm-grid">${tonight.map(gcard).join("")}</div></section>` : "";
+      <div class="gm-grid">${tonight.map(gameCard).join("")}</div></section>` : "";
 
   // last night + players to watch
   const lastDay = sch.results.length ? sch.results[0].day : null;
@@ -239,6 +243,11 @@ async function home() {
   };
 }
 
+/* ---------------------------------------------------------------- games */
+const FILTERS = [["all", "All games", () => true], ["mind", "Strong mental edge", c => Math.abs(c.mind || 0) >= 0.75 || (c.tags || []).some(t => t.ev === "strong" || t.ev === "moderate"), "m"],
+  ["tv", "National TV", c => c.tv], ["close", "Toss-ups (40-60%)", c => c.win_home >= 0.4 && c.win_home <= 0.6], ["fav", "Big favourites (75%+)", c => Math.max(c.win_home, 1 - c.win_home) >= 0.75],
+  ["high", "High totals (232+)", c => c.total >= 232], ["low", "Low totals (under 220)", c => c.total < 220]];
+let GFILTER = "all";
 async function games(sel) {
   const sch = await get("schedule.json");
   setTitle("Games");
@@ -253,12 +262,12 @@ async function games(sel) {
   const win = keys.slice(Math.max(0, i - 3), i + 6);
   const list = days.get(cur) || [];
   const fbar = `<div class="filters" id="gf">${FILTERS.map(f => `<button class="${f[3] || ""}" data-f="${f[0]}" aria-pressed="${GFILTER === f[0]}">${f[1]}</button>`).join("")}</div>`;
-  app.innerHTML = `<section class="hero court"><div class="wrap"><h1>Games</h1>
-    <p class="sub" style="margin-top:8px">Estimates for the next two weeks, updated until tip-off and then frozen. Results for the last three weeks.</p>
-    <nav class="tabs" style="margin-top:16px">${i > 3 ? `<a class="tab" href="#/games/${keys[Math.max(0, i - 7)]}">←</a>` : ""}${win.map(k => `<a class="tab" href="#/games/${k}" aria-current="${k === cur}">${day(k)}</a>`).join("")}${i + 6 < keys.length ? `<a class="tab" href="#/games/${keys[Math.min(keys.length - 1, i + 7)]}">→</a>` : ""}</nav>
-  </div></section><div class="wrap">${demoBanner()}${fbar}
-    ${cur ? `<h2>${h(longDay(cur))} <span class="sub">${list.length} game${list.length === 1 ? "" : "s"}</span></h2>
-    <div class="cards">${list.map(fcard).join("")}</div>` : `<p class="empty">No game matches this filter.</p>`}</div>`;
+  app.innerHTML = `<div class="wrap tn">${demoBanner()}<section class="tn-hero" style="padding-bottom:28px"><div class="lead"><p class="eyebrow">Next two weeks · last three weeks</p><h1>Games</h1>
+    <p class="sublede">Every estimate updates until tip-off and is then frozen. Results show whether the estimate called the winner.</p></div></section>
+    <nav class="daytabs" aria-label="Days">${i > 3 ? `<a href="#/games/${keys[Math.max(0, i - 7)]}" aria-label="Earlier days">←</a>` : ""}${win.map(k => `<a href="#/games/${k}" aria-current="${k === cur ? "page" : "false"}">${day(k)}</a>`).join("")}${i + 6 < keys.length ? `<a href="#/games/${keys[Math.min(keys.length - 1, i + 7)]}" aria-label="Later days">→</a>` : ""}</nav>
+    ${fbar}
+    ${cur ? `<section class="tn-sec" style="margin-top:36px"><div class="hd"><h2>${h(longDay(cur))}</h2><span class="sub">${list.length} game${list.length === 1 ? "" : "s"}</span></div>
+    <div class="gm-grid">${list.map(gameCard).join("")}</div></section>` : `<p class="empty">No game matches this filter.</p>`}</div>`;
   document.getElementById("gf").onclick = e => { const b = e.target.closest("button"); if (!b) return; GFILTER = b.dataset.f; games(sel); };
 }
 
@@ -438,12 +447,26 @@ async function game(id) {
   })() : "";
   const tops = res && res.top ? `<div class="grid2">${[["away", A], ["home", H]].map(([s, ab]) => `<div class="panel"><h3>${disc(ab, "xs")} ${h(T(ab).short)} top scorers</h3><ul class="spots">${res.top[s].map(p => `<li><div class="sh"><span>${h(p.name)}</span><span class="num">${p.pts} pts · ${p.reb} reb · ${p.ast} ast</span></div></li>`).join("")}</ul></div>`).join("")}</div>` : "";
   const news = g.kind === "estimate" && !g.news ? `<p class="note">Team news is only read for games in the next three days; availability here assumes full squads.</p>` : "";
-  app.innerHTML = `<section class="mhero" style="background:linear-gradient(100deg, ${ac} 0%, color-mix(in srgb, ${ac} 70%, #0b1426) 46%, color-mix(in srgb, ${hc} 70%, #0b1426) 54%, ${hc} 100%)"><div class="wrap">
-    <div class="mhead"><div class="mteam">${disc(A, "lg")}<a href="#/team/${A}">${h(T(A).short)}</a><span class="rec">${h(g.away.record)}${g.away.seed ? ` · ${g.away.conf} #${g.away.seed}` : ""}</span></div>
-      <div>${center}</div>
-      <div class="mteam home">${disc(H, "lg")}<a href="#/team/${H}">${h(T(H).short)}</a><span class="rec">${h(g.home.record)}${g.home.seed ? ` · ${g.home.conf} #${g.home.seed}` : ""}</span></div></div>
-    ${strip(e.win_home, H, A)}
-    <p class="mmeta"><span class="pill">${h(kind)}</span><span>${tip(g.tip)}</span><span>${h(stypeLabel(g.stype))}${series}</span>${g.venue ? `<span>${h(g.venue)}</span>` : ""}${g.national_tv ? `<span>National TV</span>` : ""}${g.rivalry ? `<span>Division rivals</span>` : ""}${g.refs && g.refs.length ? `<span>Referees: ${h(g.refs.join(", "))}</span>` : ""}</p>
+  const storyBits = [];
+  for (const [side, ab] of [["away", A], ["home", H]]) {
+    const t = g[side], miss = (t.missing_list || []).map(m => m.name).slice(0, 2);
+    if (miss.length && (t.missing || 0) >= 0.06) storyBits.push(`the ${T(ab).short} are without ${miss.join(" and ")}`);
+    if (t.b2b) storyBits.push(`the ${T(ab).short} played last night`);
+  }
+  const storyTxt = storyBits.length ? storyBits.slice(0, 3).join("; ") : "";
+  const big = res ? `<div class="gh-score num">${res.away_pts}<span>–</span>${res.home_pts}</div><p class="gh-sub">Final${res.ot ? ` · ${res.ot > 1 ? res.ot : ""}OT` : ""}</p>`
+    : g.live ? `<div class="gh-score num">${g.live.away_pts ?? 0}<span>–</span>${g.live.home_pts ?? 0}</div><p class="gh-sub live">${h(g.live.detail || "Live")}</p>`
+    : `<div class="gh-score num">${tipTime(g.tip)}</div><p class="gh-sub">${g.tip ? new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long" }).format(new Date(g.tip)) : day(g.day)}</p>`;
+  const pa = 1 - e.win_home;
+  app.innerHTML = `<section class="gh" style="--ca:${teamInk(A)};--ch:${teamInk(H)}"><div class="wrap">
+    <p class="gh-meta"><span class="chip ${g.kind === "estimate" ? "ok" : "warn"}">${h(kind)}</span><span>${h(stypeLabel(g.stype))}${series}</span>${g.venue ? `<span>${h(g.venue)}</span>` : ""}${g.national_tv ? `<span>National TV</span>` : ""}${g.rivalry ? `<span>Division rivals</span>` : ""}${g.refs && g.refs.length ? `<span>Referees: ${h(g.refs.join(", "))}</span>` : ""}</p>
+    <div class="gh-main">
+      <div class="gh-team">${mono(A, "xl")}<a href="#/team/${A}">${h(T(A).short)}</a><span class="sub">${h(g.away.record)}${g.away.seed ? ` · ${g.away.conf} #${g.away.seed}` : ""}</span></div>
+      <div class="gh-mid">${big}</div>
+      <div class="gh-team r">${mono(H, "xl")}<a href="#/team/${H}">${h(T(H).short)}</a><span class="sub">${h(g.home.record)}${g.home.seed ? ` · ${g.home.conf} #${g.home.seed}` : ""}</span></div>
+    </div>
+    <div class="gh-win"><span class="num"><b>${pct(pa)}</b> ${h(T(A).short)}</span><div class="split"><span style="width:${pa * 100}%;background:${teamInk(A)}"></span><span style="width:${e.win_home * 100}%;background:${teamInk(H)}"></span></div><span class="num">${h(T(H).short)} <b>${pct(e.win_home)}</b></span></div>
+    ${storyTxt ? `<p class="gh-story">${h(storyTxt.charAt(0).toUpperCase() + storyTxt.slice(1))}.</p>` : ""}
   </div></section>
   <div class="wrap">${demoBanner()}${BANNER}${scored}
     <section class="grid">
@@ -553,7 +576,14 @@ async function accuracy() {
     <div class="grid"><div class="panel"><h3>Win chances</h3><p class="sub small">Brier score, lower is better</p>${duel(rowsFor(o), "brier", true, 4)}<p class="sub small" style="margin-top:12px">Winners called</p>${duel(rowsFor(o), "hit", false)}</div>
     <div class="panel"><h3>Margin</h3><p class="sub small">Average miss in points, lower is better</p>${duel(rowsFor(o), "mae_margin", true, 2)}<p class="sub small" style="margin-top:12px">Total points, average miss</p>${duel(rowsFor(o), "mae_total", true, 2)}</div>
     ${cal ? `<div class="panel"><h3>Calibration</h3><p class="sub small">When the favourite was given X%, how often did it win? Dots on the line = honest chances.</p>${calibSvg(cal)}</div>` : ""}</div></section>` : "";
-  app.innerHTML = `<section class="hero court"><div class="wrap"><h1>Track record</h1><p class="sub" style="margin-top:8px">Every estimate is frozen at tip-off and scored after the final buzzer, against simpler methods — including the same model without its psychological layer.</p></div></section>
+  app.innerHTML = `<div class="wrap tn" style="padding-bottom:0"><section class="tn-hero" style="padding-bottom:28px"><div class="lead"><p class="eyebrow">Frozen at tip-off · scored after the buzzer</p><h1>Track record</h1>
+    <p class="sublede">Every estimate is locked before the game and checked afterwards, against simpler methods, including the same model without its psychological layer.</p></div></section>
+    <section class="rec-tiles">
+      <div class="tile big"><p class="k">Live record · winners called</p>${a.live && a.live.n ? `<p class="v num">${Math.round(a.live.hit * a.live.n)}/${a.live.n}</p><p class="s">${pct(a.live.hit)} · frozen estimates only</p>` : `<p class="v" style="font-size:30px;line-height:1.15">Starts tonight</p><p class="s">The first frozen estimates are scored after tonight's games.</p>`}</div>
+      <div class="tile"><p class="k">This season (research)</p><p class="v num">${a.checks ? pct(a.checks.hit) : "–"}</p><p class="s">${a.checks ? `winners in ${a.checks.n} games` : ""}</p></div>
+      <div class="tile"><p class="k">Win-chance score</p><p class="v num">${a.checks ? fx(a.checks.brier, 4) : "–"}</p><p class="s">Brier, lower is better</p></div>
+      <div class="tile"><p class="k">Player points miss</p><p class="v num">${a.players && a.players.track ? fx(a.players.track.mae_pts, 2) : "–"}</p><p class="s">${a.players && a.players.track ? `vs ${fx(a.players.track.mae_pts_base, 2)} for season averages` : ""}</p></div>
+    </section></div>
   <div class="wrap">${demoBanner()}
     ${a.live ? block("Live record: the number that counts", liveO, a.live.n, "Estimates frozen at tip-off with only what was known before the game, never changed afterwards.", a.live.calibration) : `<section><h2>Live record: the number that counts</h2><p class="note">No frozen estimates have been scored yet. The record starts with the first games after the site went live (9 November 2026); nothing is ever added afterwards. Everything below is research: made after the fact and, for the player-based checks, knowing who actually played, so it runs a little better than live estimates can.</p></section>`}
     ${verdict}
@@ -813,9 +843,11 @@ async function player(id) {
   const vs = p.vs.length ? `<div class="tscroll"><table><tr><th>Opponent</th><th class="n">GP</th><th class="n">PTS</th><th class="n">REB</th><th class="n">AST</th></tr>${p.vs.map(s => `<tr><td>${tlink(s.opp)}</td><td class="n">${s.gp}</td><td class="n">${fx(s.ppg)}</td><td class="n">${fx(s.rpg)}</td><td class="n">${fx(s.apg)}</td></tr>`).join("")}</table></div>` : "";
   const glog = `<div class="tscroll"><table class="ptable"><tr><th>Date</th><th>Opp</th><th>Result</th><th class="n">MIN</th><th class="n">PTS</th><th class="n">Proj</th><th class="n">REB</th><th class="n">AST</th><th class="n">3PM</th><th class="n">STL</th><th class="n">BLK</th><th class="n">TO</th><th class="n">FG</th><th class="n">3PT</th><th class="n">FT</th><th class="n">+/-</th></tr>
     ${p.log.map(r => `<tr><td><a href="#/game/${r.id}">${day(r.day)}</a></td><td>${r.home ? "vs" : "@"} ${h(T(r.opp).abbr)}</td><td class="${r.win ? "up" : "down"}">${r.win ? "W" : "L"} ${h(r.score)}</td><td class="n">${r.min}</td><td class="n hl">${r.pts}</td><td class="n sub">${r.proj ? fx(r.proj.pts) : "–"}</td><td class="n">${r.reb}</td><td class="n">${r.ast}</td><td class="n">${r.tpm ?? "–"}</td><td class="n">${r.stl ?? "–"}</td><td class="n">${r.blk ?? "–"}</td><td class="n">${r.tov ?? "–"}</td><td class="n">${r.fg ?? "–"}</td><td class="n">${r.tp ?? "–"}</td><td class="n">${r.ft ?? "–"}</td><td class="n">${sgn(r.pm, 0)}</td></tr>`).join("")}</table></div>`;
-  app.innerHTML = `<section class="phero" style="background:linear-gradient(110deg, ${col}, color-mix(in srgb, ${col} 55%, #0b1426))"><div class="wrap"><div class="jersey">${h(p.jersey ?? p.pos ?? "")}</div>
-    <div><h1>${h(p.name)}</h1><p class="meta" style="opacity:.88;margin:6px 0 10px">${h(p.pos || "")} · <a href="#/team/${p.team}" style="color:#fff">${h(t.name)}</a>${p.former.length ? ` · formerly ${p.former.map(x => h(T(x).short)).join(", ")}` : ""}</p>
-    <div class="facts"><div><b>${fx(c.ppg)}</b>points</div><div><b>${fx(c.rpg)}</b>rebounds</div><div><b>${fx(c.apg)}</b>assists</div><div><b>${fx(c.mpg)}</b>minutes</div><div><b>${c.ts == null ? "–" : (c.ts * 100).toFixed(1)}</b>TS%</div><div><b>${fx(c.usg)}</b>USG%</div><div><b>${c.gp ?? 0}</b>games</div></div></div></div></section>
+  app.innerHTML = `<section class="gh ph" style="--ca:${teamInk(p.team)};--ch:${teamInk(p.team)}"><div class="wrap">
+    <div class="ph-main"><div class="ph-num num">${h(p.jersey ?? p.pos ?? "")}</div>
+      <div class="ph-id"><p class="eyebrow">${h(p.pos || "")} · <a href="#/team/${p.team}">${h(t.name)}</a>${p.former.length ? ` · formerly ${p.former.map(x => h(T(x).short)).join(", ")}` : ""}</p><h1>${h(p.name)}</h1></div></div>
+    <div class="ph-tiles">${[["Points", fx(c.ppg)], ["Rebounds", fx(c.rpg)], ["Assists", fx(c.apg)], ["Minutes", fx(c.mpg)], ["True shooting", c.ts == null ? "–" : (c.ts * 100).toFixed(1) + "%"], ["Usage", c.usg == null ? "–" : fx(c.usg) + "%"], ["Games", c.gp ?? 0]].map(([k, v]) => `<div class="tile"><p class="k">${k}</p><p class="v num">${v}</p></div>`).join("")}</div>
+  </div></section>
   <div class="wrap">${demoBanner()}
     ${p.story.length ? `<p class="call"><b>Storylines:</b> ${p.story.map(h).join(" ")}</p>` : ""}
     <section class="grid2" style="margin-top:14px">${nextHtml}<div class="panel"><h3>Recent games</h3><p class="sub small">Points per game, newest right; bars green in wins, red in losses; the dark line is what the model projected before the game.</p>${formChart(p.log)}</div></section>
