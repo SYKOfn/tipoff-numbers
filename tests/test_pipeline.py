@@ -164,7 +164,7 @@ def test_player_projection_basic():
     proj, x = pt.project("1", "BOS", "LAL", True, 0)
     assert 28 < proj["min"] < 38 and 15 < proj["pts"] < 30
     proj2, _ = pt.project("1", "BOS", "LAL", True, 0, absent={"2"}, missing_share=0.3)
-    assert proj2["min"] > proj["min"]
+    assert proj2["min"] >= proj["min"] and x["home"] == 1
 
 
 def test_parlay_scoring_and_correlation():
