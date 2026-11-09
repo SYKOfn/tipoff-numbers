@@ -11,8 +11,26 @@ from datetime import datetime, timedelta, timezone
 from .store import STATE, read_json
 
 
-def decide(now=None, ups=None):
+def lock_due(now, par_dir=None):
+    """True when a slate's ticket lock time has passed, its first game has not started and the tickets
+    are not locked yet (so a skipped run never delays the lock by more than one quarter hour)."""
+    from .store import ROOT
+    par_dir = par_dir or (ROOT / "data" / "parlays")
+    for f in sorted(par_dir.glob("*.json"))[-2:]:
+        d = read_json(f, {}) or {}
+        try:
+            lock = datetime.fromisoformat(d["lock_at"]); tip = datetime.fromisoformat(d["first_tip"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if not d.get("locked") and lock <= now < tip:
+            return True
+    return False
+
+
+def decide(now=None, ups=None, par_dir=None):
     now = now or datetime.now(timezone.utc)
+    if lock_due(now, par_dir):
+        return True, "the day's tickets are due to be locked"
     main_slot = 18 <= now.minute <= 33
     ups = (read_json(STATE / "upcoming.json", []) or []) if ups is None else ups
     if not main_slot:

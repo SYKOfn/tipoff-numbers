@@ -357,3 +357,16 @@ def test_late_check_flags_and_swaps():
     assert "alert" not in c and abs(c["p_now"] - 0.627) < 0.01      # judged at the locked line 220.5
     parlay.late_check(tickets, cands, {}, started={"1", "2"})      # games under way are left alone
     assert "alert" not in tickets[0]["legs"][0] and "alert" not in tickets[0]["legs"][1]
+
+
+def test_gate_runs_when_lock_due(tmp_path):
+    from datetime import datetime, timezone
+    from pipeline import should_run
+    (tmp_path / "2026-11-09.json").write_text(json.dumps({"lock_at": "2026-11-09T21:00:00+00:00",
+                                                          "first_tip": "2026-11-10T00:00:00+00:00", "locked": False}))
+    at = lambda h, m: datetime(2026, 11, 9, h, m, tzinfo=timezone.utc)
+    assert should_run.decide(at(21, 38), [], tmp_path)[0]          # quarter-hour slot, lock pending
+    assert not should_run.decide(at(20, 38), [], tmp_path)[0]      # before the lock time
+    (tmp_path / "2026-11-09.json").write_text(json.dumps({"lock_at": "2026-11-09T21:00:00+00:00",
+                                                          "first_tip": "2026-11-10T00:00:00+00:00", "locked": True}))
+    assert not should_run.decide(at(21, 38), [], tmp_path)[0]      # already locked
