@@ -92,8 +92,9 @@ def fit_prop_calibration(plogs, byg, disp):
 
 # ------------------------------------------------------------------ candidate legs
 def _leg(game, kind, desc, p_model, p_cal, price=None, **kw):
+    import hashlib
     fair = 1 / p_cal
-    leg = {"game": game["id"], "kind": kind, "desc": desc, "p_model": round(p_model, 3), "p": round(p_cal, 3),
+    leg = {"id": hashlib.md5(f"{game['id']}|{kind}|{desc}".encode()).hexdigest()[:10], "game": game["id"], "kind": kind, "desc": desc, "p_model": round(p_model, 3), "p": round(p_cal, 3),
            "fair": round(fair, 2), "min_odds": round(fair * SAFETY, 2), "price": price,
            "edge": round(p_cal * price - 1, 3) if price else None, **kw}
     return leg
@@ -144,7 +145,15 @@ def team_legs(game, est, odds, mind_gap):
 PROP_PRICE = 1.85        # typical price either side of a main player line
 
 
-def prop_legs(game, players, calib, avg, disp):
+def novig(a, b):
+    """No-margin probability of side a from two decimal prices."""
+    if not a or not b:
+        return None
+    ia, ib = 1 / float(a), 1 / float(b)
+    return ia / (ia + ib)
+
+
+def prop_legs(game, players, calib, avg, disp, real=None):
     """Player props at the line a bookmaker would most likely post: books anchor main lines on the player's
     season average, so that line is estimated as his average rounded to .5. A leg is a candidate when the
     projection (matchup, minutes, teammates out, psychology) disagrees with that line."""
@@ -160,8 +169,27 @@ def prop_legs(game, players, calib, avg, disp):
                 continue
             spots = pl.get("spots") or []
             mind = sum(s["pct"] for s in spots if s.get("layer") == "mind")
+            from pipeline.oddsapi import norm_name
             for st in ("pts", "reb", "ast", "tpm", "pra"):
                 proj, av = pl.get(st), a.get(st)
+                rl = (real or {}).get((game["id"], norm_name(pl["name"]), st))
+                if rl:  # a real posted line: test the projection against it and its no-margin price
+                    L = float(rl["line"])
+                    sd = sd_for(st, proj, disp)
+                    po = 1 - norm_cdf((L - proj) / sd)
+                    t = (calib.get(st) or {}).get("t", 0.75)
+                    pm_over = novig(rl["over"], rl["under"])
+                    for sd_, pm, price, mk in (("over", po, float(rl["over"]), pm_over), ("under", 1 - po, float(rl["under"]), 1 - pm_over)):
+                        pc = sigmoid(0.5 * t * logit(pm) + 0.5 * logit(mk))
+                        if 0.5 <= pc <= PROP_MAX:
+                            legs.append(_leg(game, "prop", f"{pl['name']} {sd_} {L:.1f} {STAT_NAME[st]}", pm, pc, price,
+                                             team=team, player=pl["id"], player_name=pl["name"], stat=st, line=L, side=sd_,
+                                             proj=proj, avg=None if av is None or av != av else round(av, 1), price_est=False,
+                                             book=rl["book"], market=round(mk, 3),
+                                             note=f"projection {proj:.1f}; real {rl['book']} line, blended 50/50 with its no-margin price",
+                                             mind=mind if sd_ == "over" else -mind, spots=[x["label"] for x in spots],
+                                             sim=("prop", side, pl["id"], st, sd_, L)))
+                    continue
                 if proj is None or av is None or av != av or av < (1.0 if st == "tpm" else 3):
                     continue
                 L = math.floor(av) + 0.5
@@ -297,7 +325,7 @@ def package(name, why, legs, sims, games):
             "n_legs": len(legs), "games": len({l["game"] for l in legs})}
 
 
-def build(slate, disp, calib, avg=None, seed=5):
+def build(slate, disp, calib, avg=None, seed=5, real_props=None):
     """slate: list of (game dict, payload). Returns the day's parlays and the full leg board."""
     rng = np.random.default_rng(seed)
     games, sims, cands = {}, {}, []
@@ -308,10 +336,11 @@ def build(slate, disp, calib, avg=None, seed=5):
         players = pay.get("players") or {}
         sims[game["id"]] = simulate(game, est, players, disp, rng)
         gap = (pay.get("gauge") or {}).get("home", 0) - (pay.get("gauge") or {}).get("away", 0)
-        legs = team_legs(game, est, g.get("odds"), gap) + prop_legs(game, players, calib, avg or {}, disp)
+        legs = team_legs(game, est, g.get("odds"), gap) + prop_legs(game, players, calib, avg or {}, disp, real_props)
         for l in legs:
             l["_o"] = outcome(sims[game["id"]], l, game)
             l["matchup"] = f"{game['away']} at {game['home']}"
+            l["home"] = game["home"]
             l["tip"] = game["tip"]
             l["mind_flag"] = "against" if (l.get("mind") or 0) <= -0.3 else "with" if (l.get("mind") or 0) >= 0.3 else "neutral"
         cands += legs
@@ -351,9 +380,70 @@ def build(slate, disp, calib, avg=None, seed=5):
     return out, cands
 
 
-def board(cands, n=40):
-    good = sorted([l for l in cands if P_MIN <= l["p"] <= P_MAX], key=lambda l: -l["p"])[:n]
-    return [{k: v for k, v in l.items() if not k.startswith("_") and k != "sim"} for l in good]
+def board(cands, n=60):
+    """The strongest legs, plus the correlation lift for every same-game pair (for the custom ticket builder)."""
+    good = sorted([l for l in cands if P_MIN <= l["p"] <= P_MAX and l["mind_flag"] != "against"],
+                  key=lambda l: -(math.log(l["p"]) + EDGE_W * (l["edge"] or 0)))[:n]
+    lifts = {}
+    for i, a in enumerate(good):
+        for b in good[i + 1:]:
+            if a["game"] != b["game"] or _conflict(a, b):
+                continue
+            pa, pb = a["_o"].mean(), b["_o"].mean()
+            if pa > 0 and pb > 0:
+                lift = (a["_o"] & b["_o"]).mean() / (pa * pb)
+                if abs(lift - 1) >= 0.01:
+                    lifts[f"{a['id']}|{b['id']}"] = round(float(lift), 3)
+    legs = [{k: v for k, v in l.items() if not k.startswith("_") and k != "sim"} for l in good]
+    return legs, lifts
+
+
+def market_view(leg, odds, real_props=None):
+    """What the market says now about this leg: no-margin chance of our side, our side's line and price."""
+    from pipeline.oddsapi import norm_name
+    k = leg["kind"]
+    if k == "prop":
+        rl = (real_props or {}).get((leg["game"], norm_name(leg.get("player_name")), leg["stat"]))
+        if not rl:
+            return None
+        pm = novig(rl["over"], rl["under"])
+        return {"line": float(rl["line"]), "p": round(pm if leg["side"] == "over" else 1 - pm, 4),
+                "price": float(rl["over"] if leg["side"] == "over" else rl["under"])}
+    if not odds:
+        return None
+    if k == "ml":
+        pm = novig(odds.get("ml_home"), odds.get("ml_away"))
+        if pm is None:
+            return None
+        mine = leg["team"] == leg["home"]
+        return {"p": round(pm if mine else 1 - pm, 4), "price": odds.get("ml_home") if mine else odds.get("ml_away")}
+    if k == "spread" and odds.get("spread_home") is not None:
+        mine = leg["team"] == leg["home"]
+        return {"line": odds["spread_home"] if mine else -odds["spread_home"]}
+    if k == "total" and odds.get("total") is not None:
+        return {"line": odds["total"]}
+    return None
+
+
+def clv(leg, open_v, close_v):
+    """Closing-line value of a leg: positive = the market moved towards us after we published it.
+    Chance points for winners/props at the same line; line points for handicaps, totals and moved prop lines."""
+    if not open_v or not close_v:
+        return None
+    k = leg["kind"]
+    if k in ("spread",):
+        if open_v.get("line") is None or close_v.get("line") is None:
+            return None
+        return {"pts": round(open_v["line"] - close_v["line"], 2)}
+    if k == "total":
+        d = close_v["line"] - open_v["line"]
+        return {"pts": round(d if leg["side"] == "over" else -d, 2)}
+    if k == "prop" and open_v.get("line") != close_v.get("line"):
+        d = close_v["line"] - open_v["line"]
+        return {"pts": round(d if leg["side"] == "over" else -d, 2)}
+    if open_v.get("p") is not None and close_v.get("p") is not None:
+        return {"p": round(close_v["p"] - open_v["p"], 4)}
+    return None
 
 
 # ------------------------------------------------------------------ scoring after the games

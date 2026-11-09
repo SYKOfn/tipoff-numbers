@@ -471,3 +471,11 @@ details.pl[open] > summary td { background: var(--floor); }
 .checklist li { padding: 9px 0 9px 30px; border-bottom: 1px solid var(--line); position: relative; font-size: .92rem; }
 .checklist li:last-child { border-bottom: 0; }
 .checklist li::before { content: "✓"; position: absolute; left: 4px; top: 8px; width: 18px; height: 18px; border-radius: 50%; background: var(--mind-soft); color: var(--mind); font-size: .72rem; font-weight: 800; display: grid; place-items: center; }
+.oddsbox { display: flex; flex-direction: column; gap: 3px; align-items: flex-end; }
+.oddsin { font: inherit; font-size: .9rem; width: 96px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); text-align: right; font-stretch: var(--narrow); font-weight: 700; }
+.oddsin:focus { outline: none; border-color: var(--ball); box-shadow: 0 0 0 3px var(--ball-soft); }
+.vd { font-size: .72rem; font-weight: 700; color: var(--muted); text-align: right; }
+.vd.up { color: var(--pos); } .vd.down { color: var(--neg); } .vd.flat { color: var(--body); }
+.legs li { grid-template-columns: 26px minmax(0, 1fr) 70px 110px 120px; }
+.ticket-foot .you b { font-size: 1.4rem; }
+@media (max-width: 680px) { .legs li { grid-template-columns: 22px 1fr 70px; } .legs li > .oddsbox { grid-column: 2 / -1; align-items: flex-start; } }

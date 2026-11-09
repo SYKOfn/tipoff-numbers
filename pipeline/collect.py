@@ -128,7 +128,15 @@ def collect(today=None):
                 meta.setdefault(g[side], {})["logo"] = g[f"{side}_logo"]
     write_json(STATE / "teams_meta.json", meta)
 
-    write_json(STATE / "upcoming.json", sorted(upcoming.values(), key=lambda g: g["date"]))
+    from . import oddsapi
+    ups = sorted(upcoming.values(), key=lambda g: g["date"])
+    if not ups and not finished:
+        # nothing parsed at all: a feed change or outage, not an empty NBA calendar; keep the last good schedule
+        prev = read_json(STATE / "upcoming.json", []) or []
+        ups = [g for g in prev if g.get("date", "") >= espn.now_utc().strftime("%Y-%m-%dT%H:%M")]
+        espn.CALLS["errors"].append("no games parsed from the scoreboard; kept the previous schedule")
+    odds_status = oddsapi.collect(ups)
+    write_json(STATE / "upcoming.json", ups)
 
     # rest of the regular season (for playoff chances)
     rest = []
@@ -142,5 +150,5 @@ def collect(today=None):
     write_json(STATE / "season_rest.json", rest)
     write_json(STATE / "collect.json", {"calls": espn.CALLS["n"], "errors": espn.CALLS["errors"][-30:],
                                         "finished_seen": len(finished), "upcoming": len(upcoming),
-                                        "summaries": len(need)})
+                                        "summaries": len(need), "odds_api": odds_status})
     return {"games": len(games), "upcoming": len(upcoming), "calls": espn.CALLS["n"], "errors": len(espn.CALLS["errors"])}

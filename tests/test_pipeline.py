@@ -181,3 +181,51 @@ def test_parlay_scoring_and_correlation():
     over_total = sim["t"] > 226
     star_over = sim["players"]["1"]["pts"] > 26
     assert (over_total & star_over).mean() > over_total.mean() * star_over.mean()  # positive correlation
+
+
+def test_clv_and_market_view():
+    from model import parlay
+    leg = {"kind": "ml", "team": "BOS", "home": "BOS"}
+    o1 = parlay.market_view(leg, {"ml_home": 1.9, "ml_away": 2.0})
+    o2 = parlay.market_view(leg, {"ml_home": 1.7, "ml_away": 2.25})
+    assert parlay.clv(leg, o1, o2)["p"] > 0          # price shortened on our side: positive CLV
+    sp = {"kind": "spread", "team": "LAL", "home": "BOS"}
+    v1 = parlay.market_view(sp, {"spread_home": -4.5})  # LAL +4.5
+    v2 = parlay.market_view(sp, {"spread_home": -3.0})  # LAL +3.0 at close
+    assert parlay.clv(sp, v1, v2)["pts"] == 1.5
+    tot = {"kind": "total", "side": "under"}
+    assert parlay.clv(tot, {"line": 230.5}, {"line": 228.5})["pts"] == 2.0
+
+
+def test_should_run_gate(tmp_path, monkeypatch):
+    from datetime import datetime, timezone
+    from pipeline import should_run
+    monkeypatch.setattr(should_run, "read_json", lambda *a, **k: [{"date": "2026-11-10T00:30Z", "home": "BOS", "away": "LAL"}])
+    assert should_run.decide(datetime(2026, 11, 9, 22, 23, tzinfo=timezone.utc))[0]          # 2 h before tip
+    assert not should_run.decide(datetime(2026, 11, 9, 16, 23, tzinfo=timezone.utc))[0]      # quiet hour
+    assert should_run.decide(datetime(2026, 11, 9, 15, 23, tzinfo=timezone.utc))[0]          # 3-hour slot
+
+
+def test_prop_real_lines_test():
+    from model import prop_test
+    fl = {("g1", "a b", "pts"): ({"line": "20.5", "over": "1.90", "under": "1.90"}, {"line": "21.5", "over": "1.90", "under": "1.90"})}
+    out = prop_test.real_lines(fl, {("g1", "a b"): {"pts": 26.0}}, {("g1", "a b"): {"pts": 27}}, {"pts": 1.2}, {"pts": {"t": 1.0}})
+    assert out["n"] == 1 and out["bets"]["n"] == 1 and out["bets"]["won"] == 1 and out["bets"]["clv_beat"] == 1
+
+
+def test_parse_event_survives_odd_odds():
+    import copy
+    for odds in ([{"provider": "ESPN BET", "details": "BOS -4.5", "overUnder": 224.5, "spread": -4.5,
+                   "homeTeamOdds": {"moneyLine": -190}, "awayTeamOdds": {"moneyLine": 160}}],
+                 [{"moneyline": {"home": {"close": {"odds": "-190"}}, "away": {"close": {"odds": "+160"}}},
+                   "pointSpread": {"home": {"close": {"line": "-4.5"}}}, "total": {"over": {"close": {"line": "o224.5"}}}}],
+                 ["garbage", None, {"provider": "x", "spread": "n/a"}], {"weird": True}):
+        e = copy.deepcopy(EVENT)
+        e["competitions"][0]["odds"] = odds
+        g = espn.parse_event(e)
+        assert g and g["home"] == "BOS"
+    e = copy.deepcopy(EVENT)
+    e["competitions"][0]["odds"] = [{"provider": {"name": "ESPN BET"}, "spread": -4.5, "overUnder": 224.5,
+                                     "homeTeamOdds": {"moneyLine": -190}, "awayTeamOdds": {"moneyLine": 160}}]
+    o = espn.parse_event(e)["odds"]
+    assert abs(o["ml_home"] - 1.5263) < 1e-3 and o["ml_away"] == 2.6 and o["spread_home"] == -4.5 and o["total"] == 224.5

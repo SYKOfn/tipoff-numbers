@@ -9,7 +9,7 @@ import shutil
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 
-from model import effects, engine, explain, extras, parlay, ratings
+from model import effects, engine, explain, extras, parlay, prop_test, ratings
 from model import player_engine as PE
 from model import players as PM
 from model.features import Tracker
@@ -233,8 +233,15 @@ def main(demo=False, now=None, collect_data=True):
         payload["players"] = PE.project_game(pt, pe, pdisp, g, ctx, injuries, notes, news)
         if gid in analyst:
             payload["analyst"] = analyst[gid]
+        payload["odds"] = g.get("odds")
+        payload["odds_books"] = g.get("odds_books")
+        odds_first = (old or {}).get("odds_first") or g.get("odds")
+        books_first = (old or {}).get("books_first") or g.get("odds_books")
         write_json(path, {"game_id": gid, "tip": g["date"], "made_at": now.isoformat(), "frozen": False,
-                          "home": g["home"], "away": g["away"], "season": int(g["season"]), "payload": payload})
+                          "home": g["home"], "away": g["away"], "season": int(g["season"]), "payload": payload,
+                          "odds_first": odds_first, "odds_last": g.get("odds"),
+                          "books_first": books_first, "books_last": g.get("odds_books"),
+                          "first_made_at": (old or {}).get("first_made_at") or now.isoformat()})
         upcoming_payloads[gid] = (g, payload, g.get("state"))
 
     # ------------------------------------------------------------ score frozen predictions
@@ -327,6 +334,27 @@ def main(demo=False, now=None, collect_data=True):
     cards_up.sort(key=lambda x: (x["tip"] or "", x["id"]))
     cards_res.sort(key=lambda x: (x["day"], x["id"]), reverse=True)
 
+    # player model against prop lines: real archived lines, and the season-average proxy
+    from .oddsapi import first_last_props, norm_name
+    frozen_proj, actual_n = {}, {}
+    for path in sorted(PRED.glob("*/*.json")):
+        pj = read_json(path) or {}
+        if not pj.get("frozen"):
+            continue
+        for side_rows in ((pj.get("payload") or {}).get("players") or {}).values():
+            for r in side_rows:
+                if not r.get("out"):
+                    frozen_proj[(pj["game_id"], norm_name(r["name"]))] = {k: r.get(k) for k in ("pts", "reb", "ast", "tpm", "pra")}
+    for gid, teams_ in byg.items():
+        for rows in teams_.values():
+            for r in rows:
+                if r["min"] > 0:
+                    actual_n[(gid, norm_name(r["name"]))] = {"pts": r["pts"], "reb": r["reb"], "ast": r["ast"], "tpm": r["tpm"],
+                                                              "pra": r["pts"] + r["reb"] + r["ast"]}
+    lines_test = {"real": prop_test.real_lines(first_last_props(), frozen_proj, actual_n, pdisp, calib),
+                  "proxy": prop_test.proxy_lines(plogs, byg, [str(x) for x in c.games.loc[c.games["season"] == cur, "game_id"]],
+                                                 pdisp, calib)}
+
     # accuracy
     def summarise(items):
         """items: list of (payload_est, home_pts, away_pts)."""
@@ -367,7 +395,8 @@ def main(demo=False, now=None, collect_data=True):
     write_json(SITE / "accuracy.json", {
         "live": summarise(live_items), "checks": summarise(check_items), "recent": recent_scored,
         "backtest": read_json(ROOT / "backtest" / "results.json"), "factors": eff_table,
-        "players": {"track": ptrack, "factors": PM.effects_table(pe), "dispersion": {k: round(v, 2) for k, v in pdisp.items()}},
+        "players": {"track": ptrack, "factors": PM.effects_table(pe), "dispersion": {k: round(v, 2) for k, v in pdisp.items()},
+                    "lines_test": lines_test},
         "effects_games": c.eff.n, "sd_margin": r1(c.eff.sd_margin), "sd_total": r1(c.eff.sd_total)})
 
     # ------------------------------------------------------------ the daily parlay
@@ -383,6 +412,10 @@ def main(demo=False, now=None, collect_data=True):
         first_tip = min(datetime.fromisoformat(g["date"].replace("Z", "+00:00")) for g, _ in slate)
         if old and (old.get("frozen") or now >= first_tip):
             if not old.get("frozen"):
+                # freeze: closing-line value of every published leg = last market view before tip vs first
+                fs, ls = old.get("first_seen", {}), old.get("last_seen", {})
+                for l in [l for pr in old.get("parlays", []) for l in pr["legs"]] + old.get("board", []) + old.get("singles", []):
+                    l["clv"] = parlay.clv(l, fs.get(l["id"]), ls.get(l["id"]))
                 old["frozen"] = True
                 write_json(path, old)
             today_parlay = old
@@ -395,9 +428,23 @@ def main(demo=False, now=None, collect_data=True):
                 pc_["pra"] = pc_["pts"] + pc_["reb"] + pc_["ast"]
                 for pid, d_ in pc_.groupby(pc_["player_id"].astype(str)):
                     avg[pid] = {"gp": len(d_), **{k: float(d_[k].mean()) for k in ("pts", "reb", "ast", "tpm", "pra")}}
-            built, cands = parlay.build(pre, pdisp, calib, avg)
+            from . import oddsapi
+            real = oddsapi.latest_props()
+            built, cands = parlay.build(pre, pdisp, calib, avg, real_props=real)
+            bl, lifts = parlay.board(cands)
+            odds_by_game = {str(g["game_id"]): g.get("odds") for g, _ in slate}
+            first_seen = dict((old or {}).get("first_seen", {}))
+            last_seen = {}
+            for l in [l for pr in built["parlays"] for l in pr["legs"]] + bl + built.get("singles", []):
+                v = parlay.market_view(l, odds_by_game.get(l["game"]), real)
+                if v:
+                    v = {**v, "at": now.isoformat()}
+                    last_seen[l["id"]] = v
+                    first_seen.setdefault(l["id"], v)
+                    l["open"] = first_seen[l["id"]]
             today_parlay = {"day": sday, "made_at": now.isoformat(), "first_tip": first_tip.isoformat(), "frozen": False,
-                            **built, "board": parlay.board(cands)}
+                            **built, "board": bl, "lifts": lifts, "first_seen": first_seen, "last_seen": last_seen,
+                            "odds_source": sorted({(o or {}).get("provider") or "none" for o in odds_by_game.values()})}
             write_json(path, today_parlay)
     # score finished slates
     fin_rows = {str(k): v for k, v in c.meta.items()}
@@ -420,8 +467,9 @@ def main(demo=False, now=None, collect_data=True):
                         sc(l)
                     live_legs = [l for l in pr["legs"] if l["result"] != "void"]
                     pr["result"] = "hit" if live_legs and all(l["result"] == "hit" for l in live_legs) else "miss"
-                for l in pj.get("singles", []):
-                    sc(l)
+                for l in pj.get("singles", []) + pj.get("board", []):
+                    if l["game"] in fin_rows:
+                        sc(l)
                 pj["scored"] = True
                 pj["frozen"] = True
                 write_json(path, pj)
@@ -436,11 +484,48 @@ def main(demo=False, now=None, collect_data=True):
                             "expected": round(sum(pr["p"] for pr in items), 2),
                             "legs": len(legs), "leg_hits": sum(l["result"] == "hit" for l in legs),
                             "leg_expected": round(sum(l["p"] for l in legs), 1)}
+    clv_legs = [l["clv"] for h_ in history for l in [l for pr in h_["parlays"] for l in pr["legs"]] + h_.get("singles", [])
+                if l.get("clv")]
+    clv_all = [l["clv"] for path in sorted(PAR.glob("*.json")) for pj in [read_json(path) or {}] if pj.get("frozen")
+               for l in [l for pr in pj.get("parlays", []) for l in pr["legs"]] + pj.get("board", []) + pj.get("singles", []) if l.get("clv")]
+
+    def clv_summary(items):
+        pp = [x["p"] for x in items if "p" in x]
+        pts = [x["pts"] for x in items if "pts" in x]
+        moved = [v for v in pp + pts if v != 0]
+        return {"n": len(items), "beat": sum(v > 0 for v in moved), "moved": len(moved),
+                "avg_p": round(sum(pp) / len(pp), 4) if pp else None, "avg_pts": round(sum(pts) / len(pts), 2) if pts else None}
+    # the model against the market's movement, every game with an opening and closing price
+    mvm = []
+    for path in sorted(PRED.glob("*/*.json")):
+        pj = read_json(path) or {}
+        o1, o2 = pj.get("odds_first") or {}, pj.get("odds_last") or {}
+        f1, f2 = parlay.novig(o1.get("ml_home"), o1.get("ml_away")), parlay.novig(o2.get("ml_home"), o2.get("ml_away"))
+        est = (pj.get("payload") or {}).get("est") or {}
+        if f1 is None or f2 is None or est.get("win_home") is None or not pj.get("frozen"):
+            continue
+        lean = est["win_home"] - f1
+        if abs(lean) >= 0.02 and abs(f2 - f1) >= 0.002:
+            mvm.append({"lean": round(lean, 3), "move": round(f2 - f1, 4), "with": (lean > 0) == (f2 > f1)})
+    model_clv = {"n": len(mvm), "with": sum(x["with"] for x in mvm),
+                 "avg_move_our_way": round(sum((x["move"] if x["lean"] > 0 else -x["move"]) for x in mvm) / len(mvm), 4) if mvm else None}
+    leg_results, leg_close = {}, {}
+    for path in sorted(PAR.glob("*.json"))[-45:]:
+        pj = read_json(path) or {}
+        for l in [l for pr in pj.get("parlays", []) for l in pr["legs"]] + pj.get("board", []) + pj.get("singles", []):
+            if l.get("result"):
+                leg_results[l["id"]] = l["result"]
+        if pj.get("frozen"):
+            leg_close.update(pj.get("last_seen", {}))
     write_json(SITE / "parlay.json", {"today": today_parlay, "calibration": calib, "record": rec,
+                                      "leg_results": leg_results, "leg_close": leg_close,
+                                      "odds_api": (read_json(STATE / "collect.json", {}) or {}).get("odds_api"),
+                                      "clv": {"tickets": clv_summary(clv_legs), "all_legs": clv_summary(clv_all), "model": model_clv},
                                       "history": [{"day": h_["day"], "parlays": [{"name": pr["name"], "p": pr["p"], "fair": pr["fair"],
                                                                                    "result": pr.get("result"),
                                                                                    "legs": [{"desc": l["desc"], "p": l["p"], "result": l.get("result"),
-                                                                                             "kind": l["kind"], "team": l.get("team")} for l in pr["legs"]]}
+                                                                                             "kind": l["kind"], "team": l.get("team"), "clv": l.get("clv")}
+                                                                                            for l in pr["legs"]]}
                                                                                   for pr in h_["parlays"]]} for h_ in history[-30:][::-1]]})
 
     # players: next-game projection per player, pages, index

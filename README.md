@@ -15,6 +15,14 @@ After that it updates itself every 3 hours. The site is at `https://<user>.githu
 
 Preview without network: `python -m pipeline.run --demo` (simulated league, clearly labelled on every page), then serve `site/` (`python -m http.server -d site`).
 
+## Real prices (optional, recommended)
+
+1. Create a free key at https://the-odds-api.com (500 credits/month).
+2. GitHub repo -> Settings -> Secrets and variables -> Actions -> **New repository secret**: `ODDS_API_KEY` = your key.
+3. Optional **variables** (same page, Variables tab): `ODDS_API_BOOKS` (default `winamax_fr,pinnacle`), `ODDS_API_DAILY` (credits per day, default 15 = free plan), `ODDS_API_PROPS` = `1` to archive player-prop lines (about 10 credits per game per day: needs the $30 plan).
+
+Without a key everything still works, with ESPN's US prices.
+
 ## How it runs
 
 `.github/workflows/update.yml`, every 3 hours:

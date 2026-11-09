@@ -1,7 +1,7 @@
 name: update
 on:
   schedule:
-    - cron: "23 */3 * * *"     # every 3 hours
+    - cron: "23 * * * *"       # hourly; the gate below skips quiet hours (full run every 3 h, hourly near tip-off)
   workflow_dispatch:
   push:
     branches: [main]
@@ -15,6 +15,8 @@ jobs:
   update:
     runs-on: ubuntu-latest
     timeout-minutes: 50
+    outputs:
+      run: ${{ steps.gate.outputs.run }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -23,15 +25,32 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: pip install -r requirements.txt
-      - name: Fetch from ESPN, rebuild, predict, freeze and score
+      - name: Gate (scheduled runs only)
+        id: gate
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            python -m pipeline.should_run
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.gate.outputs.run == 'true'
+        run: pip install -r requirements.txt
+      - name: Fetch from ESPN (+ odds when ODDS_API_KEY is set), rebuild, predict, freeze and score
+        if: steps.gate.outputs.run == 'true'
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          ODDS_API_BOOKS: ${{ vars.ODDS_API_BOOKS }}
+          ODDS_API_DAILY: ${{ vars.ODDS_API_DAILY }}
+          ODDS_API_PROPS: ${{ vars.ODDS_API_PROPS }}
         run: python -m pipeline.run
       - name: Tune and backtest (first run, then whenever results are missing)
+        if: steps.gate.outputs.run == 'true'
         run: |
           if [ ! -f backtest/results.json ]; then
             python -m backtest.run && python -m pipeline.run --no-collect
           fi
       - name: Save data
+        if: steps.gate.outputs.run == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -39,12 +58,14 @@ jobs:
           git commit -q -m "Data update $(date -u +%Y-%m-%dT%H:%MZ)" || echo "no changes"
           git pull -q --rebase -X theirs origin main && git push -q
       - name: Package website
+        if: steps.gate.outputs.run == 'true'
         uses: actions/upload-pages-artifact@v3
         with:
           path: site
   # Needs Settings -> Pages -> Source: "GitHub Actions".
   publish:
     needs: update
+    if: needs.update.outputs.run == 'true'
     runs-on: ubuntu-latest
     permissions:
       pages: write

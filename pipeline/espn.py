@@ -103,7 +103,7 @@ def parse_event(e):
         venue = comp.get("venue") or {}
         notes = [n.get("headline") for n in (comp.get("notes") or []) if n.get("headline")]
         day = et_day(e["date"])
-        return {
+        out = {
             "game_id": str(e["id"]), "date": e["date"], "day": day,
             "season": _int(season.get("year")) or season_of(day), "stype": _int(season.get("type")) or 2,
             "home": teams["home"]["abbr"], "away": teams["away"]["abbr"],
@@ -114,8 +114,9 @@ def parse_event(e):
             "home_logo": teams["home"]["logo"], "away_logo": teams["away"]["logo"],
             "home_record": teams["home"]["record"], "away_record": teams["away"]["record"],
             "home_lines": teams["home"]["linescores"], "away_lines": teams["away"]["linescores"],
-            "odds": parse_odds(comp),
         }
+        out["odds"] = parse_odds(comp)
+        return out
     except Exception:
         return None
 
@@ -139,8 +140,21 @@ def _num(x):
 
 
 def parse_odds(comp):
-    """Moneyline (decimal), spread (home line) and total from the scoreboard odds block, if ESPN has one."""
+    """Moneyline (decimal), spread (home line) and total from the scoreboard odds block, if ESPN has one.
+    Never raises: odds are a bonus, a game without them is still a game."""
+    try:
+        return _parse_odds(comp)
+    except Exception as e:
+        msg = f"odds block not understood: {type(e).__name__}: {e}"
+        if msg not in CALLS["errors"]:
+            CALLS["errors"].append(msg)
+        return None
+
+
+def _parse_odds(comp):
     for o in comp.get("odds") or []:
+        if not isinstance(o, dict):
+            continue
         out = {"provider": (o.get("provider") or {}).get("name")}
         ht, at = o.get("homeTeamOdds") or {}, o.get("awayTeamOdds") or {}
         out["ml_home"] = american_to_decimal(ht.get("moneyLine"))
