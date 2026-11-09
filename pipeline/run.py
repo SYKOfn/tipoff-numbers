@@ -9,8 +9,11 @@ import shutil
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 
-from model import effects, engine, explain, ratings
+from model import effects, engine, explain, extras, ratings
+from model import player_engine as PE
+from model import players as PM
 from model.features import Tracker
+from . import player_pages
 from . import espn
 from .store import (OVR, PRED, ROOT, SITE, STATE, load_games, load_players, read_json, write_json)
 from .teams import TEAMS, info
@@ -64,6 +67,23 @@ def main(demo=False, now=None, collect_data=True):
     eff_prev = effects.estimate(prev_rows, c.tuned["lam_effects"]) if len(prev_rows) >= 200 else c.eff
     eff_table = c.eff.table()
     tr = c.tracker
+
+    # ------------------------------------------------------------ players
+    raw_notes = {**((read_json(STATE / "demo_player_notes.json", {}) or {}) if demo else {}),
+                 **((read_json(OVR / "players.json", {}) or {}).get("players", {}) or {})}
+    pt, pe, pdisp, plogs, ptrack, byg = PE.walk(c, players, raw_notes, cur)
+    by_name = {(q["name"] or "").lower(): pid for pid, q in pt.p.items()}
+    notes = {}
+    for k, v in raw_notes.items():
+        pid = k if k in pt.p else by_name.get(str(k).lower())
+        if pid:
+            notes[pid] = v
+    if notes != raw_notes:
+        pt, pe, pdisp, plogs, ptrack, byg = PE.walk(c, players, notes, cur)
+    qshares = extras.quarter_shares(games)
+    adv = extras.advanced(games, cur)
+    if not any(adv.values()):
+        adv = extras.advanced(games, cur - 1)
 
     teams = {}
     for ab in TEAMS:
@@ -155,6 +175,8 @@ def main(demo=False, now=None, collect_data=True):
             "est": est_block(est), "sides": sd,
             "gauge": {"home": explain.gauge(sd["home"]["mind"]), "away": explain.gauge(sd["away"]["mind"])},
             "reasoning": explain.reasoning(est, ctx, h, a, sd, (net[h], net[a]) if kind == "estimate" else None),
+            "quarters": extras.quarters(est, qshares, h, a),
+            "h2h": extras.h2h(c.games[c.games["day"] < g["day"]], h, a),
         }
         return payload
 
@@ -164,7 +186,7 @@ def main(demo=False, now=None, collect_data=True):
         for side in ("home", "away"):
             for x in p["sides"][side]["mind"][:2]:
                 if abs(x["pts"]) >= 0.25 or x["evidence"] in ("strong", "moderate"):
-                    tags.append({"team": p[side]["abbr"], "label": x["label"], "pts": x["pts"]})
+                    tags.append({"team": p[side]["abbr"], "label": x["label"], "pts": x["pts"], "ev": x["evidence"]})
         c_ = {"id": p["id"], "tip": p["tip"], "day": p["day"], "stype": p["stype"], "kind": p["kind"],
               "home": p["home"]["abbr"], "away": p["away"]["abbr"],
               "home_rec": p["home"]["record"], "away_rec": p["away"]["record"],
@@ -207,6 +229,7 @@ def main(demo=False, now=None, collect_data=True):
         payload = game_payload(g, ctx, est, "estimate", {t: injuries.get(t, []) for t in (g["home"], g["away"])} if news else None)
         payload["news"] = news
         payload["made_at"] = now.isoformat()
+        payload["players"] = PE.project_game(pt, pe, pdisp, g, ctx, injuries, notes, news)
         if gid in analyst:
             payload["analyst"] = analyst[gid]
         write_json(path, {"game_id": gid, "tip": g["date"], "made_at": now.isoformat(), "frozen": False,
@@ -244,7 +267,16 @@ def main(demo=False, now=None, collect_data=True):
             est = engine.predict(c, g, c.ctxs[gid], {}, eff=eff_prev, base_override=c.base[gid])
             payload = game_payload(g, c.ctxs[gid], est, "check")
         checks.append((g, payload))
-        if g["day"] >= recent_from:
+        if True:  # every game of the season gets its page; only the last three weeks get cards
+            if not payload.get("players"):
+                pl = {}
+                for side, ab in (("home", g["home"]), ("away", g["away"])):
+                    rows = sorted([r for r in byg.get(gid, {}).get(ab, []) if r["min"] > 0], key=lambda r: -r["min"])
+                    pl[side] = [{"id": r["player_id"], "name": r["name"], "pos": r["pos"], "min": int(r["min"]), "pts": int(r["pts"]),
+                                 "reb": int(r["reb"]), "ast": int(r["ast"]), "tpm": int(r["tpm"]), "stl": int(r["stl"]),
+                                 "blk": int(r["blk"]), "tov": int(r["tov"]), "pm": int(r["pm"]),
+                                 "proj": plogs.get((gid, r["player_id"]))} for r in rows]
+                payload = {**payload, "players_actual": pl}
             result_payloads[gid] = (g, payload)
 
     def result_block(g):
@@ -267,6 +299,7 @@ def main(demo=False, now=None, collect_data=True):
         shutil.rmtree(SITE)
     (SITE / "game").mkdir(parents=True, exist_ok=True)
     (SITE / "team").mkdir(parents=True, exist_ok=True)
+    (SITE / "player").mkdir(parents=True, exist_ok=True)
 
     cards_up, cards_res = [], []
     for gid, (g, payload, state) in upcoming_payloads.items():
@@ -278,6 +311,7 @@ def main(demo=False, now=None, collect_data=True):
         write_json(SITE / "game" / f"{gid}.json", out)
         cards_up.append(card(payload, live=out.get("live")))
     for gid, (g, payload) in result_payloads.items():
+        recent = g["day"] >= recent_from
         out = dict(payload)
         out["state"] = "post"
         out["result"] = result_block(g)
@@ -286,7 +320,8 @@ def main(demo=False, now=None, collect_data=True):
         out["scored"] = {"hit": (e["win_home"] >= 0.5) == (hm > 0), "err_margin": r1(hm - e["margin"]),
                          "err_total": r1(out["result"]["home_pts"] + out["result"]["away_pts"] - e["total"])}
         write_json(SITE / "game" / f"{gid}.json", out)
-        cards_res.append(card(payload, result={"home_pts": out["result"]["home_pts"], "away_pts": out["result"]["away_pts"],
+        if recent:
+            cards_res.append(card(payload, result={"home_pts": out["result"]["home_pts"], "away_pts": out["result"]["away_pts"],
                                                "ot": out["result"]["ot"], "hit": out["scored"]["hit"]}))
     cards_up.sort(key=lambda x: (x["tip"] or "", x["id"]))
     cards_res.sort(key=lambda x: (x["day"], x["id"]), reverse=True)
@@ -331,7 +366,56 @@ def main(demo=False, now=None, collect_data=True):
     write_json(SITE / "accuracy.json", {
         "live": summarise(live_items), "checks": summarise(check_items), "recent": recent_scored,
         "backtest": read_json(ROOT / "backtest" / "results.json"), "factors": eff_table,
+        "players": {"track": ptrack, "factors": PM.effects_table(pe), "dispersion": {k: round(v, 2) for k, v in pdisp.items()}},
         "effects_games": c.eff.n, "sd_margin": r1(c.eff.sd_margin), "sd_total": r1(c.eff.sd_total)})
+
+    # players: next-game projection per player, pages, index
+    next_proj = {}
+    team_next = {}
+    for gid, (g, payload, state) in sorted(upcoming_payloads.items(), key=lambda kv: kv[1][0]["date"]):
+        if state == "in":
+            continue
+        for side, ab, opp in (("home", g["home"], g["away"]), ("away", g["away"], g["home"])):
+            team_next.setdefault(ab, []).append((payload["gauge"][side], payload[side]["missing"] or 0.0))
+            for pl in (payload.get("players") or {}).get(side, []):
+                if pl["id"] in next_proj:
+                    continue
+                next_proj[pl["id"]] = {"game": gid, "tip": g["date"], "opp": opp, "home": side == "home", "out": pl.get("out"),
+                                       "status": pl.get("status"), "detail": pl.get("detail"),
+                                       "proj": {k: pl.get(k) for k in ("min", "pts", "reb", "ast", "tpm", "stl", "blk", "tov", "pra")},
+                                       "lines": pl.get("lines"), "spots": pl.get("spots", [])}
+    pindex, ppages = player_pages.build(players, games, cur, plogs, next_proj, pt, notes, c.ctxs)
+    (SITE / "player").mkdir(parents=True, exist_ok=True)
+    for pid, page in ppages.items():
+        write_json(SITE / "player" / f"{pid}.json", page)
+    write_json(SITE / "players.json", pindex)
+
+    # playoff chances from the rest of the regular season
+    rest = [(g["home"], g["away"]) for g in upcoming if int(g.get("stype", 2)) == 2 and g.get("state") != "post"]
+    rest += [(g["home"], g["away"]) for g in (read_json(STATE / "season_rest.json", []) or [])]
+    wl = {ab: list(tr.wl[cur][ab]) for ab in TEAMS}
+    odds = extras.playoff_odds(wl, rest, net, rt.home if rt else 2.5, c.eff.sd_margin) if sum(map(sum, wl.values())) else {}
+    for conf in standings:
+        for row in standings[conf]:
+            row["odds"] = odds.get(row["abbr"])
+
+    # mind ranking
+    mind_rows = []
+    lookup_rows = {r["abbr"]: r for conf in standings for r in standings[conf]}
+    for ab in TEAMS:
+        f = tr.side({"day": today.isoformat(), "season": cur, "stype": 2, "home": ab, "game_id": "x"}, ab, ab, True)
+        nx = team_next.get(ab, [])[:3]
+        edge = sum(x[0] for x in nx) / len(nx) if nx else 0.0
+        miss = nx[0][1] if nx else 0.0
+        score, cat, why = extras.mood(f, c.eff, edge, lookup_rows.get(ab, {}).get("l10"), miss)
+        mind_rows.append({"abbr": ab, "score": score, "cat": cat, "why": why, "streak": f["streak"], "confidence": f["confidence"],
+                          "l10": lookup_rows.get(ab, {}).get("l10"), "record": f["record"], "edge": round(edge, 2),
+                          "stakes": f["stakes"], "missing": round(miss, 3), "form": f["form"][-10:]})
+    mind_rows.sort(key=lambda x: -x["score"])
+    for i, r in enumerate(mind_rows):
+        r["rank"] = i + 1
+    write_json(SITE / "mind.json", mind_rows)
+    mood_of = {r["abbr"]: r for r in mind_rows}
 
     # teams
     team_list = []
@@ -340,8 +424,14 @@ def main(demo=False, now=None, collect_data=True):
         team_list.append({"abbr": ab, "name": t["name"], "short": t["short"], "conf": t["conf"], "div": t["div"],
                           "color": t["color"], "alt": t["alt"], "logo": t["logo"], "record": f["record"],
                           "seed": seed_of.get(ab), "net": r1(net[ab]), "net_rank": net_rank[ab]})
-        write_json(SITE / "team" / f"{ab}.json", team_page(ab, t, f, tr, c, cur, net, off, dfn, net_rank, off_rank, def_rank,
-                                                         seed_of, cards_up, cards_res, injuries, players, eff_table))
+        tp = team_page(ab, t, f, tr, c, cur, net, off, dfn, net_rank, off_rank, def_rank,
+                       seed_of, cards_up, cards_res, injuries, players, eff_table)
+        tp["advanced"] = adv.get(ab)
+        tp["odds"] = odds.get(ab)
+        tp["mood"] = mood_of.get(ab)
+        tp["players"] = [x for x in pindex if x["team"] == ab]
+        tp["h2h_season"] = []
+        write_json(SITE / "team" / f"{ab}.json", tp)
     write_json(SITE / "teams.json", team_list)
     write_json(SITE / "standings.json", {"season": season_label(cur), "East": standings["East"], "West": standings["West"]})
     write_json(SITE / "schedule.json", {"upcoming": cards_up, "results": cards_res})

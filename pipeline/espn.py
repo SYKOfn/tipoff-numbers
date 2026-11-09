@@ -107,6 +107,7 @@ def parse_event(e):
             "venue": venue.get("fullName"), "note": notes[0] if notes else None,
             "home_logo": teams["home"]["logo"], "away_logo": teams["away"]["logo"],
             "home_record": teams["home"]["record"], "away_record": teams["away"]["record"],
+            "home_lines": teams["home"]["linescores"], "away_lines": teams["away"]["linescores"],
         }
     except Exception:
         return None
@@ -120,6 +121,14 @@ STAT_KEYS = {
     "offensiveRebounds": ("oreb",), "totalRebounds": ("reb",), "rebounds": ("reb",),
     "assists": ("ast",), "turnovers": ("tov",), "totalTurnovers": ("tov",), "steals": ("stl",), "blocks": ("blk",),
 }
+PLAYER_FIELDS = {"min": ("minutes", "MIN"), "pts": ("points", "PTS"),
+                 "fg": ("fieldGoalsMade-fieldGoalsAttempted", "FG"),
+                 "tp": ("threePointFieldGoalsMade-threePointFieldGoalsAttempted", "3PT"),
+                 "ft": ("freeThrowsMade-freeThrowsAttempted", "FT"), "reb": ("rebounds", "REB"),
+                 "ast": ("assists", "AST"), "tov": ("turnovers", "TO"), "stl": ("steals", "STL"),
+                 "blk": ("blocks", "BLK"), "oreb": ("offensiveRebounds", "OREB"), "pf": ("fouls", "PF"),
+                 "pm": ("plusMinus", "+/-")}
+PAIRS = {"fg": ("fgm", "fga"), "tp": ("tpm", "tpa"), "ft": ("ftm", "fta")}
 LABEL_KEYS = {"FG": ("fgm", "fga"), "3PT": ("tpm", "tpa"), "FT": ("ftm", "fta"), "OR": ("oreb",), "REB": ("reb",),
               "AST": ("ast",), "TO": ("tov",), "STL": ("stl",), "BLK": ("blk",)}
 
@@ -159,29 +168,34 @@ def parse_summary(s):
         for grp in blk.get("statistics", []) or []:
             keys = [str(k) for k in (grp.get("keys") or [])]
             labels = [str(k).upper() for k in (grp.get("labels") or grp.get("names") or [])]
-
-            def idx(key, label):
+            cols = {}
+            for field, (key, label) in PLAYER_FIELDS.items():
                 if key in keys:
-                    return keys.index(key)
-                return labels.index(label) if label in labels else None
-            i_min, i_pts = idx("minutes", "MIN"), idx("points", "PTS")
-            i_reb, i_ast = idx("rebounds", "REB"), idx("assists", "AST")
+                    cols[field] = keys.index(key)
+                elif label in labels:
+                    cols[field] = labels.index(label)
             for a in grp.get("athletes", []) or []:
                 ath = a.get("athlete", {}) or {}
                 stats = a.get("stats") or []
                 dnp = bool(a.get("didNotPlay")) or not stats
-
-                def g(i):
-                    return _int(stats[i]) if (i is not None and i < len(stats)) else None
-                mins = 0 if dnp else (g(i_min) or 0)
-                players.append({
-                    "team": ab, "player_id": str(ath.get("id") or ath.get("displayName")),
-                    "name": ath.get("displayName") or ath.get("shortName"),
-                    "pos": (ath.get("position") or {}).get("abbreviation"),
-                    "starter": int(bool(a.get("starter"))), "min": mins,
-                    "pts": 0 if dnp else (g(i_pts) or 0), "reb": 0 if dnp else (g(i_reb) or 0),
-                    "ast": 0 if dnp else (g(i_ast) or 0),
-                })
+                row = {"team": ab, "player_id": str(ath.get("id") or ath.get("displayName")),
+                       "name": ath.get("displayName") or ath.get("shortName"),
+                       "pos": (ath.get("position") or {}).get("abbreviation"), "jersey": ath.get("jersey"),
+                       "starter": int(bool(a.get("starter"))), "dnp_reason": (a.get("reason") or "") if dnp else ""}
+                for field, i in cols.items():
+                    v = stats[i] if (not dnp and i < len(stats)) else None
+                    if field in PAIRS:
+                        m_, a_ = PAIRS[field]
+                        parts = str(v).replace("\u2013", "-").split("-") if v not in (None, "", "--") else []
+                        row[m_] = _int(parts[0]) if len(parts) == 2 else (0 if not dnp else None)
+                        row[a_] = _int(parts[1]) if len(parts) == 2 else (0 if not dnp else None)
+                    else:
+                        row[field] = _int(v) if v not in (None, "", "--") else (0 if not dnp else None)
+                if dnp:
+                    row["min"] = 0
+                    for k in ("pts", "reb", "ast"):
+                        row[k] = 0
+                players.append(row)
             break  # first statistics group holds the full line
     injuries = parse_injury_blocks(s.get("injuries") or [])
     return {"teams": teams, "players": players, "injuries": injuries}

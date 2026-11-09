@@ -1,0 +1,260 @@
+"""Player projections for every player, and the player-level psychology.
+
+projection = expected minutes x per-minute rate x opponent factor x (1 + measured player effects)
+
+- Minutes: recent minutes (recency-weighted over games played), plus a share of the minutes left by
+  teammates who are out.
+- Rates: per-minute production, recency-weighted, pulled towards the average for the position
+  until the player has enough minutes.
+- Opponent: what the opponent has allowed per game in that stat versus the league (half-shrunk).
+- Player effects, measured on every past player-game (what the projection missed, regressed on all
+  of them at once, penalised towards 0): facing a former team, first games back from a long absence,
+  hot/cold form, final contract year (from the notes file), teammates out (usage), back-to-backs, home.
+"""
+import math
+from collections import defaultdict, deque
+
+import numpy as np
+
+from . import effects as eff_mod
+
+STATS = ["pts", "reb", "ast", "tpm", "stl", "blk", "tov", "fgm", "fga", "ftm", "fta"]
+SHOW = ["pts", "reb", "ast", "tpm", "stl", "blk", "tov"]
+LABEL = {"pts": "Points", "reb": "Rebounds", "ast": "Assists", "tpm": "Threes", "stl": "Steals", "blk": "Blocks",
+         "tov": "Turnovers", "pra": "Pts+Reb+Ast", "min": "Minutes"}
+MIN_HL = 8          # games, minutes
+RATE_HL = 30        # games, per-minute rates
+K_PRIOR = 150.0     # minutes of prior on rates
+BACK_GAP = 8        # team games missed = a long absence
+BACK_GAMES = 3      # first games back count as "returning"
+
+FACTORS = {
+    "former_team": ("mind", "Former team", "facing a team he played for in the stored seasons"),
+    "returning": ("physical", "Back from absence", "first 3 games after missing 8+ team games"),
+    "hot": ("mind", "Hot / cold hand", "per 10% his last 5 games beat (or missed) the projection"),
+    "contract_year": ("mind", "Contract year", "final year of his contract (from the notes file)"),
+    "usage": ("physical", "Teammates out", "per 10% of the team's regular production missing"),
+    "b2b": ("physical", "Back-to-back", "second night of a back-to-back"),
+    "home": ("physical", "Home floor", "home game"),
+}
+EFFECT_STATS = ["min", "pts", "reb", "ast"]
+
+
+def ew_add(state, key, value, hl):
+    a = 0.5 ** (1 / hl)
+    s = state.get(key, (0.0, 0.0))
+    state[key] = (s[0] * a + value, s[1] * a + 1.0)
+
+
+def ew_get(state, key):
+    s = state.get(key)
+    return None if not s or s[1] == 0 else s[0] / s[1]
+
+
+class PlayerTracker:
+    def __init__(self):
+        self.p = {}                                   # pid -> dict
+        self.team_games = defaultdict(int)            # team -> games played
+        self.team_hist = defaultdict(lambda: deque(maxlen=12))  # team -> deque of set(pids who played)
+        self.allowed = defaultdict(dict)              # team -> ew state of what opponents produced per stat
+        self.league = {}                              # ew of team production per stat
+        self.pos_rate = defaultdict(lambda: defaultdict(lambda: [0.0, 0.0]))  # pos -> stat -> [sum, min]
+
+    # ------------------------------------------------------------ player state
+    def get(self, pid, name=None, pos=None):
+        if pid not in self.p:
+            self.p[pid] = {"name": name, "pos": pos, "team": None, "teams": [], "ew_min": {}, "rate": {},
+                           "last_team_game": {}, "missed": 0, "back_left": 0, "recent": deque(maxlen=5), "gp": 0}
+        q = self.p[pid]
+        if name:
+            q["name"] = name
+        if pos:
+            q["pos"] = pos
+        return q
+
+    def prior(self, pos, stat):
+        s = self.pos_rate[pos or "?"][stat]
+        if s[1] < 500:
+            s = self.pos_rate["ALL"][stat]
+        return s[0] / s[1] if s[1] else 0.0
+
+    def rate(self, q, stat):
+        num, den = q["rate"].get(stat, (0.0, 0.0))
+        mins = q["rate"].get("_min", (0.0, 0.0))[0]
+        pr = self.prior(q["pos"], stat)
+        return (num + pr * K_PRIOR) / (mins + K_PRIOR) if (mins + K_PRIOR) else pr
+
+    def opp_factor(self, opp, stat):
+        lg = ew_get(self.league, stat)
+        al = ew_get(self.allowed[opp], stat)
+        if not lg or al is None:
+            return 1.0
+        return 1.0 + 0.5 * (al / lg - 1.0)
+
+    def rotation(self, team):
+        """Players currently on the team with recent minutes."""
+        out = {}
+        for pid, q in self.p.items():
+            if q["team"] != team:
+                continue
+            m = ew_get(q["ew_min"], "m")
+            if m is None:
+                continue
+            gap = self.team_games[team] - q["last_team_game"].get(team, -99)
+            if gap <= 15 and m >= 4:
+                out[pid] = m
+        return out
+
+    # ------------------------------------------------------------ projection
+    def project(self, pid, team, opp, is_home, b2b, absent=(), missing_share=0.0, notes=None, eff=None, extra_min=None):
+        """absent: pids of teammates out. Returns dict of projections and the factor values."""
+        q = self.p[pid]
+        m = ew_get(q["ew_min"], "m") or 0.0
+        rot = self.rotation(team)
+        # only minutes the team has actually been getting from the absent players are up for grabs
+        recent = list(self.team_hist[team])[-5:]
+        avail_of = lambda k: (sum(k in s for s in recent) / len(recent)) if recent else 1.0
+        miss_min = sum(v * avail_of(k) for k, v in rot.items() if k in absent)
+        avail = {k: v for k, v in rot.items() if k not in absent}
+        tot = sum(avail.values()) or 1.0
+        if extra_min is None:
+            extra_min = 0.7 * miss_min * (m / tot) if pid in avail else 0.0
+        mins = min(42.0, m + extra_min)
+        recent = list(q["recent"])
+        hot = 0.0
+        if len(recent) >= 3:
+            a = sum(r[0] for r in recent)
+            p = sum(r[1] for r in recent)
+            hot = max(-0.6, min(0.6, (a / p - 1.0))) if p > 5 else 0.0
+        former = int(opp in q["teams"] and opp != team)
+        gap = self.team_games[team] - q["last_team_game"].get(team, self.team_games[team])
+        x = {"former_team": former, "returning": int(q["back_left"] > 0 or (gap >= BACK_GAP and q["gp"] > 5)), "hot": hot / 0.1,
+             "contract_year": int(bool((notes or {}).get("contract_year"))), "usage": missing_share / 0.1,
+             "b2b": int(b2b), "home": int(is_home)}
+        mult = {}
+        for st in EFFECT_STATS:
+            mult[st] = 1.0
+            if eff and st in eff:
+                mult[st] = max(0.5, min(1.6, 1.0 + eff[st].get("bias", 0.0)
+                                        + sum(eff[st]["coef"][k] * v for k, v in x.items())))
+        use = {"min": "min", "pts": "pts", "reb": "reb", "ast": "ast", "tpm": "pts", "fgm": "pts", "fga": "pts",
+               "ftm": "pts", "fta": "pts", "stl": "min", "blk": "min", "tov": "min"}
+        proj = {"min": mins * mult["min"]}
+        for st in STATS:
+            r = self.rate(q, st) * mins * self.opp_factor(opp, st if st in ("pts", "reb", "ast", "tpm") else "_")
+            proj[st] = max(0.0, r * mult[use[st]])
+        proj["pra"] = proj["pts"] + proj["reb"] + proj["ast"]
+        return proj, x
+
+    # ------------------------------------------------------------ record a game
+    def post_game(self, g, rows_by_team, team_box=None):
+        """rows_by_team: {team: [row dicts with player_id, name, pos, min, stats...]}"""
+        h, a = g["home"], g["away"]
+        for team in (h, a):
+            self.team_games[team] += 1
+            rows = rows_by_team.get(team) or []
+            played = set()
+            for r in rows:
+                pid = str(r["player_id"])
+                q = self.get(pid, r.get("name"), r.get("pos"))
+                mn = float(r.get("min") or 0)
+                if mn > 0 and q.get("season") != int(g["season"]):
+                    # new season: roles change, so last season's numbers count much less
+                    if q.get("season") is not None:
+                        for stt in (q["ew_min"], q["rate"]):
+                            for k, (a_, b_) in list(stt.items()):
+                                stt[k] = (a_ * 0.2, b_ * 0.2)
+                    q["season"] = int(g["season"])
+                if q["team"] != team:
+                    if q["team"] and q["team"] not in q["teams"]:
+                        q["teams"].append(q["team"])
+                    q["team"] = team
+                if mn <= 0:
+                    continue
+                played.add(pid)
+                gap = self.team_games[team] - 1 - q["last_team_game"].get(team, self.team_games[team] - 1)
+                if gap >= BACK_GAP and q["gp"] > 5:
+                    q["back_left"] = BACK_GAMES - 1
+                elif q["back_left"] > 0:
+                    q["back_left"] -= 1
+                q["last_team_game"][team] = self.team_games[team]
+                q["gp"] += 1
+                ew_add(q["ew_min"], "m", mn, MIN_HL)
+                al = 0.5 ** (1 / RATE_HL)
+                for st in STATS + ["_min"]:
+                    v = mn if st == "_min" else float(r.get(st) or 0)
+                    s = q["rate"].get(st, (0.0, 0.0))
+                    q["rate"][st] = (s[0] * al + v, s[1] * al + 1.0)
+                for pos in (q["pos"] or "?", "ALL"):
+                    for st in STATS:
+                        acc = self.pos_rate[pos][st]
+                        acc[0] += float(r.get(st) or 0)
+                        acc[1] += mn
+            self.team_hist[team].append(played)
+        for team, opp in ((h, a), (a, h)):
+            rows = [r for r in (rows_by_team.get(team) or []) if float(r.get("min") or 0) > 0]
+            if not rows:
+                continue
+            for st in ("pts", "reb", "ast", "tpm"):
+                v = sum(float(r.get(st) or 0) for r in rows)
+                ew_add(self.allowed[opp], st, v, 20)
+                ew_add(self.league, st, v, 300)
+
+    def note_result(self, pid, actual_pts, proj_pts):
+        self.p[pid]["recent"].append((actual_pts, proj_pts))
+
+
+def sd_for(stat, proj, disp):
+    return max(0.6, math.sqrt(max(proj, 0.3) * disp.get(stat, 1.5)))
+
+
+def lines_for(stat, proj, disp):
+    sd = sd_for(stat, proj, disp)
+    base = math.floor(proj) + 0.5
+    step = 1.0 if proj < 8 else 2.0 if proj < 20 else 3.0
+    out = []
+    for k in (-2, -1, 0, 1, 2):
+        L = base + k * step
+        if L <= 0:
+            continue
+        out.append({"line": L, "over": round(1 - eff_mod.norm_cdf((L - proj) / sd), 3)})
+    return out
+
+
+def estimate_effects(rows, lam=300.0):
+    """rows: list of (x dict, {stat: (actual, proj)}). Relative effects: (actual - proj) / proj."""
+    keys = list(FACTORS)
+    out = {}
+    for st in EFFECT_STATS:
+        X, y, w = [], [], []
+        for x, res in rows:
+            if st not in res:
+                continue
+            act, pr = res[st]
+            floor = 10.0 if st == "min" else 3.0
+            if pr < floor:
+                continue
+            X.append([x[k] for k in keys] + [1.0])
+            y.append((act - pr) / pr)
+            w.append(math.sqrt(pr))
+        if len(X) < 300:
+            out[st] = {"coef": {k: 0.0 for k in keys}, "se": {k: None for k in keys}, "n": {k: 0 for k in keys}}
+            continue
+        X, y, w = np.array(X, float), np.array(y), np.array(w)
+        Xw, yw = X * w[:, None], y * w
+        coef, se, act, _ = eff_mod.fit(Xw, yw, lam)  # last column: overall bias, measured but not applied
+        out[st] = {"coef": {k: float(c) for k, c in zip(keys, coef)},
+                   "se": {k: (float(s) if np.isfinite(s) else None) for k, s in zip(keys, se)},
+                   "n": {k: int(n) for k, n in zip(keys, (np.abs(X) > 1e-9).sum(axis=0))}, "bias": float(coef[-1])}
+    return out
+
+
+def effects_table(pe):
+    rows = []
+    for st, d in pe.items():
+        for k, (layer, label, means) in FACTORS.items():
+            c, s = d["coef"][k], d["se"][k]
+            rows.append({"stat": st, "key": k, "layer": layer, "label": label, "means": means,
+                         "pct": round(100 * c, 1), "se": None if s is None else round(100 * s, 1), "n": d["n"][k],
+                         "evidence": eff_mod.evidence(c, s) if s else "none"})
+    return rows

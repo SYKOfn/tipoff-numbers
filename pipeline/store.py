@@ -15,9 +15,11 @@ SITE = ROOT / "site" / "data"
 
 BOX = ["fgm", "fga", "tpm", "tpa", "ftm", "fta", "oreb", "reb", "ast", "tov", "stl", "blk"]
 GAME_COLS = (["game_id", "date", "day", "season", "stype", "home", "away", "home_pts", "away_pts", "ot",
-              "neutral", "national_tv", "venue", "box"]
+              "neutral", "national_tv", "venue", "box", "q"]
+             + [f"h_q{i}" for i in range(1, 5)] + [f"a_q{i}" for i in range(1, 5)]
              + [f"h_{c}" for c in BOX] + [f"a_{c}" for c in BOX])
-PLAYER_COLS = ["game_id", "team", "player_id", "name", "pos", "starter", "min", "pts", "reb", "ast"]
+PLAYER_STATS = ["min", "pts", "reb", "ast", "fgm", "fga", "tpm", "tpa", "ftm", "fta", "oreb", "stl", "blk", "tov", "pf", "pm"]
+PLAYER_COLS = ["game_id", "team", "player_id", "name", "pos", "jersey", "starter", "dnp_reason"] + PLAYER_STATS
 
 
 def _read(path, cols):
@@ -36,6 +38,7 @@ def load_games():
         df["season"] = df["season"].astype(int)
         df["stype"] = df["stype"].astype(int)
         df["box"] = df["box"].fillna(0).astype(int)
+        df["q"] = df["q"].fillna(0).astype(int)
     return df.sort_values(["date", "game_id"]).reset_index(drop=True)
 
 

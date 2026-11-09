@@ -1,6 +1,6 @@
 # Tip-Off Numbers
 
-Statistical estimates for every NBA game in the next two weeks — win chances, margin, total points, threes, rebounds and assists — with a **measured psychological layer** and a public track record. An information tool, not betting advice: every estimate shows its inputs, its uncertainty and how it has done.
+Statistical estimates for every NBA game in the next two weeks and every player in it — win chances, margin, totals, quarters, player points/rebounds/assists and more — with a **measured psychological layer** and a public track record. An information tool, not betting advice: every estimate shows its inputs, its uncertainty and how it has done.
 
 Built on the same idea as [Matchday Numbers](https://matchday-numbers.github.io/) (football), adapted to basketball.
 
@@ -38,6 +38,12 @@ Preview without network: `python -m pipeline.run --demo` (simulated league, clea
 - **Honesty**: track record against plain averages and against the same model *without* the psychological layer.
 
 `data/overrides/analyst.json` adds an optional written view per game (news, locker room…), shown but never mixed into the numbers.
+
+### Players
+Every rotation player gets a next-game projection (minutes, points, rebounds, assists, threes, steals, blocks, turnovers, PRA, with over/under chances): `expected minutes x per-minute rate x opponent factor x (1 + measured player effects)` (`model/players.py`, `model/player_engine.py`). Player effects are measured on every stored player-game: former team, first games back from a long absence, hot/cold hand, contract year (`data/overrides/players.json`), teammates out, back-to-back, home. Player pages (`pipeline/player_pages.py`): season lines, TS%, eFG%, usage, rebound/assist rates, per-36, splits, opponents, game log with the pre-game projection.
+
+### Team extras (`model/extras.py`)
+Advanced team stats (pace, offensive/defensive rating, four factors with ranks), quarter and half estimates, head-to-head, playoff chances (4,000 simulations of the remaining schedule incl. play-in), and the mind ranking (hot / cold / steady / under pressure / coasting).
 
 ## Layout
 

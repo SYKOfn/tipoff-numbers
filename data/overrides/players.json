@@ -1,0 +1,4 @@
+{
+ "_about": "Player notes the data can't show, keyed by ESPN player id or full name: {\"contract_year\": true|false, \"note\": \"short storyline\"}. Kept up to date by the daily analyst task. contract_year feeds the measured 'Contract year' effect; notes are shown on player pages.",
+ "players": {}
+}

@@ -89,6 +89,9 @@ class Sim:
                         break
                 rate = max(0.3, self.np.normal(1.0, 0.18)) * (1.25 if k < 2 else 1.0)
                 roster.append({"id": str(pid), "name": nm, "min": MINS[k], "rate": rate, "pos": ["G", "G", "F", "F", "C"][k % 5],
+                               "tp": self.np.uniform(0.2, 1.8) * (0.3 if k % 5 == 4 else 1), "stlw": self.np.uniform(0.5, 1.6),
+                               "blkw": self.np.uniform(0.3, 1.0) * (3 if k % 5 == 4 else 1), "jersey": str(self.rng.randint(0, 45)),
+                               "former": None, "contract_year": self.rng.random() < 0.08, "out_streak": 0, "back": 0,
                                "rebw": self.np.uniform(0.5, 1.6) * (1.5 if k % 5 == 4 else 1), "astw": self.np.uniform(0.4, 1.8) * (1.6 if k % 5 < 2 else 1)})
                 pid += 1
             self.players[t] = roster
@@ -96,6 +99,16 @@ class Sim:
                 self.inj[p["id"]] = 0
 
     def new_season(self):
+        # off-season moves: about one player in ten changes team
+        for _ in range(14):
+            a, b = self.rng.sample(self.teams, 2)
+            i, j = self.rng.randrange(10), self.rng.randrange(10)
+            pa, pb = self.players[a][i], self.players[b][j]
+            pa["former"], pb["former"] = a, b
+            self.players[a][i], self.players[b][j] = pb, pa
+        for t in self.teams:
+            for p in self.players[t]:
+                p["contract_year"] = self.rng.random() < 0.08
         for t in self.teams:
             s = 0.65 * self.strength[t] + self.np.normal(0, 3.2)
             self.strength[t] = s
@@ -123,6 +136,14 @@ class Sim:
         return out
 
     def tick_injuries(self):
+        for t in self.teams:
+            for p in self.players[t]:
+                if self.inj[p["id"]] > 0:
+                    p["out_streak"] += 1
+                elif p["out_streak"]:
+                    if p["out_streak"] >= 10:
+                        p["back"] = 3
+                    p["out_streak"] = 0
         for pid in self.inj:
             if self.inj[pid] > 0:
                 self.inj[pid] -= 1
@@ -205,6 +226,10 @@ def generate(today=None, seed=7):
     write_json(STATE / "upcoming.json", upcoming)
     write_json(STATE / "injuries.json", {"as_of": datetime.now(timezone.utc).isoformat(), "teams": inj})
     write_json(STATE / "teams_meta.json", {})
+    write_json(STATE / "season_rest.json", [{"game_id": f"9{g['game_id']}", "day": g["day"], "home": g["home"], "away": g["away"]}
+                                            for g in allg if g["season"] == cur and g["day"] > (today + timedelta(days=14)).isoformat()])
+    write_json(STATE / "demo_player_notes.json", {p["id"]: {"contract_year": True, "note": "Final year of his contract (simulated)."}
+                                                  for t in sim.teams for p in sim.players[t] if p.get("contract_year")})
     write_json(STATE / "collect.json", {"demo": True, "calls": 0, "errors": []})
     return {"games": len(gdf), "upcoming": len(upcoming)}
 
@@ -238,7 +263,15 @@ def _play(sim, tr, g, gid, games, players, stype=2, neutral=False):
         ot += 1
         hp += sim.rng.randint(5, 15)
         ap += sim.rng.randint(5, 15)
-    row = {"game_id": gid, "date": f"{g['day']}T23:30Z", "day": g["day"], "season": g["season"], "stype": stype,
+    qs = {}
+    for side, tot in (("h", hp), ("a", ap)):
+        reg = tot - ot * (tot // max(1, 48 + 5 * ot) * 5 if ot else 0)
+        sh = sim.np.dirichlet([40, 40, 40, 38])
+        q = [int(round(reg * x)) for x in sh]
+        q[3] = reg - sum(q[:3])
+        for i in range(4):
+            qs[f"{side}_q{i + 1}"] = q[i]
+    row = {**qs, "q": 1, "game_id": gid, "date": f"{g['day']}T23:30Z", "day": g["day"], "season": g["season"], "stype": stype,
            "home": h, "away": a, "home_pts": hp, "away_pts": ap, "ot": ot, "neutral": int(neutral),
            "national_tv": int(sim.rng.random() < 0.15), "venue": None, "box": 1}
     box_players = {}
@@ -257,21 +290,50 @@ def _play(sim, tr, g, gid, games, players, stype=2, neutral=False):
         for k in BOX:
             row[f"{side}_{k}"] = vals[k]
         rot = [p for p in av[t] if p["min"] > 0]
-        total_min = sum(p["min"] for p in rot) or 1
+        opp = a if t == h else h
+        for p in rot:  # planted player effects (the estimation should find them)
+            p["_boost"] = (1.15 if p.get("former") == opp else 1.0) * (1.05 if p.get("contract_year") else 1.0)
+            p["_minf"] = 0.78 if p.get("back", 0) > 0 else 1.0
+        total_min = sum(p["min"] * p["_minf"] for p in rot) or 1
         scale = (240 + 25 * ot) / total_min
-        wts = [p["min"] * p["rate"] for p in rot]
-        rw = [p["min"] * p["rebw"] for p in rot]
-        aw = [p["min"] * p["astw"] for p in rot]
+        wts = [p["min"] * p["_minf"] * p["rate"] * p["_boost"] for p in rot]
+        rw = [p["min"] * p["_minf"] * p["rebw"] for p in rot]
+        aw = [p["min"] * p["_minf"] * p["astw"] for p in rot]
+        tw = [p["min"] * p["_minf"] * p["tp"] for p in rot]
+        sw = [p["min"] * p["_minf"] * p["stlw"] for p in rot]
+        bw = [p["min"] * p["_minf"] * p["blkw"] for p in rot]
         bp = {}
-        for p, w, r_, a_ in zip(rot, wts, rw, aw):
-            mn = min(44, round(p["min"] * scale * sim.np.uniform(0.85, 1.15)))
-            pp = round(pts * w / sum(wts) * sim.np.uniform(0.6, 1.4))
-            rr = round(reb * r_ / sum(rw) * sim.np.uniform(0.6, 1.4))
-            aa = round(ast * a_ / sum(aw) * sim.np.uniform(0.6, 1.4))
+        u = sim.np
+        margin_t = (hp - ap) if t == h else (ap - hp)
+        for p, w, r_, a_, t_, s_, b_ in zip(rot, wts, rw, aw, tw, sw, bw):
+            mn = min(46, round(p["min"] * p["_minf"] * scale * u.uniform(0.85, 1.15)))
+            pp = max(0, round(pts * w / sum(wts) * u.uniform(0.55, 1.45)))
+            rr = max(0, round(reb * r_ / sum(rw) * u.uniform(0.55, 1.45)))
+            aa = max(0, round(ast * a_ / sum(aw) * u.uniform(0.5, 1.5)))
+            tpm_ = min(pp // 3, max(0, round(vals["tpm"] * t_ / sum(tw) * u.uniform(0.3, 1.7))))
+            ftm_ = min(pp - 3 * tpm_, max(0, round(pp * u.uniform(0.08, 0.25))))
+            fgm_ = max(tpm_, round((pp - ftm_ - tpm_) / 2))
+            ftm_ = max(0, pp - 2 * fgm_ - tpm_)
+            fga_ = max(fgm_, round(fgm_ / u.uniform(0.38, 0.56))) if fgm_ else round(u.uniform(0, 4))
+            tpa_ = max(tpm_, round(tpm_ / u.uniform(0.28, 0.42))) if tpm_ else round(u.uniform(0, 3) * p["tp"])
+            fta_ = max(ftm_, round(ftm_ / u.uniform(0.65, 0.9))) if ftm_ else 0
+            line = {"min": mn, "pts": pp, "reb": rr, "ast": aa, "fgm": fgm_, "fga": max(fga_, tpa_), "tpm": tpm_, "tpa": tpa_,
+                    "ftm": ftm_, "fta": fta_, "oreb": round(rr * u.uniform(0.1, 0.35)),
+                    "stl": max(0, round(vals["stl"] * s_ / sum(sw) * u.uniform(0.3, 1.7))),
+                    "blk": max(0, round(vals["blk"] * b_ / sum(bw) * u.uniform(0.3, 1.7))),
+                    "tov": max(0, round(vals["tov"] * a_ / sum(aw) * u.uniform(0.4, 1.6))), "pf": int(u.integers(0, 6)),
+                    "pm": round(margin_t * mn / 48 + u.normal(0, 6))}
             players.append({"game_id": gid, "team": t, "player_id": p["id"], "name": p["name"], "pos": p["pos"],
-                            "starter": int(p["min"] >= 27), "min": mn, "pts": pp, "reb": rr, "ast": aa})
+                            "jersey": p["jersey"], "starter": int(p["min"] >= 27), "dnp_reason": "", **line})
             bp[p["id"]] = (mn, pp, rr, aa)
             tr.names[p["id"]] = p["name"]
+            if p.get("back", 0) > 0:
+                p["back"] -= 1
+        for p in sim.players[t]:  # injured regulars listed as not playing
+            if p["min"] > 0 and p not in rot:
+                players.append({"game_id": gid, "team": t, "player_id": p["id"], "name": p["name"], "pos": p["pos"],
+                                "jersey": p["jersey"], "starter": 0, "dnp_reason": "Injury" if sim.inj[p["id"]] else "Rest",
+                                "min": 0, "pts": 0, "reb": 0, "ast": 0})
         box_players[t] = bp
     games.append(row)
     tr.post_game({**g, "home_pts": hp, "away_pts": ap}, base_margin=None, box_players=box_players)

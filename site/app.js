@@ -110,14 +110,14 @@ function byDay(cards) {
 
 function standingsTable(rows, short = false) {
   const cols = short
-    ? `<tr><th></th><th>Team</th><th class="n">W</th><th class="n">L</th><th class="n">GB</th><th class="n">Net</th></tr>`
-    : `<tr><th></th><th>Team</th><th class="n">W</th><th class="n">L</th><th class="n">Pct</th><th class="n">GB</th><th class="n">Home</th><th class="n">Away</th><th class="n">Conf</th><th class="n">L10</th><th class="n">Strk</th><th class="n">Pt diff</th><th class="n" title="Rating: points better than an average team per game">Net</th><th class="n" title="Last 5 games versus expectation">Conf.</th></tr>`;
+    ? `<tr><th></th><th>Team</th><th class="n">W</th><th class="n">L</th><th class="n">GB</th><th class="n">Net</th><th class="n">Playoffs</th></tr>`
+    : `<tr><th></th><th>Team</th><th class="n">W</th><th class="n">L</th><th class="n">Pct</th><th class="n">GB</th><th class="n">Home</th><th class="n">Away</th><th class="n">Conf</th><th class="n">L10</th><th class="n">Strk</th><th class="n">Pt diff</th><th class="n" title="Rating: points better than an average team per game">Net</th><th class="n" title="Last 5 games versus expectation">Conf.</th><th class="n" title="Projected wins">Proj W</th><th title="Chance to make the playoffs (incl. via the play-in)">Playoffs</th><th class="n" title="Chance of a top-6 seed">Top 6</th></tr>`;
   const body = rows.map(r => {
     const cut = r.seed === 6 || r.seed === 10 ? " cut" : "";
     const base = `<td class="pos">${r.seed}</td><td>${tlink(r.abbr)}</td><td class="n">${r.w}</td><td class="n">${r.l}</td>`;
     const rest = short
-      ? `<td class="n">${r.gb ? fx(r.gb, 1) : "–"}</td><td class="n">${sgn(r.net)}</td>`
-      : `<td class="n">${fx(r.pct, 3).replace(/^0/, "")}</td><td class="n">${r.gb ? fx(r.gb, 1) : "–"}</td><td class="n">${r.home}</td><td class="n">${r.away}</td><td class="n">${r.conf}</td><td class="n">${r.l10}</td><td class="n">${r.streak}</td><td class="n">${sgn(r.pd)}</td><td class="n">${sgn(r.net)}</td><td class="n ${effCls(r.confidence)}">${sgn(r.confidence)}</td>`;
+      ? `<td class="n">${r.gb ? fx(r.gb, 1) : "–"}</td><td class="n">${sgn(r.net)}</td><td class="n">${r.odds ? pct(r.odds.playoffs) : "–"}</td>`
+      : `<td class="n">${fx(r.pct, 3).replace(/^0/, "")}</td><td class="n">${r.gb ? fx(r.gb, 1) : "–"}</td><td class="n">${r.home}</td><td class="n">${r.away}</td><td class="n">${r.conf}</td><td class="n">${r.l10}</td><td class="n">${r.streak}</td><td class="n">${sgn(r.pd)}</td><td class="n">${sgn(r.net)}</td><td class="n ${effCls(r.confidence)}">${sgn(r.confidence)}</td><td class="n">${r.odds ? fx(r.odds.wins, 0) : "–"}</td><td>${r.odds ? `<span class="oddsbar"><span style="width:${r.odds.playoffs * 100}%"></span></span>${pct(r.odds.playoffs)}` : "–"}</td><td class="n">${r.odds ? pct(r.odds.top6) : "–"}</td>`;
     return `<tr class="z-${r.zone}${cut}">${base}${rest}</tr>`;
   }).join("");
   return `<div class="tscroll"><table>${cols}${body}</table></div>`;
@@ -125,7 +125,7 @@ function standingsTable(rows, short = false) {
 
 /* ---------------------------------------------------------------- home */
 async function home() {
-  const [sch, hm, st, acc] = await Promise.all([get("schedule.json"), get("home.json"), get("standings.json"), get("accuracy.json")]);
+  const [sch, hm, st, acc, pl, md] = await Promise.all([get("schedule.json"), get("home.json"), get("standings.json"), get("accuracy.json"), get("players.json"), get("mind.json")]);
   setTitle("");
   const up = sch.upcoming.filter(c => !c.live);
   const days = byDay(sch.upcoming);
@@ -157,6 +157,14 @@ async function home() {
     ${featHtml}</div></section>
   <div class="wrap">${demoBanner()}${BANNER}
     ${d1 ? `<section><h2>${h(longDay(d1))} <span class="sub">${soon.length} game${soon.length > 1 ? "s" : ""} · US date, tip-off times in your time zone</span></h2><div class="cards">${soon.map(fcard).join("")}</div></section>` : `<p class="empty">No games scheduled in the next two weeks.</p>`}
+    ${(() => {
+      const ids = new Set(soon.map(c => c.id));
+      const top = pl.filter(p => p.next_pts != null && ids.has(p.next_game)).sort((a, b) => b.next_pts - a.next_pts).slice(0, 8);
+      const hot = md.filter(r => r.cat === "Hot").slice(0, 4), cold = md.filter(r => r.cat === "Cold").slice(-4).reverse();
+      if (!top.length && !md.length) return "";
+      return `<section class="section duo"><div><h2>Top scorers ${d1 ? h(day(d1)) : ""} <span class="sub">projected points</span></h2><ul class="toplist">${top.map(p => `<li><span>${disc(p.team, "xs")} ${plink(p.id, p.name)} <span class="sub small">${h(T(p.team).abbr)}${p.status ? ` · ${h(p.status)}` : ""}</span>${ptags({ ...p, out: false, status: null })}</span><span class="v">${fx(p.next_pts)}</span></li>`).join("") || `<li><span class="sub">No projections yet.</span></li>`}</ul><p style="margin-top:12px"><a class="btn" href="#/players">All players</a></p></div>
+        <div><h2 class="mind">State of mind <span class="sub">hottest and coldest teams</span></h2><ul class="toplist">${hot.concat(cold).map(r => `<li><span>${tlink(r.abbr)} ${catTag(r.cat)} <span class="sub small">${h(r.why[0] || "")}</span></span><span class="v ${effCls(r.score)}">${sgn(r.score)}</span></li>`).join("")}</ul><p style="margin-top:12px"><a class="btn" href="#/mind">Mind ranking</a></p></div></section>`;
+    })()}
     ${spots ? `<section class="section"><h2 class="mind">Mind games <span class="sub">the psychological spots worth most in the coming days</span></h2><ul class="spotlist">${spots}</ul></section>` : ""}
     ${d2 ? `<section class="section"><h2>${h(longDay(d2))}</h2><div class="cards">${days.get(d2).map(fcard).join("")}</div><p class="more" style="margin-top:14px"><a class="btn" href="#/games">All games</a></p></section>` : ""}
     ${last.length ? `<section class="section"><h2>${h(longDay(lastDay))} <span class="sub">results</span></h2><ul class="results">${resultsHtml}</ul></section>` : ""}
@@ -171,30 +179,38 @@ async function home() {
 }
 
 /* ---------------------------------------------------------------- games */
+const FILTERS = [["all", "All games", () => true], ["mind", "Strong mental edge", c => Math.abs(c.mind || 0) >= 0.75 || (c.tags || []).some(t => t.ev === "strong" || t.ev === "moderate"), "m"],
+  ["tv", "National TV", c => c.tv], ["close", "Toss-ups (40-60%)", c => c.win_home >= 0.4 && c.win_home <= 0.6], ["fav", "Big favourites (75%+)", c => Math.max(c.win_home, 1 - c.win_home) >= 0.75],
+  ["high", "High totals (232+)", c => c.total >= 232], ["low", "Low totals (under 220)", c => c.total < 220]];
+let GFILTER = "all";
 async function games(sel) {
   const sch = await get("schedule.json");
   setTitle("Games");
-  const all = [...sch.results].reverse().concat(sch.upcoming);
+  const fn = (FILTERS.find(f => f[0] === GFILTER) || FILTERS[0])[2];
+  const all = [...sch.results].reverse().concat(sch.upcoming).filter(fn);
   const days = byDay(all);
   const keys = [...days.keys()];
-  const firstUp = sch.upcoming.length ? sch.upcoming[0].day : keys[keys.length - 1];
+  const upDay = sch.upcoming.length ? sch.upcoming[0].day : null;
+  const firstUp = (upDay && keys.find(k => k >= upDay)) || keys[keys.length - 1];
   const cur = sel && days.has(sel) ? sel : firstUp;
   const i = keys.indexOf(cur);
   const win = keys.slice(Math.max(0, i - 3), i + 6);
   const list = days.get(cur) || [];
+  const fbar = `<div class="filters" id="gf">${FILTERS.map(f => `<button class="${f[3] || ""}" data-f="${f[0]}" aria-pressed="${GFILTER === f[0]}">${f[1]}</button>`).join("")}</div>`;
   app.innerHTML = `<section class="hero court"><div class="wrap"><h1>Games</h1>
     <p class="sub" style="margin-top:8px">Estimates for the next two weeks, updated until tip-off and then frozen. Results for the last three weeks.</p>
     <nav class="tabs" style="margin-top:16px">${i > 3 ? `<a class="tab" href="#/games/${keys[Math.max(0, i - 7)]}">←</a>` : ""}${win.map(k => `<a class="tab" href="#/games/${k}" aria-current="${k === cur}">${day(k)}</a>`).join("")}${i + 6 < keys.length ? `<a class="tab" href="#/games/${keys[Math.min(keys.length - 1, i + 7)]}">→</a>` : ""}</nav>
-  </div></section><div class="wrap">${demoBanner()}
-    <h2>${h(longDay(cur))} <span class="sub">${list.length} game${list.length === 1 ? "" : "s"}</span></h2>
-    <div class="cards">${list.map(fcard).join("")}</div></div>`;
+  </div></section><div class="wrap">${demoBanner()}${fbar}
+    ${cur ? `<h2>${h(longDay(cur))} <span class="sub">${list.length} game${list.length === 1 ? "" : "s"}</span></h2>
+    <div class="cards">${list.map(fcard).join("")}</div>` : `<p class="empty">No game matches this filter.</p>`}</div>`;
+  document.getElementById("gf").onclick = e => { const b = e.target.closest("button"); if (!b) return; GFILTER = b.dataset.f; games(sel); };
 }
 
 /* ---------------------------------------------------------------- standings */
 async function standings() {
   const st = await get("standings.json");
   setTitle("Standings");
-  app.innerHTML = `<section class="hero court"><div class="wrap"><h1>Standings</h1><p class="sub" style="margin-top:8px">${h(st.season)} regular season. Net = rating, points better than an average team per game. Conf. = last five games versus what the ratings expected.</p></div></section>
+  app.innerHTML = `<section class="hero court"><div class="wrap"><h1>Standings</h1><p class="sub" style="margin-top:8px">${h(st.season)} regular season. Net = rating, points better than an average team per game. Conf. = last five games versus what the ratings expected. Playoff chances from 4,000 simulations of the rest of the schedule, play-in included.</p></div></section>
   <div class="wrap">${demoBanner()}${["East", "West"].map(cf => `<section class="section" style="margin-top:0;margin-bottom:34px"><h2>${cf}ern Conference</h2>${standingsTable(st[cf])}</section>`).join("")}
   <div class="legend"><span><i style="background:var(--pos)"></i>Playoff spots (1-6)</span><span><i style="background:var(--body)"></i>Play-in (7-10)</span></div></div>`;
 }
@@ -240,8 +256,29 @@ async function team(ab) {
     </section>
     ${t.upcoming.length ? `<section class="section"><h2>Next games</h2><div class="cards">${t.upcoming.map(fcard).join("")}</div></section>` : ""}
     ${t.results.length ? `<section class="section"><h2>Recent results</h2><div class="cards">${t.results.map(fcard).join("")}</div></section>` : ""}
-    <section class="section grid2"><div><h2>Rotation</h2>${roster}</div><div><h2 class="body">Injury list</h2><div class="panel">${inj}</div></div></section>
+    ${teamExtras(t)}
+    <section class="section"><h2>Players <span class="sub">this season</span></h2>${teamPlayers(t)}</section>
+    <section class="section grid2"><div><h2>Rotation share</h2>${roster}</div><div><h2 class="body">Injury list</h2><div class="panel">${inj}</div></div></section>
   </div>`;
+}
+
+function teamPlayers(t) {
+  const ps = (t.players || []).filter(p => p.gp > 0);
+  if (!ps.length) return `<p class="sub">No box scores yet.</p>`;
+  return `<div class="tscroll"><table class="ptable"><tr><th>Player</th><th class="n">GP</th><th class="n">MIN</th><th class="n">PTS</th><th class="n">REB</th><th class="n">AST</th><th class="n">3PM</th><th class="n">STL</th><th class="n">BLK</th><th class="n">TS%</th><th class="n">USG%</th><th class="n">+/-</th><th class="n">Next</th></tr>
+    ${ps.map(p => `<tr class="${p.out ? "out" : ""}"><td class="nm">${plink(p.id, p.name)}<span class="sub">${h(p.pos || "")}</span>${ptags(p)}</td><td class="n">${p.gp}</td><td class="n">${fx(p.mpg)}</td><td class="n hl">${fx(p.ppg)}</td><td class="n">${fx(p.rpg)}</td><td class="n">${fx(p.apg)}</td><td class="n">${fx(p.tpm)}</td><td class="n">${fx(p.spg)}</td><td class="n">${fx(p.bpg)}</td><td class="n">${p.ts == null ? "–" : (p.ts * 100).toFixed(1)}</td><td class="n">${fx(p.usg)}</td><td class="n">${sgn(p.pm)}</td><td class="n">${p.next_pts == null ? "–" : fx(p.next_pts)}</td></tr>`).join("")}</table></div>`;
+}
+
+function teamExtras(t) {
+  const a = t.advanced, o = t.odds, m = t.mood;
+  const advHtml = a ? `<div class="adv">${[["Pace", a.pace, a.pace_rank, 1, 1, "possessions / game"], ["Off. rating", a.ortg, a.ortg_rank, 1, 1, "points / 100 poss."], ["Def. rating", a.drtg, a.drtg_rank, 1, 1, "allowed / 100 poss."], ["Net rating", a.nrtg, a.nrtg_rank, 1, 1, "per 100 poss."],
+      ["eFG%", a.efg, a.efg_rank, 1, 100, "shooting"], ["Opp. eFG%", a.o_efg, a.o_efg_rank, 1, 100, "allowed"], ["TOV%", a.tov, a.tov_rank, 1, 100, "turnovers / poss."], ["Forced TOV%", a.o_tov, a.o_tov_rank, 1, 100, "opponents"],
+      ["OREB%", a.orb, a.orb_rank, 1, 100, "offensive boards"], ["DREB%", a.drb, a.drb_rank, 1, 100, "defensive boards"], ["FT rate", a.ftr, a.ftr_rank, 2, 1, "FTA per FGA"], ["Opp. FT rate", a.o_ftr, a.o_ftr_rank, 2, 1, "allowed"]]
+      .map(([l, v, r, d, mu, sub]) => `<div><b>${v == null ? "–" : (v * mu).toFixed(d)}</b>${l} <span class="pill none">#${r ?? "–"}</span><br>${sub}</div>`).join("")}</div>` : `<p class="sub">No box scores yet.</p>`;
+  const oddsHtml = o ? `<div class="adv">${[["Playoffs", pct(o.playoffs), "incl. play-in wins"], ["Top 6", pct(o.top6), "no play-in"], ["Play-in", pct(o.playin), "seeds 7-10"], ["#1 seed", pct(o.seed1), "in the conference"], ["Projected wins", fx(o.wins), "of 82"]].map(([l, v, sub]) => `<div><b>${v}</b>${l}<br>${sub}</div>`).join("")}</div>` : "";
+  const moodHtml = m ? `<div class="panel mind"><h3>State of mind ${catTag(m.cat)} <span class="sub small">#${m.rank} of 30</span></h3><ul class="why">${(m.why.length ? m.why : ["nothing unusual"]).map(x => `<li>${h(x)}</li>`).join("")}</ul><p class="sub small">Momentum ${sgn(m.score)} · measured mind edge in the next games ${sgn(m.edge)} pts · <a href="#/mind">Mind ranking</a></p></div>` : "";
+  return `<section class="section"><h2>Advanced <span class="sub">this season, league rank in each</span></h2>${advHtml}</section>
+    ${o ? `<section class="section grid2"><div><h2>Playoff chances <span class="sub">4,000 simulations of the rest of the season</span></h2>${oddsHtml}</div><div><h2 class="mind">Mind</h2>${moodHtml}</div></section>` : moodHtml}`;
 }
 
 /* ---------------------------------------------------------------- game */
@@ -367,11 +404,51 @@ async function game(id) {
     <section class="section"><h2 class="mind">The mental game <span class="sub">each team's psychological spots, sized by what they have been worth in past games</span></h2>
       <div class="panel mind grid2">${mindCol("away", A)}${mindCol("home", H)}</div></section>
     <section class="section"><h2 class="body">Body: rest, travel, availability</h2>${news}<div class="panel body grid2">${bodyCol("away", A)}${bodyCol("home", H)}</div></section>
+    ${playersSection(g)}
+    ${quartersSection(g, res)}
     ${box ? `<section class="section"><h2>Box score</h2>${box}</section>` : ""}
     ${tops ? `<section class="section">${tops}</section>` : ""}
     ${others ? `<section class="section"><h2>Other numbers</h2><div class="grid">${others}</div></section>` : ""}
+    ${h2hSection(g)}
     ${g.made_at ? `<p class="sub small section">Estimate made ${ago(g.made_at)}.</p>` : ""}
   </div>`;
+}
+
+function playersSection(g) {
+  const H = g.home.abbr, A = g.away.abbr;
+  if (g.players) {
+    const tbl = (side, ab) => {
+      const rows = g.players[side] || [];
+      if (!rows.length) return `<p class="sub">No rotation data yet.</p>`;
+      return `<div class="tscroll"><table class="ptable"><tr><th>${disc(ab, "xs")} ${h(T(ab).short)}</th><th class="n">MIN</th><th class="n">PTS</th><th class="n">REB</th><th class="n">AST</th><th class="n">3PM</th><th class="n">STL</th><th class="n">BLK</th><th class="n">PRA</th></tr>
+        ${rows.map((p, i) => p.out ? `<tr class="out"><td class="nm">${plink(p.id, p.name)}<span class="ptag out">${h(p.status || "Out")}</span></td><td class="n" colspan="8">${h(p.detail || "")}</td></tr>`
+          : `<tr><td class="nm">${plink(p.id, p.name)}<span class="sub">${h(p.pos || "")}</span>${p.status ? `<span class="ptag q">${h(p.status)}</span>` : ""}${(p.spots || []).filter(x => ["former_team", "returning", "contract_year"].includes(x.key) || (x.key === "hot")).map(x => `<span class="ptag" title="${h(x.text)}">${h(x.label)}</span>`).join("")}</td>
+            <td class="n">${fx(p.min, 0)}</td><td class="n hl">${fx(p.pts)}</td><td class="n">${fx(p.reb)}</td><td class="n">${fx(p.ast)}</td><td class="n">${fx(p.tpm)}</td><td class="n">${fx(p.stl)}</td><td class="n">${fx(p.blk)}</td><td class="n">${fx(p.pra)}</td></tr>`).join("")}</table></div>
+        <details class="more"><summary>Over/under chances for every player</summary>${rows.filter(p => !p.out && p.lines).map(p => `<h3 style="margin-top:12px">${h(p.name)}</h3>${linesBlock(p.lines)}`).join("")}</details>`;
+    };
+    return `<section class="section"><h2>Player projections <span class="sub">every rotation player, ${g.kind === "estimate" ? "updated until tip-off" : "as frozen"}</span></h2><div class="grid2"><div>${tbl("away", A)}</div><div>${tbl("home", H)}</div></div></section>`;
+  }
+  if (g.players_actual) {
+    const tbl = (side, ab) => `<div class="tscroll"><table class="ptable"><tr><th>${disc(ab, "xs")} ${h(T(ab).short)}</th><th class="n">MIN</th><th class="n">PTS</th><th class="n">Proj</th><th class="n">REB</th><th class="n">AST</th><th class="n">3PM</th><th class="n">+/-</th></tr>
+      ${(g.players_actual[side] || []).map(p => `<tr><td class="nm">${plink(p.id, p.name)}<span class="sub">${h(p.pos || "")}</span></td><td class="n">${p.min}</td><td class="n hl">${p.pts}</td><td class="n sub">${p.proj ? fx(p.proj.pts) : "–"}</td><td class="n">${p.reb}</td><td class="n">${p.ast}</td><td class="n">${p.tpm}</td><td class="n">${sgn(p.pm, 0)}</td></tr>`).join("")}</table></div>`;
+    return `<section class="section"><h2>Players <span class="sub">result, with the model-check projection</span></h2><div class="grid2"><div>${tbl("away", A)}</div><div>${tbl("home", H)}</div></div></section>`;
+  }
+  return "";
+}
+
+function quartersSection(g, res) {
+  if (!g.quarters) return "";
+  const H = T(g.home.abbr).abbr, A = T(g.away.abbr).abbr;
+  return `<section class="section"><h2>Quarters and halves <span class="sub">from each team's usual scoring by quarter</span></h2><div class="tscroll"><table class="qtable"><tr><th>Period</th><th class="n">${h(A)}</th><th class="n">${h(H)}</th><th class="n">Total</th><th class="n">${h(H)} wins it</th><th>Over chances</th></tr>
+    ${g.quarters.map(q => `<tr><td>${h(q.name)}</td><td class="n">${fx(q.away)}</td><td class="n">${fx(q.home)}</td><td class="n"><b>${fx(q.total)}</b></td><td class="n">${pct(q.win_home)}</td><td class="sub small">${q.lines.map(l => `${l.line}: ${pct(l.over)}`).join(" · ")}</td></tr>`).join("")}</table></div></section>`;
+}
+
+function h2hSection(g) {
+  if (!g.h2h || !g.h2h.length) return "";
+  return `<section class="section"><h2>Head to head <span class="sub">last ${g.h2h.length} meetings</span></h2><ul class="h2hlist">${g.h2h.map(m => {
+    const hw = m.home_pts > m.away_pts;
+    return `<li><span>${m.season === g.season ? `<a href="#/game/${m.id}">${day(m.day)}</a>` : day(m.day)} · ${m.season - 1}-${String(m.season).slice(2)}${m.stype === 3 ? " playoffs" : ""}</span><span>${h(T(m.away).abbr)} <b class="${hw ? "" : "up"}">${m.away_pts}</b> – <b class="${hw ? "up" : ""}">${m.home_pts}</b> ${h(T(m.home).abbr)}</span></li>`;
+  }).join("")}</ul></section>`;
 }
 
 /* ---------------------------------------------------------------- accuracy */
@@ -428,6 +505,12 @@ async function accuracy() {
     <section class="section"><h2>What each factor is worth <span class="sub">measured on ${a.effects_games.toLocaleString("en-GB")} games</span></h2>
       <p class="sub">Points on the margin for the team in that spot, from one penalised regression of what the base ratings missed on all factors together. ± is the standard error.</p>
       ${factorTable(a.factors, "margin")}<h3 style="margin-top:22px">Effects on total points</h3>${factorTable(a.factors, "total")}</section>
+    ${a.players ? `<section class="section"><h2>Player projections</h2>
+      ${a.players.track ? `<p class="verdict"><b>This season's model checks:</b> projected points missed by <b>${fx(a.players.track.mae_pts, 2)}</b> on average across ${a.players.track.n.toLocaleString("en-GB")} player-games, versus <b>${fx(a.players.track.mae_pts_base, 2)}</b> for the player's season average so far.</p>` : ""}
+      <p class="sub">What each player spot is worth, in % of the projection (minutes and points), measured on every stored player-game.</p>
+      <div class="tscroll"><table><tr><th>Factor</th><th>Means</th><th class="n">Minutes</th><th class="n">Points</th><th class="n">Rebounds</th><th class="n">Assists</th><th>Evidence (points)</th></tr>
+      ${[...new Set(a.players.factors.map(r => r.key))].map(k => { const f = st => a.players.factors.find(r => r.key === k && r.stat === st) || {}; const P = f("pts");
+        return `<tr><td><span class="mk" style="background:${P.layer === "mind" ? "var(--mind)" : "var(--body)"}"></span>${h(P.label)}</td><td class="sub small">${h(P.means)}</td>${["min", "pts", "reb", "ast"].map(st => `<td class="n ${effCls(f(st).pct)}">${f(st).pct == null ? "–" : sgn(f(st).pct) + "%"}</td>`).join("")}<td>${ev(P.evidence || "none")} <span class="sub small">${(P.n || 0).toLocaleString("en-GB")} games</span></td></tr>`; }).join("")}</table></div></section>` : ""}
     ${a.recent && a.recent.length ? `<section class="section"><h2>Latest scored</h2><div class="tscroll"><table><tr><th>Day</th><th>Game</th><th class="n">Estimate</th><th class="n">Result</th></tr>${a.recent.map(r => `<tr><td>${day(r.day)}</td><td><a href="#/game/${r.id}">${h(T(r.away).short)} at ${h(T(r.home).short)}</a></td><td class="n">${h(T(r.margin >= 0 ? r.home : r.away).abbr)} by ${fx(Math.abs(r.margin))}</td><td class="n">${r.away_pts}–${r.home_pts}</td></tr>`).join("")}</table></div></section>` : ""}
   </div>`;
 }
@@ -456,6 +539,14 @@ async function about() {
     <li><b>Look-ahead</b>: a weak opponent tonight and a top team (.620+) within two days.</li><li><b>Homecoming</b>: first home game after a road trip of four or more; <b>long road trip</b>: fourth or later straight road game.</li>
     <li><b>Stakes</b>: from game 55 on, within three games of a seed line (6/7 or 10/11) counts as a race; far out of the play-in, or a settled seed with few games left, counts as nothing to play for.</li>
     <li><b>Facing elimination</b> in the playoffs. Division rivalry, playoff intensity and dead-rubber games are measured on the total.</li></ul>
+    <h2>Players</h2>
+    <p>Every rotation player gets a projection for his next game: <b>expected minutes × his per-minute production × the opponent</b>, then the measured player effects. Minutes come from his recent games, plus a share of the minutes left by teammates who are out. Per-minute numbers are recency-weighted and pulled towards the average for his position until he has enough minutes; a new season counts last season's numbers much less. The opponent factor is what that team has allowed in the stat, half-shrunk to the league average.</p>
+    <p>Player storylines are measured the same way as the team ones, on every stored player-game: <b>facing a former team</b>, <b>first games back</b> from a long absence, <b>hot or cold hand</b>, <b>contract year</b> (from a notes file the daily analyst keeps), <b>teammates out</b>, back-to-backs and home floor. Over/under chances use the spread of past misses for each stat.</p>
+    <p>Player pages add true shooting (TS%), effective FG%, usage (share of team plays while on the floor), rebound and assist rates, per-36 numbers, splits and the full game log with the projection made before each game.</p>
+    <h2>Quarters, playoff chances, mind ranking</h2>
+    <ul><li><b>Quarters and halves</b>: the game estimate split by each team's usual share of points per quarter (pulled towards the league's).</li>
+    <li><b>Playoff chances</b>: the rest of the regular season simulated 4,000 times from the ratings (with their uncertainty), then the play-in (7v8, 9v10, and the last game for the 8th seed).</li>
+    <li><b>Mind ranking</b>: a description of each team's state — streak, last ten, results versus expectations, races, dead rubbers and missing players — next to the measured psychological edge in its next games.</li></ul>
     <h2>How big is each effect?</h2>
     <p>Measured, not assumed. The base ratings make an out-of-sample prediction for every past game (refit every week on earlier games only). What they missed is regressed on all the factors at once, with a penalty that pulls each factor towards zero unless the evidence is there. That gives each factor its size in points, its uncertainty and a label: <b>strong</b>, <b>moderate</b>, <b>weak</b> or <b>no clear evidence</b>. A popular story that the data doesn't support simply ends up worth almost nothing. The current sizes are on the <a href="#/accuracy">track record</a> page; they're re-measured on every run.</p>
     <h2>From numbers to chances</h2>
@@ -475,11 +566,17 @@ function setupSearch() {
   const f = document.querySelector("[data-search]");
   const input = f.querySelector("input"), drop = f.querySelector(".drop");
   const close = () => { drop.hidden = true; };
-  input.addEventListener("input", () => {
+  input.addEventListener("input", async () => {
     const q = input.value.trim().toLowerCase();
     if (!q) return close();
-    const hits = Object.values(TEAMS).filter(t => (t.name + " " + t.abbr).toLowerCase().includes(q)).slice(0, 8);
-    drop.innerHTML = hits.length ? hits.map(t => `<a href="#/team/${t.abbr}">${disc(t.abbr, "xs")}${h(t.name)}<span class="sub">${h(t.record)}</span></a>`).join("") : `<p class="sub" style="padding:8px">No team found.</p>`;
+    const hits = Object.values(TEAMS).filter(t => (t.name + " " + t.abbr).toLowerCase().includes(q)).slice(0, 5);
+    let ps = [];
+    if (q.length >= 2) { try { ps = (await get("players.json")).filter(p => p.name.toLowerCase().includes(q)).slice(0, 8); } catch (e) { ps = []; } }
+    if (input.value.trim().toLowerCase() !== q) return;
+    drop.innerHTML = hits.length || ps.length
+      ? hits.map(t => `<a href="#/team/${t.abbr}">${disc(t.abbr, "xs")}${h(t.name)}<span class="sub">${h(t.record)}</span></a>`).join("")
+        + ps.map(p => `<a href="#/player/${p.id}">${disc(p.team, "xs")}${h(p.name)}<span class="sub">${fx(p.ppg)} ppg</span></a>`).join("")
+      : `<p class="sub" style="padding:8px">Nothing found.</p>`;
     drop.hidden = false;
   });
   f.addEventListener("submit", e => { e.preventDefault(); const a = drop.querySelector("a"); if (a) { location.hash = a.getAttribute("href"); close(); input.value = ""; } });
@@ -490,7 +587,7 @@ function setupSearch() {
 async function route() {
   const parts = location.hash.replace(/^#\/?/, "").split("/");
   const [page, arg] = parts;
-  document.querySelectorAll("[data-nav]").forEach(a => a.setAttribute("aria-current", a.dataset.nav === (page || "home") || (page === "game" && a.dataset.nav === "games") || (page === "team" && a.dataset.nav === "teams") ? "page" : "false"));
+  document.querySelectorAll("[data-nav]").forEach(a => a.setAttribute("aria-current", a.dataset.nav === (page || "home") || (page === "game" && a.dataset.nav === "games") || (page === "team" && a.dataset.nav === "teams") || (page === "player" && a.dataset.nav === "players") ? "page" : "false"));
   try {
     if (!page) await home();
     else if (page === "games") await games(arg);
@@ -498,6 +595,9 @@ async function route() {
     else if (page === "standings") await standings();
     else if (page === "teams") await teams();
     else if (page === "team") await team(arg);
+    else if (page === "players") await playersPage();
+    else if (page === "player") await player(arg);
+    else if (page === "mind") await mind();
     else if (page === "accuracy") await accuracy();
     else if (page === "about") await about();
     else await home();
@@ -520,3 +620,113 @@ async function route() {
   window.addEventListener("hashchange", route);
   route();
 })();
+
+/* ---------------------------------------------------------------- players */
+const PCOLS = [["gp", "GP", 0], ["mpg", "MIN", 1], ["ppg", "PTS", 1], ["rpg", "REB", 1], ["apg", "AST", 1], ["tpm", "3PM", 1], ["spg", "STL", 1], ["bpg", "BLK", 1], ["ts", "TS%", 3], ["usg", "USG%", 1], ["pm", "+/-", 1], ["l5", "Last 5", 1], ["next_pts", "Next game", 1]];
+const PSTATE = { sort: "ppg", dir: -1, q: "", team: "", pos: "", min: 3 };
+const plink = (id, name) => `<a href="#/player/${h(id)}">${h(name)}</a>`;
+function ptags(p) {
+  return (p.out ? `<span class="ptag out">${h(p.status || "Out")}</span>` : p.status ? `<span class="ptag q">${h(p.status)}</span>` : "")
+    + (p.contract_year ? `<span class="ptag" title="Final year of his contract">contract yr</span>` : "")
+    + (p.former ? `<span class="ptag" title="Has played for another team in the stored seasons">ex-team</span>` : "");
+}
+async function playersPage() {
+  const list = await get("players.json");
+  setTitle("Players");
+  const render = () => {
+    const q = PSTATE.q.toLowerCase();
+    let rows = list.filter(p => (p.gp || 0) >= PSTATE.min && (!PSTATE.team || p.team === PSTATE.team) && (!PSTATE.pos || (p.pos || "").includes(PSTATE.pos)) && (!q || p.name.toLowerCase().includes(q)));
+    rows.sort((a, b) => ((a[PSTATE.sort] ?? -1e9) - (b[PSTATE.sort] ?? -1e9)) * PSTATE.dir || a.name.localeCompare(b.name));
+    const head = `<tr><th>#</th><th>Player</th><th>Team</th>${PCOLS.map(([k, l]) => `<th class="n sortable ${PSTATE.sort === k ? "sorted" : ""}" data-k="${k}">${l}${PSTATE.sort === k ? (PSTATE.dir < 0 ? " ↓" : " ↑") : ""}</th>`).join("")}</tr>`;
+    const body = rows.slice(0, 400).map((p, i) => `<tr class="${p.out ? "out" : ""}"><td class="pos">${i + 1}</td><td class="nm">${plink(p.id, p.name)}<span class="sub">${h(p.pos || "")}</span>${ptags(p)}</td><td>${tlink(p.team)}</td>
+      ${PCOLS.map(([k, , d]) => `<td class="n ${PSTATE.sort === k ? "hl" : ""}">${k === "ts" ? (p[k] == null ? "–" : (p[k] * 100).toFixed(1)) : k === "pm" ? sgn(p[k]) : fx(p[k], d)}</td>`).join("")}</tr>`).join("");
+    document.getElementById("ptab").innerHTML = `<div class="tscroll"><table class="ptable">${head}${body}</table></div><p class="sub small" style="margin-top:8px">${rows.length} players${rows.length > 400 ? " (first 400 shown)" : ""}. "Next game" is the projected points for his next game.</p>`;
+    document.querySelectorAll("#ptab th.sortable").forEach(th => th.onclick = () => { const k = th.dataset.k; PSTATE.dir = PSTATE.sort === k ? -PSTATE.dir : -1; PSTATE.sort = k; render(); });
+  };
+  const teams = Object.values(TEAMS).sort((a, b) => a.name.localeCompare(b.name));
+  app.innerHTML = `<section class="hero court"><div class="wrap"><h1>Players</h1><p class="sub" style="margin-top:8px">Every player this season: per-game numbers, shooting efficiency (TS%), share of team plays used while on the floor (USG%), and the projection for his next game.</p></div></section>
+  <div class="wrap">${demoBanner()}<div class="toolbar"><input id="pq" type="search" placeholder="Filter by name" value="${h(PSTATE.q)}">
+    <select id="pt"><option value="">All teams</option>${teams.map(t => `<option value="${t.abbr}" ${PSTATE.team === t.abbr ? "selected" : ""}>${h(t.name)}</option>`).join("")}</select>
+    <select id="pp"><option value="">All positions</option>${["G", "F", "C"].map(x => `<option ${PSTATE.pos === x ? "selected" : ""}>${x}</option>`).join("")}</select>
+    <select id="pm"><option value="1">1+ games</option><option value="3" selected>3+ games</option><option value="10">10+ games</option></select></div><div id="ptab"></div></div>`;
+  document.getElementById("pm").value = String(PSTATE.min);
+  document.getElementById("pq").oninput = e => { PSTATE.q = e.target.value; render(); };
+  document.getElementById("pt").onchange = e => { PSTATE.team = e.target.value; render(); };
+  document.getElementById("pp").onchange = e => { PSTATE.pos = e.target.value; render(); };
+  document.getElementById("pm").onchange = e => { PSTATE.min = +e.target.value; render(); };
+  render();
+}
+
+function linesBlock(lines, which) {
+  const keys = which || Object.keys(lines || {});
+  return `<div class="plines">${keys.filter(k => lines[k]).map(k => `<div><h4>${h({ pts: "Points", reb: "Rebounds", ast: "Assists", tpm: "Threes", pra: "Pts+Reb+Ast" }[k] || k)}</h4>${linesList(lines[k], null, "Over")}</div>`).join("")}</div>`;
+}
+
+function formChart(log) {
+  const g = log.slice(0, 15).reverse();
+  if (!g.length) return "";
+  const W = 520, H = 150, pad = 22, bw = (W - pad * 2) / g.length;
+  const mx = Math.max(10, ...g.map(x => Math.max(x.pts, x.proj ? x.proj.pts : 0))) * 1.1;
+  const y = v => H - pad - v / mx * (H - pad * 2);
+  return `<svg class="formchart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Points in recent games">
+    ${g.map((x, i) => `<rect x="${pad + i * bw + 3}" y="${y(x.pts)}" width="${bw - 6}" height="${H - pad - y(x.pts)}" rx="3" fill="${x.win ? "var(--pos)" : "var(--neg)"}" opacity=".8"><title>${day(x.day)} ${x.home ? "vs" : "at"} ${x.opp}: ${x.pts} pts</title></rect>
+      ${x.proj ? `<line x1="${pad + i * bw + 1}" x2="${pad + (i + 1) * bw - 1}" y1="${y(x.proj.pts)}" y2="${y(x.proj.pts)}" stroke="var(--ink)" stroke-width="2.5"/>` : ""}
+      <text x="${pad + i * bw + bw / 2}" y="${y(x.pts) - 4}" text-anchor="middle">${x.pts}</text><text x="${pad + i * bw + bw / 2}" y="${H - 6}" text-anchor="middle">${h(T(x.opp).abbr)}</text>`).join("")}
+    <line x1="${pad}" x2="${W - pad}" y1="${H - pad}" y2="${H - pad}" stroke="var(--line)"/></svg>`;
+}
+
+async function player(id) {
+  const p = await get(`player/${id}.json`);
+  setTitle(p.name);
+  const t = T(p.team), col = readable(t.color), c = p.current || {};
+  const n = p.next;
+  const ltabs = ["pts", "reb", "ast", "tpm", "pra"];
+  const nextHtml = n ? `<div class="panel"><h3>Next game: ${n.home ? "vs" : "at"} <a href="#/team/${n.opp}">${h(T(n.opp).short)}</a> · <a href="#/game/${n.game}">${tip(n.tip)}</a></h3>
+      ${n.out ? `<p class="call"><b>${h(n.status || "Out")}</b>${n.detail ? ` — ${h(n.detail)}` : ""}. Not projected to play.</p>` : `
+      ${n.status ? `<p class="call"><b>${h(n.status)}</b>${n.detail ? ` — ${h(n.detail)}` : ""}. Projection assumes he plays.</p>` : ""}
+      <div class="projgrid">${[["min", "Minutes"], ["pts", "Points"], ["reb", "Rebounds"], ["ast", "Assists"], ["tpm", "Threes"], ["pra", "Pts+Reb+Ast"], ["stl", "Steals"], ["blk", "Blocks"], ["tov", "Turnovers"]].map(([k, l]) => `<div><b>${fx(n.proj[k])}</b>${l}</div>`).join("")}</div>
+      ${n.spots && n.spots.length ? `<ul class="spots">${n.spots.map(s => `<li><div class="sh"><b>${h(s.label)}</b><span class="eff ${effCls(s.pct)}">${sgn(s.pct)}% pts</span></div><p>${h(s.text)}</p><div class="hist">${ev(s.evidence)}</div></li>`).join("")}</ul>` : `<p class="none-note">No special spot for him in this game.</p>`}
+      <div class="ltabs" id="ltabs">${ltabs.map((k, i) => `<button data-k="${k}" aria-pressed="${i === 0}">${{ pts: "Points", reb: "Rebounds", ast: "Assists", tpm: "Threes", pra: "PRA" }[k]}</button>`).join("")}</div><div id="lbox">${n.lines ? linesList(n.lines.pts, null, "Over") : ""}</div>`}</div>`
+    : `<div class="panel"><h3>Next game</h3><p class="sub">Not in a projected rotation for the next two weeks (injury, or too few recent minutes).</p></div>`;
+  const seasonRows = p.seasons.map(s => `<tr><td>${s.season - 1}-${String(s.season).slice(2)}</td><td>${tlink(s.team)}</td><td class="n">${s.gp}</td><td class="n">${fx(s.mpg)}</td><td class="n">${fx(s.ppg)}</td><td class="n">${fx(s.rpg)}</td><td class="n">${fx(s.apg)}</td><td class="n">${fx(s.tpm)}</td><td class="n">${fx(s.spg)}</td><td class="n">${fx(s.bpg)}</td><td class="n">${s.fg == null ? "–" : (s.fg * 100).toFixed(1)}</td><td class="n">${s.tp == null ? "–" : (s.tp * 100).toFixed(1)}</td><td class="n">${s.ft == null ? "–" : (s.ft * 100).toFixed(1)}</td><td class="n">${s.ts == null ? "–" : (s.ts * 100).toFixed(1)}</td><td class="n">${fx(s.usg)}</td><td class="n">${fx(s.p36)}</td><td class="n">${sgn(s.pm)}</td></tr>`).join("");
+  const adv = c.gp ? `<div class="adv">${[["TS%", c.ts == null ? "–" : (c.ts * 100).toFixed(1), "true shooting"], ["eFG%", c.efg == null ? "–" : (c.efg * 100).toFixed(1), "effective FG"], ["USG%", fx(c.usg), "plays used on floor"], ["REB%", fx(c.reb_pct), "rebounds grabbed"], ["AST%", fx(c.ast_pct), "team baskets assisted"], ["AST/TO", fx(c.ast_tov, 2), "assists per turnover"], ["Per 36", `${fx(c.p36)}/${fx(c.r36)}/${fx(c.a36)}`, "pts/reb/ast"], ["+/-", sgn(c.pm), "per game on floor"]].map(([l, v, s]) => `<div><b>${v}</b>${l} · ${s}</div>`).join("")}</div>` : "";
+  const splits = p.splits.length ? `<div class="tscroll"><table><tr><th>Split</th><th class="n">GP</th><th class="n">MIN</th><th class="n">PTS</th><th class="n">REB</th><th class="n">AST</th><th class="n">3PM</th><th class="n">TS%</th></tr>${p.splits.map(s => `<tr><td>${h(s.name)}</td><td class="n">${s.gp}</td><td class="n">${fx(s.mpg)}</td><td class="n">${fx(s.ppg)}</td><td class="n">${fx(s.rpg)}</td><td class="n">${fx(s.apg)}</td><td class="n">${fx(s.tpm)}</td><td class="n">${s.ts == null ? "–" : (s.ts * 100).toFixed(1)}</td></tr>`).join("")}</table></div>` : "";
+  const vs = p.vs.length ? `<div class="tscroll"><table><tr><th>Opponent</th><th class="n">GP</th><th class="n">PTS</th><th class="n">REB</th><th class="n">AST</th></tr>${p.vs.map(s => `<tr><td>${tlink(s.opp)}</td><td class="n">${s.gp}</td><td class="n">${fx(s.ppg)}</td><td class="n">${fx(s.rpg)}</td><td class="n">${fx(s.apg)}</td></tr>`).join("")}</table></div>` : "";
+  const glog = `<div class="tscroll"><table class="ptable"><tr><th>Date</th><th>Opp</th><th>Result</th><th class="n">MIN</th><th class="n">PTS</th><th class="n">Proj</th><th class="n">REB</th><th class="n">AST</th><th class="n">3PM</th><th class="n">STL</th><th class="n">BLK</th><th class="n">TO</th><th class="n">FG</th><th class="n">3PT</th><th class="n">FT</th><th class="n">+/-</th></tr>
+    ${p.log.map(r => `<tr><td><a href="#/game/${r.id}">${day(r.day)}</a></td><td>${r.home ? "vs" : "@"} ${h(T(r.opp).abbr)}</td><td class="${r.win ? "up" : "down"}">${r.win ? "W" : "L"} ${h(r.score)}</td><td class="n">${r.min}</td><td class="n hl">${r.pts}</td><td class="n sub">${r.proj ? fx(r.proj.pts) : "–"}</td><td class="n">${r.reb}</td><td class="n">${r.ast}</td><td class="n">${r.tpm ?? "–"}</td><td class="n">${r.stl ?? "–"}</td><td class="n">${r.blk ?? "–"}</td><td class="n">${r.tov ?? "–"}</td><td class="n">${r.fg ?? "–"}</td><td class="n">${r.tp ?? "–"}</td><td class="n">${r.ft ?? "–"}</td><td class="n">${sgn(r.pm, 0)}</td></tr>`).join("")}</table></div>`;
+  app.innerHTML = `<section class="phero" style="background:linear-gradient(110deg, ${col}, color-mix(in srgb, ${col} 55%, #0b1426))"><div class="wrap"><div class="jersey">${h(p.jersey ?? p.pos ?? "")}</div>
+    <div><h1>${h(p.name)}</h1><p class="meta" style="opacity:.88;margin:6px 0 10px">${h(p.pos || "")} · <a href="#/team/${p.team}" style="color:#fff">${h(t.name)}</a>${p.former.length ? ` · formerly ${p.former.map(x => h(T(x).short)).join(", ")}` : ""}</p>
+    <div class="facts"><div><b>${fx(c.ppg)}</b>points</div><div><b>${fx(c.rpg)}</b>rebounds</div><div><b>${fx(c.apg)}</b>assists</div><div><b>${fx(c.mpg)}</b>minutes</div><div><b>${c.ts == null ? "–" : (c.ts * 100).toFixed(1)}</b>TS%</div><div><b>${fx(c.usg)}</b>USG%</div><div><b>${c.gp ?? 0}</b>games</div></div></div></div></section>
+  <div class="wrap">${demoBanner()}
+    ${p.story.length ? `<p class="call"><b>Storylines:</b> ${p.story.map(h).join(" ")}</p>` : ""}
+    <section class="grid2" style="margin-top:14px">${nextHtml}<div class="panel"><h3>Recent games</h3><p class="sub small">Points per game, newest right; bars green in wins, red in losses; the dark line is what the model projected before the game.</p>${formChart(p.log)}</div></section>
+    ${adv ? `<section class="section"><h2>Advanced <span class="sub">this season</span></h2>${adv}</section>` : ""}
+    ${splits ? `<section class="section grid2"><div><h2>Splits</h2>${splits}</div><div><h2>Against each opponent <span class="sub">this season and last</span></h2>${vs}</div></section>` : ""}
+    <section class="section"><h2>Season by season</h2><div class="tscroll"><table><tr><th>Season</th><th>Team</th><th class="n">GP</th><th class="n">MIN</th><th class="n">PTS</th><th class="n">REB</th><th class="n">AST</th><th class="n">3PM</th><th class="n">STL</th><th class="n">BLK</th><th class="n">FG%</th><th class="n">3P%</th><th class="n">FT%</th><th class="n">TS%</th><th class="n">USG%</th><th class="n">Pts/36</th><th class="n">+/-</th></tr>${seasonRows}</table></div></section>
+    <section class="section"><h2>Game log</h2>${glog}</section></div>`;
+  const lt = document.getElementById("ltabs");
+  if (lt && n && n.lines) lt.onclick = e => { const b = e.target.closest("button"); if (!b) return; lt.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b)); document.getElementById("lbox").innerHTML = linesList(n.lines[b.dataset.k], null, "Over"); };
+}
+
+/* ---------------------------------------------------------------- mind ranking */
+const CATCOL = { Hot: "var(--pos)", Cold: "var(--base)", "Under pressure": "var(--body)", Coasting: "var(--muted)", Steady: "var(--mind)" };
+const catTag = c => `<span class="cat ${h(c.split(" ")[0])}">${h(c)}</span>`;
+async function mind() {
+  const rows = await get("mind.json");
+  setTitle("Mind ranking");
+  const counts = {};
+  rows.forEach(r => counts[r.cat] = (counts[r.cat] || 0) + 1);
+  const mx = Math.max(4, ...rows.map(r => Math.abs(r.score)));
+  app.innerHTML = `<section class="hero court"><div class="wrap"><h1>Mind ranking</h1><p class="sub" style="margin-top:8px">Every team's state of mind right now: momentum from the current streak, the last ten games and how far recent results beat what the ratings expected; plus who is in a race, who is coasting and who is short-handed. On the right, the measured psychological edge each team carries into its next games.</p></div></section>
+  <div class="wrap">${demoBanner()}
+    <div class="catsum">${["Hot", "Steady", "Cold", "Under pressure", "Coasting"].map(c => `<div style="border-left:4px solid ${CATCOL[c]}"><b>${counts[c] || 0}</b>${c}</div>`).join("")}</div>
+    <ul class="mindrank">${rows.map(r => {
+      const w = Math.min(50, Math.abs(r.score) / mx * 50);
+      const bar = r.score >= 0 ? `left:50%;width:${w}%;background:var(--pos)` : `left:${50 - w}%;width:${w}%;background:var(--neg)`;
+      return `<li style="--cc:${CATCOL[r.cat]}"><span class="rk">${r.rank}</span><span>${tlink(r.abbr)}<br><span class="sub small">${h(r.record)} · ${catTag(r.cat)}</span></span>
+        <span><span class="mtrack"><span style="${bar}"></span></span><span class="sub small">momentum ${sgn(r.score)}</span></span>
+        <ul class="why">${r.why.length ? r.why.map(x => `<li>${h(x)}</li>`).join("") : "<li>nothing unusual</li>"}</ul>
+        <span class="edge ${effCls(r.edge)}">${sgn(r.edge)}<small>mind edge, next games</small></span></li>`;
+    }).join("")}</ul>
+    <p class="note" style="margin-top:16px">Momentum describes; it doesn't predict. Whether hot or cold streaks carry over is measured separately — see "Streak" and "Confidence" on the <a href="#/accuracy">track record</a>.</p></div>`;
+}

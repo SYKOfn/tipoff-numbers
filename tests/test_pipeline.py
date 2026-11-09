@@ -129,3 +129,39 @@ def test_site_data_is_valid_json(tmp_path):
     from pipeline.store import write_json
     write_json(tmp_path / "x.json", {"a": float("nan"), "b": np.float64(1.5), "c": [np.int64(2)]})
     assert json.loads((tmp_path / "x.json").read_text()) == {"a": None, "b": 1.5, "c": [2]}
+
+
+def test_parse_full_player_line():
+    s = espn.parse_summary({"boxscore": {"teams": [], "players": [{"team": {"id": "2"}, "statistics": [{
+        "keys": ["minutes", "points", "fieldGoalsMade-fieldGoalsAttempted", "threePointFieldGoalsMade-threePointFieldGoalsAttempted",
+                 "freeThrowsMade-freeThrowsAttempted", "rebounds", "assists", "turnovers", "steals", "blocks", "plusMinus"],
+        "athletes": [{"athlete": {"id": "7", "displayName": "X Y", "jersey": "0"}, "stats": ["35", "28", "10-19", "4-9", "4-5", "6", "8", "3", "2", "1", "+9"]}]}]}]}})
+    r = s["players"][0]
+    assert (r["fgm"], r["fga"], r["tpm"], r["tpa"], r["ftm"], r["fta"]) == (10, 19, 4, 9, 4, 5)
+    assert r["tov"] == 3 and r["stl"] == 2 and r["pm"] == 9 and r["jersey"] == "0"
+
+
+def test_playoff_odds_sum():
+    from model import extras
+    wl = {t: [5, 5] for t in ratings.ABBRS}
+    net = {t: 0.0 for t in ratings.ABBRS}
+    rest = [("BOS", "LAL"), ("NY", "MIA")] * 5
+    o = extras.playoff_odds(wl, rest, net, 2.5, 12.0, sims=300)
+    east = [t for t in o if t in ("ATL", "BOS", "BKN", "CHA", "CHI", "CLE", "DET", "IND", "MIA", "MIL", "NY", "ORL", "PHI", "TOR", "WSH")]
+    assert abs(sum(o[t]["playoffs"] for t in east) - 8) < 0.02
+    assert abs(sum(o[t]["seed1"] for t in east) - 1) < 0.02
+
+
+def test_player_projection_basic():
+    from model.players import PlayerTracker
+    pt = PlayerTracker()
+    for i in range(8):
+        g = {"home": "BOS", "away": "LAL", "season": 2027}
+        rows = {"BOS": [{"player_id": "1", "name": "A", "pos": "G", "min": 34, "pts": 25, "reb": 5, "ast": 6, "tpm": 3},
+                        {"player_id": "2", "name": "B", "pos": "C", "min": 30, "pts": 12, "reb": 11, "ast": 2, "tpm": 0}],
+                "LAL": [{"player_id": "3", "name": "C", "pos": "F", "min": 36, "pts": 20, "reb": 7, "ast": 4, "tpm": 2}]}
+        pt.post_game(g, rows)
+    proj, x = pt.project("1", "BOS", "LAL", True, 0)
+    assert 28 < proj["min"] < 38 and 15 < proj["pts"] < 30
+    proj2, _ = pt.project("1", "BOS", "LAL", True, 0, absent={"2"}, missing_share=0.3)
+    assert proj2["min"] > proj["min"]
