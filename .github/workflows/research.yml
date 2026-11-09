@@ -6,7 +6,7 @@ on:
         description: "python module and arguments, e.g. tools.market_history 2026 2027"
         required: true
 concurrency:
-  group: update
+  group: research
   cancel-in-progress: false
 permissions:
   contents: write
