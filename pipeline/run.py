@@ -33,7 +33,7 @@ def season_label(s):
 BLEND_W = 0.4  # model weight in the Pinnacle blend (log-odds), from the 1,368-game test
 
 
-MODEL_HIST = int(os.environ.get("MODEL_HIST", "5"))  # full seasons before the current one used by the model
+MODEL_HIST = int(os.environ.get("MODEL_HIST", "9"))  # full seasons before the current one used by the model
 LOCK_HOURS = float(os.environ.get("LOCK_HOURS", "3"))  # the day's tickets are chosen this long before the first tip
 
 
