@@ -19,6 +19,7 @@ import numpy as np
 from .effects import norm_cdf
 
 SIMS = 20000
+MARKET_W = {"w": 0.5, "measured": False}  # model weight against a posted player line; set from the settled-lines test
 P_MIN, P_MAX = 0.55, 0.86
 PROP_MAX = 0.80          # alternate prop lines beyond this are priced too short to carry value
 PROP_SIDES = ("over",)   # Winamax lists player markets as "over" only (X+ points etc.): no player unders
@@ -186,14 +187,15 @@ def prop_legs(game, players, calib, avg, disp, real=None):
                     for sd_, pm, price, mk in (("over", po, float(rl["over"]), pm_over), ("under", 1 - po, float(rl["under"]), 1 - pm_over)):
                         if sd_ not in PROP_SIDES:
                             continue
-                        pc = sigmoid(0.5 * t * logit(pm) + 0.5 * logit(mk))
+                        pc = sigmoid(MARKET_W["w"] * t * logit(pm) + (1 - MARKET_W["w"]) * logit(mk))
                         if 0.5 <= pc <= PROP_MAX:
                             legs.append(_leg(game, "prop", f"{pl['name']} {sd_} {L:.1f} {STAT_NAME[st]}", pm, pc, price,
                                              team=team, player=pl["id"], player_name=pl["name"], stat=st, line=L, side=sd_,
                                              proj=proj, avg=None if av is None or av != av else round(av, 1), price_est=False,
                                              book=rl["book"], market=round(mk, 3),
                                              dist={"mu": round(proj, 2), "sd": round(sd, 2), "d": round(disp.get(st, 1.5), 3), "alone": t, "model": t},
-                                             note=f"projection {proj:.1f}; real {rl['book']} line, blended 50/50 with its no-margin price",
+                                             note=f"projection {proj:.1f}; real {rl['book']} line, blended {round(MARKET_W['w'] * 100)}/{round(100 - MARKET_W['w'] * 100)} with its no-margin price"
+                                                  + (" (weight measured on settled lines)" if MARKET_W.get("measured") else ""),
                                              mind=mind if sd_ == "over" else -mind, spots=[x["label"] for x in spots],
                                              sim=("prop", side, pl["id"], st, sd_, L)))
                     continue

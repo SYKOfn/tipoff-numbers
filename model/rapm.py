@@ -104,3 +104,39 @@ class RAPM:
             return None
         tot = sum(m for _, m in players) or 1.0
         return sum(self.r.get(str(pid), self.default) * 5 * m / tot for pid, m in players)
+
+
+class StintRAPM(RAPM):
+    """Adjusted plus-minus from lineup stints (play-by-play): every stretch with the same ten players is
+    one observation, weighted by its length, so players are separated by who they actually shared the
+    floor with, minute by minute, rather than by whole games.
+
+    expected stint margin = (seconds / 2880) x (home court + sum of home ratings - sum of away ratings);
+    variance grows with stint length, so each stint is weighted by 1 / seconds (weighted least squares).
+    Ratings are points per 48 minutes of team margin a player adds while on the floor."""
+
+    def __init__(self, lam=15.0, hl=HL_DAYS):
+        super().__init__(lam, hl)
+        self.games_n = 0
+
+    def add_stints(self, g, stints):
+        """stints: iterable of (dur, h_pts, a_pts, home_ids tuple, away_ids tuple) for one game."""
+        d, s = _d(g["day"]), int(g["season"])
+        if self.ref is None:
+            self.ref = (d, s)
+        k = 2.0 ** ((d - self.ref[0]).days / self.hl) * SEASON_KEEP ** (-(s - self.ref[1]))
+        neutral = 0.0 if g.get("neutral") else 1.0
+        any_ = False
+        for dur, hp, ap, hids, aids in stints:
+            if dur <= 0 or len(hids) != 5 or len(aids) != 5:
+                continue
+            idx = np.array([0] + [self._col(p) for p in hids] + [self._col(p) for p in aids])
+            x = np.array([neutral] + [1.0] * 5 + [-1.0] * 5)
+            self.A[np.ix_(idx, idx)] += k * dur / 2880.0 ** 2 * np.outer(x, x)
+            self.b[idx] += k * (hp - ap) / 2880.0 * x
+            for p in hids + aids:
+                self.mins[p] += dur / 60.0
+            any_ = True
+        if any_:
+            self.sum_k += k * 1.0  # one game's worth of (dur/2880 summed) evidence
+            self.n += 1

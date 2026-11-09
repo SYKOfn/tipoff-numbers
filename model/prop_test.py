@@ -11,12 +11,29 @@ import math
 from collections import defaultdict
 
 from .effects import norm_cdf
-from .players import sd_for
+from .players import over_prob, sd_for
+
+MIN_FOR_WEIGHT = 300  # settled lines before the measured market weight replaces 50/50
 
 
 def _ll(p, y):
     p = min(max(p, 1e-6), 1 - 1e-6)
     return -(y * math.log(p) + (1 - y) * math.log(1 - p))
+
+
+def market_weight(rows):
+    """How much to trust the model against the posted line's no-margin price, measured on settled lines:
+    the log-odds weight w (model) / 1 - w (market) with the lowest log loss. 50/50 until enough lines."""
+    if len(rows) < MIN_FOR_WEIGHT:
+        return {"w": 0.5, "n": len(rows), "measured": False}
+    lg = lambda p: math.log(max(p, 1e-6) / max(1 - p, 1e-6))
+    best = None
+    for i in range(0, 21):
+        w = i / 20
+        ll = sum(_ll(1 / (1 + math.exp(-(w * lg(r["model"]) + (1 - w) * lg(r["market"])))), r["y"]) for r in rows) / len(rows)
+        if best is None or ll < best[1]:
+            best = (w, ll)
+    return {"w": best[0], "n": len(rows), "measured": True, "ll": round(best[1], 4)}
 
 
 def real_lines(first_last, frozen_proj, actual, disp, calib):
@@ -33,7 +50,7 @@ def real_lines(first_last, frozen_proj, actual, disp, calib):
             continue
         sd = sd_for(st, pr, disp)
         t = (calib.get(st) or {}).get("t", 1.0)
-        pm = 1 - norm_cdf((L - pr) / sd)
+        pm = over_prob(st, L, pr, disp)
         pm = 1 / (1 + math.exp(-t * math.log(max(pm, 1e-6) / max(1 - pm, 1e-6))))
         io, iu = 1 / float(cl["over"]), 1 / float(cl["under"])
         mk = io / (io + iu)
@@ -41,7 +58,7 @@ def real_lines(first_last, frozen_proj, actual, disp, calib):
         bet = None
         if op:
             Lo = float(op["line"])
-            po = 1 - norm_cdf((Lo - pr) / sd)
+            po = over_prob(st, Lo, pr, disp)
             po = 1 / (1 + math.exp(-t * math.log(max(po, 1e-6) / max(1 - po, 1e-6))))
             for side, p_side, price in (("over", po, float(op["over"])), ("under", 1 - po, float(op["under"]))):
                 if p_side * price - 1 >= 0.04:
@@ -60,7 +77,7 @@ def real_lines(first_last, frozen_proj, actual, disp, calib):
     n = len(rows)
     if not n:
         return {"n": 0}
-    out = {"n": n,
+    out = {"n": n, "blend": market_weight(rows),
            "brier_model": round(sum((r["model"] - r["y"]) ** 2 for r in rows) / n, 4),
            "brier_market": round(sum((r["market"] - r["y"]) ** 2 for r in rows) / n, 4),
            "brier_blend": round(sum((0.5 * r["model"] + 0.5 * r["market"] - r["y"]) ** 2 for r in rows) / n, 4),

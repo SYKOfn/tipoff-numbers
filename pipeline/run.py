@@ -458,6 +458,9 @@ def main(demo=False, now=None, collect_data=True):
     lines_test = {"real": prop_test.real_lines(first_last_props(), frozen_proj, actual_n, pdisp, calib),
                   "proxy": prop_test.proxy_lines(plogs, byg, [str(x) for x in c.games.loc[c.games["season"] == cur, "game_id"]],
                                                  pdisp, calib)}
+    blend = (lines_test["real"] or {}).get("blend") or {}
+    if blend.get("measured"):
+        parlay.MARKET_W.update(w=blend["w"], measured=True)
 
     # accuracy
     def summarise(items):

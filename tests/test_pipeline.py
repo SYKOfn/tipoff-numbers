@@ -320,3 +320,18 @@ def test_rapm_recovers_ratings():
     rp.fit("2026-01-02")
     est = np.array([rp.r[p] for p in true]); tru = np.array(list(true.values()))
     assert np.corrcoef(est, tru)[0, 1] > 0.8 and abs(rp.hca - 2.5) < 1.0
+
+
+def test_market_weight_measured():
+    import random
+    from model.prop_test import market_weight
+    rnd = random.Random(4)
+    rows = []
+    for _ in range(2000):
+        truth = rnd.uniform(0.2, 0.8)
+        mk = min(0.95, max(0.05, truth + rnd.gauss(0, 0.03)))     # a sharp market
+        mo = min(0.95, max(0.05, truth + rnd.gauss(0, 0.12)))     # a noisier model
+        rows.append({"model": mo, "market": mk, "y": 1.0 if rnd.random() < truth else 0.0})
+    w = market_weight(rows)
+    assert w["measured"] and w["w"] <= 0.4
+    assert market_weight(rows[:100])["w"] == 0.5
