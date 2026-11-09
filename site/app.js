@@ -751,7 +751,7 @@ async function mind() {
 }
 
 /* ---------------------------------------------------------------- daily parlay */
-const KIND = { ml: "Winner", spread: "Handicap", total: "Total", prop: "Player" };
+const KIND = { ml: "Winner", spread: "Handicap", total: "Total", team_total: "Team total", prop: "Player" };
 const LS = {
   get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage unavailable */ } },
@@ -760,6 +760,7 @@ let PAR = null;
 function legDesc(l) {
   if (l.kind === "ml") return `${T(l.team).short} to win`;
   if (l.kind === "spread") return `${T(l.team).short} ${l.line > 0 ? "+" : ""}${fx(l.line)} handicap`;
+  if (l.kind === "team_total") return `${T(l.team).short} ${l.side} ${fx(l.line)} team points`;
   return l.desc;
 }
 const matchTeams = l => l.matchup.split(" at ");
@@ -775,7 +776,8 @@ function oddsCell(l) {
 }
 function legRow(l, i) {
   const res = l.result ? ` ${l.result}` : "";
-  const mkt = l.price && !l.price_est ? `${fx(l.price, 2)} ${l.kind === "ml" || l.book ? (l.book || "market") : "standard"}${l.edge != null ? ` (${sgn(l.edge * 100, 0)}%)` : ""}` : (l.price_est ? `check line ${fx(l.line)}` : "no market price");
+  const bookName = b => ({ winamax_fr: "Winamax", pinnacle: "Pinnacle" }[b] || b);
+  const mkt = l.price && !l.price_est ? `${bookName(l.book || "market")} ${fx(l.price, 2)}${l.edge != null ? ` (${sgn(l.edge * 100, 0)}% value)` : ""}` : (l.price_est ? `check line ${fx(l.line)}` : "no market price");
   const clv = l.clv ? ` · CLV ${l.clv.p != null ? sgn(l.clv.p * 100, 1) + " pts of chance" : sgn(l.clv.pts) + " pts of line"}` : "";
   return `<li class="${res.trim()}"><span class="no">${i + 1}</span>
     <span class="d"><span class="kind ${l.kind}">${KIND[l.kind] || l.kind}</span><b>${h(legDesc(l))}</b><span class="mflag ${l.mind_flag}">${l.mind_flag === "with" ? "mind with it" : l.mind_flag === "against" ? "mind against" : "mind neutral"}</span>
@@ -890,6 +892,7 @@ async function parlayPage() {
   <div class="wrap">${demoBanner()}
     <p class="banner">Type the odds Winamax shows into any leg: the value appears instantly. A leg is worth taking only when its value is positive; if it isn't, leave it out of the ticket. Statistical estimates, not advice; 18+.</p>
     <p class="note">${oddsNote}</p>
+    ${t && t.book ? `<p class="verdict"><b>Every leg below is listed on ${t.book === "winamax_fr" ? "Winamax" : h(t.book)}</b>, at its own line and price (from the last refresh: prices move, so check the slip). ${t.not_on_book && t.not_on_book.length ? `Not on ${t.book === "winamax_fr" ? "Winamax" : h(t.book)} yet, so left out: ${t.not_on_book.map(x => h(x.split(" at ").map(a => T(a).short).join(" at "))).join(", ")}.` : ""}</p>` : ""}
     <div class="principles">
       <div><span class="n">1</span><b>Every leg must stand alone</b>A leg goes in only if its chance beats its price. A parlay of bad bets is a worse bet, not a better one.</div>
       <div><span class="n">2</span><b>Fewer legs, less margin</b>The margin compounds with every leg: about 9% with two legs and around 24% with six at standard prices. The Core 3 is the sounder ticket.</div>

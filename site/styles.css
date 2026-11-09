@@ -479,3 +479,4 @@ details.pl[open] > summary td { background: var(--floor); }
 .legs li { grid-template-columns: 26px minmax(0, 1fr) 70px 110px 120px; }
 .ticket-foot .you b { font-size: 1.4rem; }
 @media (max-width: 680px) { .legs li { grid-template-columns: 22px 1fr 70px; } .legs li > .oddsbox { grid-column: 2 / -1; align-items: flex-start; } }
+.kind.team_total { background: var(--body-soft); color: var(--body); }

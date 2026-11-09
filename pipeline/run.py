@@ -431,7 +431,9 @@ def main(demo=False, now=None, collect_data=True):
                     avg[pid] = {"gp": len(d_), **{k: float(d_[k].mean()) for k in ("pts", "reb", "ast", "tpm", "pra")}}
             from . import oddsapi
             real = oddsapi.latest_props()
-            built, cands = parlay.build(pre, pdisp, calib, avg, real_props=real)
+            # with an odds key, tickets are built only from what the betting book (default Winamax) lists
+            bet_book = (oddsapi.env("ODDS_API_BET_BOOK", "winamax_fr") if oddsapi.key() else None)
+            built, cands = parlay.build(pre, pdisp, calib, avg, real_props=real, book_only=bet_book)
             bl, lifts = parlay.board(cands)
             odds_by_game = {str(g["game_id"]): g.get("odds") for g, _ in slate}
             first_seen = dict((old or {}).get("first_seen", {}))

@@ -215,6 +215,103 @@ def prop_legs(game, players, calib, avg, disp, real=None):
     return legs
 
 
+# ------------------------------------------------------------------ legs from the betting book's own menu (Winamax)
+BOOK_MARGIN = 1.06       # one-sided prices: assume about this margin to read the book's chance from its price
+
+
+def _blend(p_model, p_book):
+    return sigmoid(0.5 * logit(p_model) + 0.5 * logit(p_book))
+
+
+def book_legs(game, est, players, odds, offers, calib, disp, mind_gap):
+    """Only what the book lists, at its line and its price. Nothing estimated."""
+    from pipeline.oddsapi import norm_name
+    from .players import sd_for
+    H, A = game["home"], game["away"]
+    m, sdm, t, sdt = est["margin"], est["sd_margin"], est["total"], est["sd_total"]
+    book = (odds or {}).get("provider") or "book"
+    legs = []
+    note = f"{book} price, blended 50/50 with the book's own chance"
+
+    def add(kind, desc, pm, pb, price, **kw):
+        pc = _blend(pm, pb)
+        legs.append(_leg(game, kind, desc, pm, pc, round(price, 2), book=book, market=round(pb, 3), note=note, **kw))
+
+    if odds and odds.get("ml_home") and odds.get("ml_away"):
+        pb = novig(odds["ml_home"], odds["ml_away"])
+        for team, pm, pbt, price, mg in ((H, est["win_home"], pb, odds["ml_home"], mind_gap), (A, 1 - est["win_home"], 1 - pb, odds["ml_away"], -mind_gap)):
+            add("ml", f"{team} to win", pm, pbt, price, team=team, mind=mg, sim=("win", team))
+    spreads = []
+    if odds and odds.get("spread_home") is not None and odds.get("spread_price_home") and odds.get("spread_price_away"):
+        L = odds["spread_home"]
+        pbh = novig(odds["spread_price_home"], odds["spread_price_away"])
+        spreads += [(H, L, odds["spread_price_home"], pbh), (A, -L, odds["spread_price_away"], 1 - pbh)]
+    for o in offers:
+        if o["kind"] == "spread":
+            spreads.append((o["team"], o["point"], o["price"], min(0.97, 1 / (o["price"] * BOOK_MARGIN))))
+    seen = set()
+    for team, L, price, pb in spreads:
+        if (team, L) in seen:
+            continue
+        seen.add((team, L))
+        mt = m if team == H else -m
+        pm = norm_cdf((mt + L) / sdm)
+        lab = f"{L:+.1f}"
+        add("spread", f"{team} {lab}", pm, pb, price, team=team, line=L, mind=mind_gap if team == H else -mind_gap, sim=("cover", team, L))
+    totals = []
+    if odds and odds.get("total") is not None and odds.get("over") and odds.get("under"):
+        pbo = novig(odds["over"], odds["under"])
+        totals += [("over", odds["total"], odds["over"], pbo), ("under", odds["total"], odds["under"], 1 - pbo)]
+    for o in offers:
+        if o["kind"] == "total":
+            totals.append((o["side"], o["point"], o["price"], min(0.97, 1 / (o["price"] * BOOK_MARGIN))))
+    seen = set()
+    for side, L, price, pb in totals:
+        if (side, L) in seen:
+            continue
+        seen.add((side, L))
+        po = 1 - norm_cdf((L - t) / sdt)
+        add("total", f"{side.capitalize()} {L:.1f} points", po if side == "over" else 1 - po, pb, price, line=L, side=side,
+            mind=0.0, sim=("total", side, L))
+    sd_team = math.sqrt((sdt ** 2 + sdm ** 2) / 4)
+    for o in offers:
+        if o["kind"] == "team_total":
+            exp = est["home_pts"] if o["team"] == H else est["away_pts"]
+            po = 1 - norm_cdf((o["point"] - exp) / sd_team)
+            add("team_total", f"{o['team']} {o['side']} {o['point']:.1f} points", po if o["side"] == "over" else 1 - po,
+                min(0.97, 1 / (o["price"] * BOOK_MARGIN)), o["price"], team=o["team"], line=o["point"], side=o["side"], mind=0.0,
+                sim=("tt", "home" if o["team"] == H else "away", o["side"], o["point"]))
+    # player markets: two-sided main lines give the book's chance without margin; alternates are one-sided
+    pairs = {}
+    for o in offers:
+        if o["kind"] == "prop":
+            pairs.setdefault((norm_name(o["player"]), o["stat"], o["point"]), {})[o["side"]] = o["price"]
+    by_name = {}
+    for side in ("home", "away"):
+        for pl in players.get(side, []):
+            by_name[norm_name(pl["name"])] = (side, pl)
+    for (nm, st, L), sides in pairs.items():
+        hit = by_name.get(nm)
+        if not hit:
+            continue
+        side, pl = hit
+        if pl.get("out") or pl.get("status") or (pl.get("min") or 0) < 20 or pl.get(st) is None:
+            continue
+        proj = pl[st]
+        sd = sd_for(st, proj, disp)
+        tt = (calib.get(st) or {}).get("t", 0.75)
+        po = sigmoid(tt * logit(1 - norm_cdf((L - proj) / sd)))
+        both = novig(sides.get("over"), sides.get("under")) if len(sides) == 2 else None
+        spots = pl.get("spots") or []
+        mind = sum(x["pct"] for x in spots if x.get("layer") == "mind")
+        for sd_, price in sides.items():
+            pb = (both if sd_ == "over" else 1 - both) if both is not None else min(0.97, 1 / (price * BOOK_MARGIN))
+            add("prop", f"{pl['name']} {sd_} {L:.1f} {STAT_NAME[st]}", po if sd_ == "over" else 1 - po, pb, price,
+                team=game[side], player=pl["id"], player_name=pl["name"], stat=st, line=L, side=sd_, proj=proj,
+                mind=mind if sd_ == "over" else -mind, spots=[x["label"] for x in spots], sim=("prop", side, pl["id"], st, sd_, L))
+    return legs
+
+
 # ------------------------------------------------------------------ correlated simulation per game
 def simulate(game, est, players, disp, rng):
     m = rng.normal(est["margin"], est["sd_margin"], SIMS)
@@ -248,6 +345,9 @@ def outcome(sim, leg, game):
         return (sim["m"] + k[2] > 0) if k[1] == game["home"] else (-sim["m"] + k[2] > 0)
     if k[0] == "total":
         return sim["t"] > k[2] if k[1] == "over" else sim["t"] < k[2]
+    if k[0] == "tt":
+        x = sim[k[1]]
+        return x > k[3] if k[2] == "over" else x < k[3]
     if k[0] == "prop":
         x = sim["players"].get(k[2], {}).get(k[3])
         if x is None:
@@ -272,6 +372,8 @@ def _conflict(a, b):
     if a["kind"] in ("ml", "spread") and b["kind"] in ("ml", "spread"):
         return True
     if a["kind"] == "total" and b["kind"] == "total":
+        return True
+    if a["kind"] == "team_total" and b["kind"] == "team_total" and a.get("team") == b.get("team"):
         return True
     return False
 
@@ -337,18 +439,26 @@ def package(name, why, legs, sims, games):
             "n_legs": len(legs), "games": len({l["game"] for l in legs})}
 
 
-def build(slate, disp, calib, avg=None, seed=5, real_props=None):
+def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None):
     """slate: list of (game dict, payload). Returns the day's parlays and the full leg board."""
     rng = np.random.default_rng(seed)
     games, sims, cands = {}, {}, []
+    out_skip = []
     for g, pay in slate:
         game = {"id": str(pay["id"]), "home": pay["home"]["abbr"], "away": pay["away"]["abbr"], "tip": pay["tip"]}
-        games[game["id"]] = game
         est = pay["est"]
         players = pay.get("players") or {}
-        sims[game["id"]] = simulate(game, est, players, disp, rng)
         gap = (pay.get("gauge") or {}).get("home", 0) - (pay.get("gauge") or {}).get("away", 0)
-        legs = team_legs(game, est, g.get("odds"), gap) + prop_legs(game, players, calib, avg or {}, disp, real_props)
+        if book_only:
+            # only what the betting book lists for this game, at its own lines and prices
+            if ((g.get("odds") or {}).get("provider") or "") != book_only:
+                out_skip.append(f"{game['away']} at {game['home']}")
+                continue
+            legs = book_legs(game, est, players, g.get("odds"), (g.get("offers") or {}).get("offers", []), calib, disp, gap)
+        else:
+            legs = team_legs(game, est, g.get("odds"), gap) + prop_legs(game, players, calib, avg or {}, disp, real_props)
+        games[game["id"]] = game
+        sims[game["id"]] = simulate(game, est, players, disp, rng)
         for l in legs:
             l["_o"] = outcome(sims[game["id"]], l, game)
             l["matchup"] = f"{game['away']} at {game['home']}"
@@ -357,9 +467,11 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None):
             l["mind_flag"] = "against" if (l.get("mind") or 0) <= -0.3 else "with" if (l.get("mind") or 0) >= 0.3 else "neutral"
         cands += legs
     # a leg is eligible if its chance is in range, the price (when known) is worth taking, and the mind is not against it
-    elig = [l for l in cands if P_MIN <= l["p"] <= P_MAX and (l["edge"] is None or l["edge"] >= 0) and l["mind_flag"] != "against"]
+    elig = [l for l in cands if P_MIN <= l["p"] <= P_MAX and (l["edge"] is None or l["edge"] >= 0) and l["mind_flag"] != "against"
+            and (not book_only or (l.get("price") or 0) >= 1.15)]
     n_games = len(games)
-    out = {"games": n_games, "candidates": len(cands), "eligible": len(elig), "parlays": []}
+    out = {"games": n_games, "candidates": len(cands), "eligible": len(elig), "parlays": [], "book": book_only,
+           "not_on_book": out_skip}
     if not elig or n_games == 0:
         return out, cands
     six = search(elig, min(6, len(elig)), sims, games, max_per_game=2 if n_games >= 3 else 3, min_games=min(4, n_games))
@@ -386,7 +498,7 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None):
         out["parlays"].append(package("Same-game 3", "Three legs from one game that tend to land together (positive correlation). "
                                       "Bookmakers reprice same-game combos, so compare their price with the minimum odds.", list(best_sg[1]), sims, games))
     singles = sorted([l for l in cands if l.get("edge") is not None and l["edge"] > 0.02 and l["mind_flag"] != "against"
-                      and not l.get("price_est")],
+                      and not l.get("price_est") and P_MIN <= l["p"] <= P_MAX],
                      key=lambda l: -l["edge"])[:6]
     out["singles"] = [{k: v for k, v in l.items() if not k.startswith("_") and k != "sim"} for l in singles]
     return out, cands

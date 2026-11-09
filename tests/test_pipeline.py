@@ -229,3 +229,21 @@ def test_parse_event_survives_odd_odds():
                                      "homeTeamOdds": {"moneyLine": -190}, "awayTeamOdds": {"moneyLine": 160}}]
     o = espn.parse_event(e)["odds"]
     assert abs(o["ml_home"] - 1.5263) < 1e-3 and o["ml_away"] == 2.6 and o["spread_home"] == -4.5 and o["total"] == 224.5
+
+
+def test_book_legs_only_from_book_menu():
+    from model import parlay
+    game = {"id": "g1", "home": "BOS", "away": "LAL"}
+    est = {"margin": 5.0, "sd_margin": 12.0, "total": 226.0, "sd_total": 15.0, "home_pts": 115.5, "away_pts": 110.5, "win_home": 0.66}
+    odds = {"provider": "winamax_fr", "ml_home": 1.55, "ml_away": 2.45, "spread_home": -4.5, "spread_price_home": 1.88,
+            "spread_price_away": 1.88, "total": 225.5, "over": 1.87, "under": 1.87}
+    offers = [{"kind": "prop", "stat": "pts", "player": "Jayson Tatum", "side": "over", "point": 26.5, "price": 1.85},
+              {"kind": "prop", "stat": "pts", "player": "Jayson Tatum", "side": "under", "point": 26.5, "price": 1.85},
+              {"kind": "spread", "team": "BOS", "point": -9.5, "price": 2.6},
+              {"kind": "team_total", "team": "LAL", "side": "under", "point": 112.5, "price": 1.8}]
+    players = {"home": [{"id": "1", "name": "Jayson Tatum", "min": 36, "pts": 28.0, "reb": 8.0, "ast": 5.0, "tpm": 3.0}], "away": []}
+    legs = parlay.book_legs(game, est, players, odds, offers, {}, {"pts": 1.2}, 0.0)
+    descs = {l["desc"] for l in legs}
+    assert "Jayson Tatum over 26.5 points" in descs and "BOS -9.5" in descs and "LAL under 112.5 points" in descs
+    assert all(l["book"] == "winamax_fr" and l["price"] for l in legs)
+    assert {l["line"] for l in legs if l["kind"] == "prop"} == {26.5}   # no player line the book does not list

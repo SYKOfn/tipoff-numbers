@@ -28,6 +28,11 @@ BASE = "https://api.the-odds-api.com/v4/sports/basketball_nba"
 PROP_MARKETS = {"player_points": "pts", "player_rebounds": "reb", "player_assists": "ast", "player_threes": "tpm",
                 "player_points_rebounds_assists": "pra"}
 PROPS_CSV = DATA / "props" / "lines.csv"
+MAIN = {"h2h", "spreads", "totals"}
+STAT_OF = {"player_points": "pts", "player_rebounds": "reb", "player_assists": "ast", "player_threes": "tpm",
+           "player_points_rebounds_assists": "pra", "player_points_alternate": "pts", "player_rebounds_alternate": "reb",
+           "player_assists_alternate": "ast", "player_threes_alternate": "tpm",
+           "player_points_rebounds_assists_alternate": "pra"}
 PROPS_COLS = ["fetched_at", "game_id", "day", "player", "stat", "line", "over", "under", "book", "phase"]
 
 
@@ -172,17 +177,86 @@ def collect(upcoming, now=None):
             if isinstance(data, dict) and data.get("bookmakers"):
                 archive_props(data, g, now, phase)
                 done.setdefault(g["game_id"], []).append(phase)
+    # the betting book's full menu (default Winamax): which markets it lists for each game, then every line it offers
+    book = env("ODDS_API_BET_BOOK", "winamax_fr")
+    offers = read_json(STATE / "book_offers.json", {}) or {}
+    menus = st.setdefault("menus", {})
+    taken = st.setdefault("offers_done", {})
+    for g in upcoming:
+        gid = g["game_id"]
+        if g.get("state") != "pre" or gid not in snap:
+            continue
+        t = datetime.fromisoformat(g["date"].replace("Z", "+00:00"))
+        left = t - now
+        phase = "close" if left <= timedelta(minutes=75) else "open" if left <= timedelta(hours=14) else None
+        if not phase or phase in taken.get(gid, []):
+            continue
+        eid = snap[gid]["event_id"]
+        if gid not in menus and st["spent"] + 1 <= daily:
+            data, used, _ = _get(f"/events/{eid}/markets", {"bookmakers": book})
+            st["spent"] += used or 1
+            keys = []
+            for bk in (data.get("bookmakers") or []) if isinstance(data, dict) else []:
+                keys += [m.get("key") for m in bk.get("markets") or []]
+            menus[gid] = sorted(k for k in set(keys) if k and k not in MAIN and not k.endswith(("_q1", "_q2", "_q3", "_q4", "_h1", "_h2")))
+        want = menus.get(gid) or []
+        if not want or st["spent"] + len(want) > daily:
+            continue
+        data, used, _ = _get(f"/events/{eid}/odds", {"bookmakers": book, "markets": ",".join(want), "oddsFormat": "decimal"})
+        st["spent"] += used or len(want)
+        if isinstance(data, dict) and data.get("bookmakers") is not None:
+            offers[gid] = {"at": now.isoformat(), "book": book, "phase": phase, "offers": parse_offers(data, g)}
+            taken.setdefault(gid, []).append(phase)
+            archive_props(data, g, now, phase)
+    write_json(STATE / "book_offers.json", offers)
+    status["book"] = book
+    status["menus"] = {k: len(v) for k, v in menus.items()}
     write_json(STATE / "oddsapi.json", st)
     attach(upcoming)
     return status
+
+
+def parse_offers(ev, g):
+    """Every line the book offers for a game: [{market, kind, team|player, side, point, price}]."""
+    out = []
+    for bk in ev.get("bookmakers") or []:
+        for m in bk.get("markets") or []:
+            key = m.get("key") or ""
+            for oc in m.get("outcomes") or []:
+                price, point, name = oc.get("price"), oc.get("point"), oc.get("name") or ""
+                if not price:
+                    continue
+                if key in STAT_OF:
+                    side = name.lower()
+                    if side not in ("over", "under") or point is None:
+                        continue
+                    out.append({"market": key, "kind": "prop", "stat": STAT_OF[key], "player": oc.get("description"),
+                                "side": side, "point": float(point), "price": float(price)})
+                elif key in ("alternate_spreads",):
+                    team = team_of(name)
+                    if team and point is not None:
+                        out.append({"market": key, "kind": "spread", "team": team, "point": float(point), "price": float(price)})
+                elif key in ("alternate_totals",):
+                    if name.lower() in ("over", "under") and point is not None:
+                        out.append({"market": key, "kind": "total", "side": name.lower(), "point": float(point), "price": float(price)})
+                elif key in ("team_totals", "alternate_team_totals"):
+                    team = team_of(oc.get("description") or "")
+                    if team and name.lower() in ("over", "under") and point is not None:
+                        out.append({"market": key, "kind": "team_total", "team": team, "side": name.lower(),
+                                    "point": float(point), "price": float(price)})
+    return out
 
 
 def archive_props(ev, g, now, phase):
     rows = {}
     for bk in ev.get("bookmakers") or []:
         for m in bk.get("markets") or []:
+            if m.get("key") in STAT_OF and m.get("key") not in PROP_MARKETS:
+                m["_skip"] = True  # alternate player lines are one-sided: kept in the offers, not the line archive
+    for bk in ev.get("bookmakers") or []:
+        for m in bk.get("markets") or []:
             st = PROP_MARKETS.get(m["key"])
-            if not st:
+            if not st or m.get("_skip"):
                 continue
             for oc in m.get("outcomes") or []:
                 k = (oc.get("description"), st, oc.get("point"), bk["key"])
@@ -203,8 +277,12 @@ def archive_props(ev, g, now, phase):
 
 def attach(upcoming):
     """Put the freshest real prices on each upcoming game: g['odds'] (preferred book, ESPN fallback stays
-    if missing) and g['odds_books'] (every book we have)."""
+    if missing), g['odds_books'] (every book we have) and g['offers'] (the betting book's full menu)."""
     snap = read_json(STATE / "odds_latest.json", {}) or {}
+    offers = read_json(STATE / "book_offers.json", {}) or {}
+    for g in upcoming:
+        if g["game_id"] in offers:
+            g["offers"] = offers[g["game_id"]]
     pref = [b.strip() for b in env("ODDS_API_BOOKS", "winamax_fr,pinnacle").split(",")]
     for g in upcoming:
         s = snap.get(g["game_id"])
