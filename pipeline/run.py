@@ -16,7 +16,7 @@ from model import players as PM
 from model.features import Tracker
 from . import player_pages
 from . import espn
-from .store import (OVR, PRED, ROOT, SITE, STATE, load_games, load_players, load_stints, read_json, write_json)
+from .store import (OVR, PRED, ROOT, SITE, STATE, archived_seasons, load_games, load_players, load_stints, read_json, write_json)
 from .teams import TEAMS, info
 
 STAT_NAMES = {"tpm": "Threes made", "reb": "Rebounds", "ast": "Assists"}
@@ -85,6 +85,8 @@ def main(demo=False, now=None, collect_data=True):
         print("collect:", collect.collect(today))
 
     games = load_games()
+    if demo:  # the simulated league is self-contained: real archived seasons and lineups stay out
+        games = games[~games["season"].isin(archived_seasons())].reset_index(drop=True)
     # seasons the model learns from (older archived seasons are kept for research until a test says they help)
     cur_s = int(games["season"].max()) if len(games) else espn.season_of(today.isoformat())
     games = games[games["season"] >= cur_s - MODEL_HIST].reset_index(drop=True)
@@ -108,7 +110,7 @@ def main(demo=False, now=None, collect_data=True):
     analyst = (read_json(OVR / "analyst.json", {}) or {}).get("games", {})
 
     cur = espn.season_of(today.isoformat())
-    stints = load_stints(min_season=cur_s - MODEL_HIST) if engine.SRAPM_MODE != "off" else None
+    stints = load_stints(min_season=cur_s - MODEL_HIST) if engine.SRAPM_MODE != "off" and not demo else None
     c = engine.build_context(games, players, upcoming, tuned, stints=stints)
     rest_table = rest.measure(games, players, c.ctxs)
     rts = engine.fit_all(games, today.isoformat(), c.tuned)

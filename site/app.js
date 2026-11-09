@@ -475,7 +475,7 @@ async function game(id) {
         <ul class="lines">${e.spread_lines.map(l => `<li class="${am == null ? "" : ((am > l.line) === (l.home_cover >= 0.5) ? "hit" : "miss")}"><span>${h(T(H).abbr)} by ${l.line}+</span><span class="bar"><span style="width:${l.home_cover * 100}%"></span></span><span class="pct">${pct(l.home_cover)}</span></li>`).join("")}</ul></div>
       <div class="panel"><h3>Total points</h3><div class="stat-row"><span class="stat-big">${fx(e.total, 0)}</span><span class="range">80% range ${fx(e.total - 1.28 * e.sd_total, 0)}–${fx(e.total + 1.28 * e.sd_total, 0)}</span>${at != null ? `<span class="actual">actual ${at}</span>` : ""}</div>
         ${linesList(e.total_lines, at, "Over")}
-        <p class="sub small" style="margin-top:10px">Base ${fx(e.base.total, 0)} · physical ${sgn(e.physical.total)} · mind ${sgn(e.mind.total)}</p></div>
+        <p class="sub small" style="margin-top:10px">Base ${fx(e.base.total, 0)} · physical ${sgn(e.physical.total)} · mind ${sgn(e.mind.total)}${e.level_total ? ` · league scoring this season ${sgn(e.level_total)}` : ""}</p></div>
       <div class="panel"><h3>Why</h3><ul class="why">${g.reasoning.map(r => `<li>${h(r)}</li>`).join("")}</ul>${g.analyst ? `<p class="call"><b>Analyst view:</b> ${h(g.analyst.text || g.analyst.overall || "")}</p>` : ""}</div>
     </section>
     <section class="section"><h2>How the number was built <span class="sub">points on the margin</span></h2><div class="panel">${buildRows(g)}
