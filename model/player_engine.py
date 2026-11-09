@@ -34,6 +34,34 @@ def rows_by_game(df):
 MIN_TEAM = 240.0
 
 
+MAX_MIN = 40.0  # no regular-season projection above this: stars rarely play more, even with teammates out
+
+
+def capped_factors(mins, k, cap=MAX_MIN):
+    """Per-player scale factors bringing the team towards its 240 minutes with factor k, never lifting a player
+    above `cap`; minutes a capped player cannot take go to the others (two passes)."""
+    f = [k] * len(mins)
+    if k <= 1.0:
+        return f
+    target = sum(m * k for m in mins)
+    capped = set()
+    for _ in range(3):
+        new = {i for i, m in enumerate(mins) if i not in capped and m * f[i] > cap}
+        if not new:
+            break
+        capped |= new
+        for i in capped:
+            f[i] = max(1.0, cap / mins[i]) if mins[i] > 0 else 1.0
+        free = [i for i in range(len(mins)) if i not in capped]
+        base = sum(mins[i] for i in free)
+        if not free or base <= 0:
+            break
+        kk = min((target - sum(mins[i] * f[i] for i in capped)) / base, 1.15)
+        for i in free:
+            f[i] = kk
+    return f
+
+
 def team_minutes_scale(total, lo=0.85, hi=1.15):
     """Factor that brings a team's projected minutes to the 240 available."""
     return max(lo, min(hi, MIN_TEAM / total)) if total > 0 else 1.0
@@ -74,7 +102,8 @@ def walk(c, players_df, notes, cur, use_mm=True, ev=None, opp_mode="team", norm=
                 team_proj.append((r, pid, proj, x, pt.last_mf))
             if norm:  # scale the team's projected minutes to the 240 available (newcomers counted at 12)
                 k = team_minutes_scale(sum(t[2]["min"] for t in team_proj) + 12.0 * (len(played) - len(team_proj)))
-                team_proj = [(r, pid, {kk: v * k for kk, v in proj.items()}, x, mf) for r, pid, proj, x, mf in team_proj]
+                fs = capped_factors([t[2]["min"] for t in team_proj], k)
+                team_proj = [(r, pid, {kk: v * f_ for kk, v in proj.items()}, x, mf) for (r, pid, proj, x, mf), f_ in zip(team_proj, fs)]
             keys_out = pt.key_absent(team, absent)
             for r, pid, proj, x, mf in team_proj:
                 mrows.append((mf, r["min"]))
@@ -223,11 +252,13 @@ def project_game(pt, pe, disp, g, ctx, injuries, notes, news=True, exp_margin=No
             lst.append(row)
         # the team has 240 minutes: scale projections so expected minutes add up (tested: better on every stat)
         k = team_minutes_scale(sum(r["min"] * r["p_play"] for r in lst if not r["out"]))
+        live = [r for r in lst if not r["out"]]
+        for r, kp in zip(live, capped_factors([r["min"] for r in live], k)):
+            for st in ("min", "pts", "reb", "ast", "tpm", "stl", "blk", "tov", "pra", "fga", "fta"):
+                r[st] = round(r[st] * kp, 1)
         for r in lst:
             if r["out"]:
                 continue
-            for st in ("min", "pts", "reb", "ast", "tpm", "stl", "blk", "tov", "pra", "fga", "fta"):
-                r[st] = round(r[st] * k, 1)
             r["lines"] = {st: P.lines_for(st, r[st], disp) for st in ("pts", "reb", "ast", "tpm", "pra")}
         out[side] = lst
     return out
