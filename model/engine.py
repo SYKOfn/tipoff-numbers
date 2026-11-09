@@ -14,6 +14,7 @@ from .features import Tracker
 from .lineup import LineupTracker
 from .style import StyleTracker
 from .rapm import RAPM
+from .officials import OfficialsTracker
 
 STACK_LAM = 50.0   # ridge on the player-strength weights (tested walk-forward on 2025-26 and 2026-27)
 
@@ -46,6 +47,7 @@ def build_context(games, players, upcoming, tuned=None, effects_until=None):
     lt = LineupTracker()
     sty = StyleTracker()
     rp = RAPM()
+    otr = OfficialsTracker()
     lfeat = {}
     tr = Tracker()
     tr.names.update(names)
@@ -78,6 +80,9 @@ def build_context(games, players, upcoming, tuned=None, effects_until=None):
         lt.post_game(g, rows_)
         margin = g["home_pts"] - g["away_pts"]
         total = g["home_pts"] + g["away_pts"]
+        ctx["refs_total"] = round(otr.crew(g.get("refs")), 3)
+        if b:
+            otr.post_game(g.get("refs"), total - (b[0] + b[1]))
         if b:
             rows.append((ctx, margin, b[0] - b[1], total, b[0] + b[1], g["day"], gid))
         tr.post_game(g, base_margin=(b[0] - b[1]) if b else None,
@@ -92,7 +97,7 @@ def build_context(games, players, upcoming, tuned=None, effects_until=None):
     c = Context()
     c.tuned, c.base, c.ctxs, c.rows, c.eff, c.tracker, c.games, c.meta = tuned, base, ctxs, rows, eff, tr, fin, meta
     rp.fit(fin["day"].max() if len(fin) else date.today().isoformat())  # latest ratings for upcoming games
-    c.lineup, c.lfeat, c.stack, c.rows_raw, c.style, c.rapm = lt, lfeat, stack, rows_raw, sty, rp
+    c.lineup, c.lfeat, c.stack, c.rows_raw, c.style, c.rapm, c.officials = lt, lfeat, stack, rows_raw, sty, rp, otr
     return c
 
 

@@ -47,6 +47,12 @@ TOTAL = {
 }
 
 
+from . import officials as _officials
+if _officials.ON:
+    TOTAL["refs"] = ("physical", "Referee crew", "points a game this crew's games have finished above (or below) the expected total",
+                     lambda h, a, g: g.get("refs_total", 0.0))
+
+
 def own(ctx_side):
     """Each margin factor's value for one team (its effect on that team's own margin)."""
     return np.array([f[3](ctx_side) for f in MARGIN.values()], dtype=float)
