@@ -35,6 +35,10 @@ def season_label(s):
 
 
 BLEND_W = 0.4  # model weight in the Pinnacle blend (log-odds), from the 1,368-game test
+# Game totals: the model's total blended with Pinnacle's main total, same weight as win chances. Our totals barely
+# beat a plain baseline and ran 2.4 points high this season; the market's total is the better anchor (Nov 2026).
+# Not yet tuned: only a few nights of Pinnacle totals are stored. Revisit the weight after ~300 games.
+TOTAL_BLEND_W = 0.4
 
 
 MODEL_HIST = int(os.environ.get("MODEL_HIST", "9"))  # full seasons before the current one used by the model
@@ -218,6 +222,7 @@ def main(demo=False, now=None, collect_data=True):
                "mind": {k: r1(v, 2) for k, v in est["mind"].items()},
                "win_home_nomind": r1(est["win_home_nomind"], 3), "margin_nomind": r1(est["margin_nomind"]),
                "win_home_model": r1(est.get("win_home_model"), 3), "win_home_market": r1(est.get("win_home_market"), 3),
+               "total_model": r1(est.get("total_model", est["total"])), "total_market": r1(est.get("total_market")),
                "baseline": {k: r1(v, 3 if k == "win_home" else 1) for k, v in est["baseline"].items()},
                "parts": parts,
                "total_lines": lines_around(est["total"], sdt, 5.0),
@@ -349,6 +354,12 @@ def main(demo=False, now=None, collect_data=True):
         if p_mkt is not None and market_blend_on:
             lo = lambda x: math.log(max(x, 1e-6) / max(1 - x, 1e-6))
             est["win_home"] = 1 / (1 + math.exp(-(BLEND_W * lo(est["win_home"]) + (1 - BLEND_W) * lo(p_mkt))))
+        est["total_model"] = est["total"]
+        if pin.get("total"):
+            t_new = TOTAL_BLEND_W * est["total"] + (1 - TOTAL_BLEND_W) * float(pin["total"])
+            est["total_market"] = float(pin["total"])
+            est["home_pts"], est["away_pts"] = (t_new + est["margin"]) / 2, (t_new - est["margin"]) / 2
+            est["total"] = t_new
         payload = game_payload(g, ctx, est, "estimate", {t: injuries.get(t, []) for t in (g["home"], g["away"])} if news else None)
         payload["news"] = news
         payload["refs"] = g.get("refs")
@@ -723,7 +734,9 @@ def main(demo=False, now=None, collect_data=True):
                     day_ids.add(l["id"]); t_legs.append(l)
         b_legs += [l for l in h_.get("board", []) if l.get("result") in ("hit", "miss") and l["id"] not in day_ids]
     sel = lambda ls: {"n": len(ls), "hits": sum(l["result"] == "hit" for l in ls), "expected": round(sum(l["p"] for l in ls), 1)}
-    rec["_selection"] = {"ticket_legs": sel(t_legs), "other_legs": sel(b_legs)}
+    src = lambda l: "team" if l.get("kind") in ("ml", "spread", "total") else ("prop_estimated" if l.get("price_est") else "prop_priced")
+    rec["_selection"] = {"ticket_legs": sel(t_legs), "other_legs": sel(b_legs),
+                         "ticket_by_source": {k: sel([l for l in t_legs if src(l) == k]) for k in ("team", "prop_priced", "prop_estimated")}}
     clv_legs = [l["clv"] for h_ in history for l in [l for pr in h_["parlays"] for l in pr["legs"]] + h_.get("singles", [])
                 if l.get("clv")]
     clv_all = [l["clv"] for path in sorted(PAR.glob("*.json")) for pj in [read_json(path) or {}] if pj.get("frozen")

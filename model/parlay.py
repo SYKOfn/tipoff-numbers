@@ -30,6 +30,11 @@ SAFETY = 1.05            # ask 5% more than fair odds before calling a leg worth
 # Fitted on 2024-25 (115,000 Winamax-line legs, projections made before each game), confirmed on 2025-26: the old
 # 50/50 blend with the projection-only confidence understated ticket legs by about 10 points; this setting by about 3.
 PROP_CENTER_W = 0.7
+# Legs without a real price: the chance starts from the season-average line (where books anchor) and moves only
+# EST_K of the way (log-odds) towards the model. On 1,243 settled real lines (Nov 2026), legs picked because the
+# projection beat the average were stated 67% and landed 55% (the book said 57%); with EST_K 0.3 the picked
+# legs were stated 63% and landed 63%. The model's edge over a posted line is small: it must not be overstated.
+EST_K = 0.3
 EST_T = {"pts": 1.05, "reb": 1.1, "ast": 1.1, "tpm": 1.05, "pra": 1.1}
 # markets Winamax lets you bet only on their own, never inside a combiné with other legs
 SINGLE_ONLY = {"pra"}
@@ -133,6 +138,7 @@ def team_legs(game, est, odds, mind_gap):
     """mind_gap: home gauge - away gauge (psychological spots, in points)."""
     H, A = game["home"], game["away"]
     m, sdm, t, sdt = est["margin"], est["sd_margin"], est["total"], est["sd_total"]
+    t_own = est.get("total_model", t)   # the model's own total, before the market blend: used for the gap rule
     legs = []
     ph = est["win_home"]
     if odds and odds.get("ml_home") and odds.get("ml_away"):
@@ -161,7 +167,7 @@ def team_legs(game, est, odds, mind_gap):
         legs.append(_leg(game, "spread", f"{A} {lab(-L)}", 1 - p, 1 - pc, sp_a or STD_PRICE, team=A, line=-L, book=src if sp_a else None,
                          note=f"{src} main line, blended halfway with the market", mind=-mind_gap, sim=("cover", A, -L),
                          dist={"mu": round(-m, 2), "sd": round(sdm, 2), "alone": 0.5, "model": 1.0}))
-    if odds and odds.get("total") and abs(t - odds["total"]) <= TOTAL_GAP_MAX:
+    if odds and odds.get("total") and abs(t_own - odds["total"]) <= TOTAL_GAP_MAX:
         T = odds["total"]
         po = 1 - norm_cdf((T - t) / sdt)
         pb = novig(odds.get("over"), odds.get("under"))
@@ -241,13 +247,13 @@ def prop_legs(game, players, calib, avg, disp_all, real=None):
                     po = over_prob(st, L, center, dp)
                     # the price a book would ask: fair on the season-average anchor, plus its margin
                     pa_over = min(max(over_prob(st, L, av, dp), 0.03), 0.97)
-                    pc = sigmoid(t * logit(po))
+                    pc = sigmoid(logit(pa_over) + EST_K * (t * logit(po) - logit(pa_over)))
                     price = round(1 / (pa_over * winamax_margin(pa_over)), 2)
                     if 0.5 <= pc <= PROP_MAX and price >= 1.3:
                         legs.append(_leg(game, "prop", f"{pl['name']} over {L:.1f} {STAT_NAME[st]}", po, pc, price,
                                          dist={"mu": round(center, 2), "sd": round(sd, 2), "d": round(dp.get(st, 1.5), 3), "alone": t, "model": t},
                                          team=team, player=pl["id"], player_name=pl["name"], stat=st, line=L, side="over",
-                                         proj=proj, avg=round(av, 1), price_est=True,
+                                         proj=proj, avg=round(av, 1), price_est=True, anchor=round(pa_over, 4),
                                          note=f"projection {proj:.1f} vs season average {av:.1f} {LABEL.get(st, st).lower()} (blended {round(PROP_CENTER_W * 100)}/{round(100 - PROP_CENTER_W * 100)}); Winamax line, price estimated",
                                          mind=mind, spots=[x["label"] for x in spots],
                                          sim=("prop", side, pl["id"], st, "over", L)))
@@ -299,7 +305,7 @@ def book_legs(game, est, players, odds, offers, calib, disp, mind_gap):
         add("spread", f"{team} {lab}", pm, pb, price, team=team, line=L, mind=mind_gap if team == H else -mind_gap, sim=("cover", team, L),
             dist={"mu": round(mt, 2), "sd": round(sdm, 2), "alone": 0.5, "model": 1.0})
     totals = []
-    if odds and odds.get("total") is not None and abs(t - odds["total"]) > TOTAL_GAP_MAX:
+    if odds and odds.get("total") is not None and abs(est.get("total_model", t) - odds["total"]) > TOTAL_GAP_MAX:
         offers = [o for o in offers if o["kind"] not in ("total", "team_total")]
     elif odds and odds.get("total") is not None and odds.get("over") and odds.get("under"):
         pbo = novig(odds["over"], odds["under"])
@@ -517,7 +523,10 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None)
             l["mind_flag"] = "against" if (l.get("mind") or 0) <= -0.3 else "with" if (l.get("mind") or 0) >= 0.3 else "neutral"
         cands += legs
     # a leg is eligible if its chance is in range, the price (when known) is worth taking, and the mind is not against it
-    elig = [l for l in cands if combinable(l) and P_MIN <= l["p"] <= P_MAX and (l["edge"] is None or l["edge"] >= 0) and l["mind_flag"] != "against"
+    # an estimated price is a guess, so its "edge" is too: those legs only need the model to lean over the
+    # season-average line; whether Winamax's real odds are worth it is decided on the ticket (place / skip box)
+    worth = lambda l: (l["p"] >= l["anchor"] + 0.01) if l.get("price_est") and l.get("anchor") is not None else (l["edge"] is None or l["edge"] >= 0)
+    elig = [l for l in cands if combinable(l) and P_MIN <= l["p"] <= P_MAX and worth(l) and l["mind_flag"] != "against"
             and (not book_only or (l.get("price") or 0) >= 1.15)]
     n_games = len(games)
     out = {"games": n_games, "candidates": len(cands), "eligible": len(elig), "parlays": [], "book": book_only,

@@ -525,3 +525,16 @@ def test_no_totals_legs_when_far_from_market():
     assert not [l for l in parlay.team_legs(game, est, odds, 0.0) if l["kind"] == "total"]
     odds["total"] = 234.5
     assert [l for l in parlay.team_legs(game, est, odds, 0.0) if l["kind"] == "total"]
+
+
+def test_estimated_prop_chance_stays_near_the_anchor():
+    import math
+    from model import parlay
+    from model.players import over_prob
+    # projection 22 against a season average of 18 at the 19.5 line: the leg's chance moves only part of the way
+    d = {"pts": 3.2}
+    pa = over_prob("pts", 19.5, 18.0, d)
+    po = over_prob("pts", 19.5, parlay.PROP_CENTER_W * 22 + (1 - parlay.PROP_CENTER_W) * 18, d)
+    lo = lambda p: math.log(p / (1 - p))
+    pc = 1 / (1 + math.exp(-(lo(pa) + parlay.EST_K * (parlay.EST_T["pts"] * lo(po) - lo(pa)))))
+    assert pa < pc < po and pc - pa < 0.5 * (po - pa)
