@@ -1574,7 +1574,10 @@ async function parlayPage() {
 
 /* ---------------------------------------------------------------- installable app (home-screen icon, offline copy) */
 if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
-  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then(r => r.update()).catch(() => {}));
+  // when a new version of the app takes over, reload once so the page shows it
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => { if (!reloaded && navigator.serviceWorker.controller) { reloaded = true; location.reload(); } });
 }
 (function installPrompt() {
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;

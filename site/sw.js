@@ -1,6 +1,6 @@
 /* Tip-Off Numbers offline support. Everything is fetched fresh from the network first (the data changes
    every 15 minutes and must never be stale); the last good copy is kept and used only when there is no signal. */
-const CACHE = "tipoff-v1";
+const CACHE = "tipoff-v2";
 const SHELL = ["./", "./index.html", "./styles.css", "./app.js", "./manifest.webmanifest", "./icons/icon-192.png"];
 
 self.addEventListener("install", e => {
@@ -12,8 +12,10 @@ self.addEventListener("activate", e => {
 self.addEventListener("fetch", e => {
   const req = e.request;
   if (req.method !== "GET" || new URL(req.url).origin !== location.origin) return;
+  // "no-cache": always ask the server whether the file changed (cheap: an unchanged file is a tiny 304 reply), so a
+  // new version shows on the next open instead of after the browser's own cache expires
   e.respondWith(
-    fetch(req).then(res => {
+    fetch(req, { cache: "no-cache" }).then(res => {
       if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(stripVersion(req), copy)); }
       return res;
     }).catch(() => caches.match(stripVersion(req)).then(r => r || caches.match("./index.html")))
