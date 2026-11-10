@@ -949,7 +949,7 @@ function slipPool() {
 }
 function slipLegs() {
   const pool = slipPool(), extra = LS.get("tipoff.slipx." + slipDay(), {});
-  return LS.get("tipoff.pick." + slipDay(), []).map(id => pool.get(id) || extra[id]).filter(Boolean);
+  return LS.get("tipoff.pick." + slipDay(), []).map(id => pool.get(id) || extra[id]).filter(l => l && !singleOnly(l));
 }
 function toggleSlip(id, leg) {
   const k = "tipoff.pick." + slipDay();
@@ -970,7 +970,8 @@ function syncAddButtons() {
   const ids = new Set(LS.get("tipoff.pick." + slipDay(), []));
   document.querySelectorAll("[data-add]").forEach(b => { const on = ids.has(b.dataset.add); b.setAttribute("aria-pressed", on ? "true" : "false"); b.classList.toggle("on", on); b.title = on ? "In your ticket (tap to remove)" : "Add to your ticket"; });
 }
-const addBtn = (l, label = "") => `<button type="button" class="addleg" data-add="${h(l.id)}"${l._synthetic ? ` data-leg="${h(JSON.stringify(l))}"` : ""} aria-pressed="false" aria-label="Add ${h(legDesc(l))} to your ticket"><span class="plus">+</span><span class="tick">✓</span>${label}</button>`;
+const singleOnly = l => l && l.kind === "prop" && l.stat === "pra";
+const addBtn = (l, label = "") => singleOnly(l) ? `<span class="single-tag" title="Winamax only takes points + rebounds + assists as a bet on its own, never inside a combiné">single bet</span>` : `<button type="button" class="addleg" data-add="${h(l.id)}"${l._synthetic ? ` data-leg="${h(JSON.stringify(l))}"` : ""} aria-pressed="false" aria-label="Add ${h(legDesc(l))} to your ticket"><span class="plus">+</span><span class="tick">✓</span>${label}</button>`;
 function propLeg(pid, name, team, game, tip, opp, home, stat, line, over) {
   // a player over built from the projection, for players and lines not in tonight's curated list
   return { id: `x${pid}_${stat}_${line}`, _synthetic: true, game, kind: "prop", player: pid, player_name: name, team, stat, line, side: "over", p: over,

@@ -445,3 +445,9 @@ def test_notifications_once(tmp_path):
     f.write_text(json.dumps(d))
     m = notify.messages(f, {"lock:2026-11-10": "t"})
     assert len(m) == 1 and m[0][0] == "alert:2026-11-10:x1" and "Value 2, Core 3" in m[0][1]["message"]
+
+
+def test_pts_reb_ast_never_in_combinations():
+    from model import parlay
+    assert not parlay.combinable({"kind": "prop", "stat": "pra"}) and parlay.combinable({"kind": "prop", "stat": "pts"})
+    assert parlay.combinable({"kind": "ml"})

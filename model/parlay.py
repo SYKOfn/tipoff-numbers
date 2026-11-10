@@ -31,6 +31,14 @@ SAFETY = 1.05            # ask 5% more than fair odds before calling a leg worth
 # 50/50 blend with the projection-only confidence understated ticket legs by about 10 points; this setting by about 3.
 PROP_CENTER_W = 0.7
 EST_T = {"pts": 1.05, "reb": 1.1, "ast": 1.1, "tpm": 1.05, "pra": 1.1}
+# markets Winamax lets you bet only on their own, never inside a combiné with other legs
+SINGLE_ONLY = {"pra"}
+
+
+def combinable(l):
+    return not (l.get("kind") == "prop" and l.get("stat") in SINGLE_ONLY)
+
+
 WINAMAX_PROP_MARGIN = 1.07  # assumed margin on Winamax's one-sided player prices when only another book's line is known
 BETA = {"pts": 1.0, "pra": 0.85, "ast": 0.6, "reb": 0.3, "tpm": 0.8}
 STAT_NAME = {"pts": "points", "reb": "rebounds", "ast": "assists", "tpm": "threes", "pra": "pts+reb+ast"}
@@ -490,7 +498,7 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None)
             l["mind_flag"] = "against" if (l.get("mind") or 0) <= -0.3 else "with" if (l.get("mind") or 0) >= 0.3 else "neutral"
         cands += legs
     # a leg is eligible if its chance is in range, the price (when known) is worth taking, and the mind is not against it
-    elig = [l for l in cands if P_MIN <= l["p"] <= P_MAX and (l["edge"] is None or l["edge"] >= 0) and l["mind_flag"] != "against"
+    elig = [l for l in cands if combinable(l) and P_MIN <= l["p"] <= P_MAX and (l["edge"] is None or l["edge"] >= 0) and l["mind_flag"] != "against"
             and (not book_only or (l.get("price") or 0) >= 1.15)]
     n_games = len(games)
     out = {"games": n_games, "candidates": len(cands), "eligible": len(elig), "parlays": [], "book": book_only,
@@ -558,7 +566,7 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None)
 
 def board(cands, n=60):
     """The strongest legs, plus the correlation lift for every same-game pair (for the custom ticket builder)."""
-    good = sorted([l for l in cands if P_MIN <= l["p"] <= P_MAX and l["mind_flag"] != "against"],
+    good = sorted([l for l in cands if combinable(l) and P_MIN <= l["p"] <= P_MAX and l["mind_flag"] != "against"],
                   key=lambda l: -(math.log(l["p"]) + edge_score(l)))[:n]
     lifts = {}
     for i, a in enumerate(good):
@@ -744,7 +752,7 @@ def late_check(parlays, cands, players_now, started):
                 continue
             l["alert"] = reason
             ref_price = l.get("price") or l.get("min_odds") or 1.5
-            pool = [c for c in cands if c["id"] not in used and c["game"] not in started
+            pool = [c for c in cands if combinable(c) and c["id"] not in used and c["game"] not in started
                     and ((c["game"] == l["game"]) if same_game else (c["game"] not in games_in or c["game"] == l["game"]))
                     and _leg_key(c) != _leg_key(l)
                     and 0.8 * ref_price <= (c.get("price") or c.get("min_odds") or 0) <= 1.25 * ref_price
