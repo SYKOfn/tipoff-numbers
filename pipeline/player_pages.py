@@ -163,7 +163,7 @@ def build(players, games, cur, logs, next_proj, pt, notes, ctxs):
                       "bpg": cl.get("bpg"), "ts": cl.get("ts"), "usg": cl.get("usg"), "pm": cl.get("pm"),
                       "l5": next((s["ppg"] for s in splits if s["name"] == "Last 5"), None),
                       "next_pts": nxt["proj"]["pts"] if nxt and not nxt.get("out") else None,
-                      "next_game": nxt["game"] if nxt else None, "status": nxt.get("status") if nxt else None,
+                      "next_game": nxt["game"] if nxt else None, "status": nxt.get("status") if nxt else None, "news": nxt.get("news") if nxt else None,
                       "out": bool(nxt and nxt.get("out")), "former": bool(former), "contract_year": page["contract_year"],
                       **next_summary(nxt)})
     index.sort(key=lambda x: -(x["ppg"] or 0))

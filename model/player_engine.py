@@ -37,7 +37,7 @@ MIN_TEAM = 240.0
 MAX_MIN = 40.0  # no regular-season projection above this: stars rarely play more, even with teammates out
 
 
-def capped_factors(mins, k, cap=MAX_MIN):
+def capped_factors(mins, k, cap=MAX_MIN, caps=None):
     """Per-player scale factors bringing the team towards its 240 minutes with factor k, never lifting a player
     above `cap`; minutes a capped player cannot take go to the others (two passes)."""
     f = [k] * len(mins)
@@ -46,12 +46,13 @@ def capped_factors(mins, k, cap=MAX_MIN):
     target = sum(m * k for m in mins)
     capped = set()
     for _ in range(3):
-        new = {i for i, m in enumerate(mins) if i not in capped and m * f[i] > cap}
+        cap_of = lambda i: min(cap, (caps or {}).get(i, cap))
+        new = {i for i, m in enumerate(mins) if i not in capped and m * f[i] > cap_of(i) + 1e-9}
         if not new:
             break
         capped |= new
         for i in capped:
-            f[i] = max(1.0, cap / mins[i]) if mins[i] > 0 else 1.0
+            f[i] = min(max(1.0, cap / mins[i]), max(cap_of(i) / mins[i], 0.0)) if mins[i] > 0 else 1.0
         free = [i for i in range(len(mins)) if i not in capped]
         base = sum(mins[i] for i in free)
         if not free or base <= 0:
@@ -176,13 +177,20 @@ def match_injury(pt, team, injured):
     return out
 
 
-def project_game(pt, pe, disp, g, ctx, injuries, notes, news=True, exp_margin=None):
+def project_game(pt, pe, disp, g, ctx, injuries, notes, news=True, exp_margin=None, signals=None):
+    """signals: news facts for tonight by normalized player name (pipeline/news.py). Applied: "rest" (he sits) and
+    "min_cap" (minutes limit; teammates absorb the rest). Others ("start", "bench", "returning") are shown and
+    logged, and only change projections once their effect has been measured."""
+    from pipeline.oddsapi import norm_name
+    sig_of = lambda name: (signals or {}).get(norm_name(name or ""))
     out = {}
     for team, opp, side in ((g["home"], g["away"], "home"), (g["away"], g["home"], "away")):
         rot = pt.rotation(team)
         inj = match_injury(pt, team, (injuries or {}).get(team)) if news else {}
         # out when he is more likely to miss than to play (measured rates once the injury log has enough cases)
         absent = {pid for pid, i in inj.items() if (i.get("weight") or 0) >= 0.5}
+        rested = {pid for pid in rot if (sig_of(pt.p[pid]["name"]) or {}).get("rest")}
+        absent |= rested
         five = set(((g.get("starters") or {}).get(team)) or [])
         if five:  # starting five posted: a starter plays whatever the report said
             absent -= five
@@ -191,15 +199,21 @@ def project_game(pt, pe, disp, g, ctx, injuries, notes, news=True, exp_margin=No
         for pid in sorted(rot, key=lambda k: -rot[k]):
             q = pt.p[pid]
             status = inj.get(pid)
-            if pid in absent:
-                lst.append({"id": pid, "name": q["name"], "pos": q["pos"], "out": True, "status": status.get("status"),
-                            "detail": status.get("detail")})
+            sg = sig_of(q["name"]) or {}
+            if pid in absent and pid not in five:
+                st_ = status or {}
+                lst.append({"id": pid, "name": q["name"], "pos": q["pos"], "out": True,
+                            "status": st_.get("status") or ("Resting (news)" if pid in rested else None),
+                            "detail": st_.get("detail") or (sg.get("quote") if pid in rested else None), "news": sg or None})
                 continue
             proj, x = pt.project(pid, team, opp, side == "home", ctx[side]["b2b"], absent - {pid}, ctx[side]["missing"],
                                  notes.get(pid), pe, exp_margin=exp_margin)
             ratio = (status or {}).get("min_ratio")
             if ratio:  # listed but playing: measured minutes for that status
                 proj = {k: v * ratio for k, v in proj.items()}
+            if sg.get("min_cap") and proj["min"] > float(sg["min_cap"]):  # minutes limit from the news
+                r_ = float(sg["min_cap"]) / proj["min"]
+                proj = {k: v * r_ for k, v in proj.items()}
             if proj["min"] < 6:
                 continue
             spots = []
@@ -242,7 +256,7 @@ def project_game(pt, pe, disp, g, ctx, injuries, notes, news=True, exp_margin=No
             row = {"id": pid, "name": q["name"], "pos": q["pos"], "out": False, "lineup": row_lineup,
                    "matchup": matchup, "without_names": wo_names[:2], "started": int(bool(q.get("started"))),
                    "status": status.get("status") if status else None, "detail": status.get("detail") if status else None,
-                   "play": status.get("play") if status else None, "spots": spots}
+                   "play": status.get("play") if status else None, "spots": spots, "news": sg or None}
             for st in ("min", "pts", "reb", "ast", "tpm", "stl", "blk", "tov", "pra", "fga", "fta"):
                 row[st] = round(proj[st], 1)
             recent = list(pt.team_hist[team])[-5:]
@@ -253,7 +267,8 @@ def project_game(pt, pe, disp, g, ctx, injuries, notes, news=True, exp_margin=No
         # the team has 240 minutes: scale projections so expected minutes add up (tested: better on every stat)
         k = team_minutes_scale(sum(r["min"] * r["p_play"] for r in lst if not r["out"]))
         live = [r for r in lst if not r["out"]]
-        for r, kp in zip(live, capped_factors([r["min"] for r in live], k)):
+        caps = {i: float(r["news"]["min_cap"]) for i, r in enumerate(live) if (r.get("news") or {}).get("min_cap")}
+        for r, kp in zip(live, capped_factors([r["min"] for r in live], k, caps=caps)):
             for st in ("min", "pts", "reb", "ast", "tpm", "stl", "blk", "tov", "pra", "fga", "fta"):
                 r[st] = round(r[st] * kp, 1)
         for r in lst:

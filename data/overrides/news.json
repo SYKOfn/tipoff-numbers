@@ -1,0 +1,4 @@
+{
+  "_about": "Written each morning by the analyst task. Facts about tonight's players stated by a reputable source, nothing else: rest (sits tonight), min_cap (minutes limit), start / bench (lineup change), returning (back from an absence). Each entry applies only to games on its 'day' (US date). See pipeline/news.py.",
+  "players": {}
+}

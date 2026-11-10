@@ -12,6 +12,8 @@ from datetime import date, datetime, timedelta, timezone
 
 import numpy as np
 
+from pipeline import news as NEWS
+
 from model import effects, engine, explain, extras, parlay, prop_test, ratings
 from model import player_engine as PE
 from model import players as PM
@@ -107,6 +109,12 @@ def main(demo=False, now=None, collect_data=True):
         for t in (g["home"], g["away"]):
             next_day.setdefault(t, g["day"])
     injuries = injury_log.apply(injuries, inj_cal, next_day)
+    # a rest day announced in the news counts as out for the team estimate too (not only for his own legs)
+    for team, day_ in next_day.items():
+        for nm, sg in NEWS.signals_for(day_).items():
+            if sg.get("rest") and sg.get("team") == team and not any(NEWS.norm(i.get("name")) == nm for i in injuries.get(team, [])):
+                injuries.setdefault(team, []).append({"player_id": nm, "name": sg.get("name") or nm, "status": "Out", "weight": 1.0,
+                                                      "detail": "Rest (news): " + (sg.get("quote") or ""), "date": None})
     meta_logos = read_json(STATE / "teams_meta.json", {}) or {}
     tuned = read_json(ROOT / "model" / "tuned.json", {}) or {}
     analyst = (read_json(OVR / "analyst.json", {}) or {}).get("games", {})
@@ -307,7 +315,11 @@ def main(demo=False, now=None, collect_data=True):
                 upcoming_payloads[gid] = (g, old["payload"], g.get("state"))
             continue
         em = engine.predict(c, g, ctx, rts)["base"]["margin"]  # results-only margin: blowout risk for minutes
-        proj_players = PE.project_game(pt, pe, pdisp, g, ctx, injuries, notes, news, exp_margin=em)
+        sig_ = NEWS.signals_for(g["day"]) if news else {}
+        proj_players = PE.project_game(pt, pe, pdisp, g, ctx, injuries, notes, news, exp_margin=em, signals=sig_)
+        if sig_ and any(x.get("news") for sd in ("home", "away") for x in proj_players.get(sd, [])):
+            NEWS.log(g["day"], g["game_id"], proj_players,
+                     PE.project_game(pt, pe, pdisp, g, ctx, injuries, notes, news, exp_margin=em))
         lf = None
         # far from tip-off, key players not on the injury report may still sit (measured rates)
         hours = (tip - now).total_seconds() / 3600
@@ -779,7 +791,7 @@ def main(demo=False, now=None, collect_data=True):
                 if pl["id"] in next_proj:
                     continue
                 next_proj[pl["id"]] = {"game": gid, "tip": g["date"], "opp": opp, "home": side == "home", "out": pl.get("out"),
-                                       "status": pl.get("status"), "detail": pl.get("detail"),
+                                       "status": pl.get("status"), "detail": pl.get("detail"), "news": pl.get("news"),
                                        "proj": {k: pl.get(k) for k in ("min", "pts", "reb", "ast", "tpm", "stl", "blk", "tov", "pra")},
                                        "lines": pl.get("lines"), "spots": pl.get("spots", [])}
     pindex, ppages = player_pages.build(players, games, cur, plogs, next_proj, pt, notes, c.ctxs)

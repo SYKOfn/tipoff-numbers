@@ -564,7 +564,7 @@ function playersSection(g) {
       if (!rows.length) return `<p class="sub">No rotation data yet.</p>`;
       return `<div class="tscroll"><table class="ptable"><tr><th>${disc(ab, "xs")} ${h(T(ab).short)}</th><th class="n">MIN</th><th class="n">PTS</th><th class="n">REB</th><th class="n">AST</th><th class="n">3PM</th><th class="n">STL</th><th class="n">BLK</th><th class="n">PRA</th></tr>
         ${rows.map((p, i) => p.out ? `<tr class="out"><td class="nm">${plink(p.id, p.name)}<span class="ptag out">${h(p.status || "Out")}</span></td><td class="n" colspan="8">${h(p.detail || "")}</td></tr>`
-          : `<tr><td class="nm">${plink(p.id, p.name)}<span class="sub">${h(p.pos || "")}</span>${p.status ? `<span class="ptag q">${h(p.status)}</span>` : ""}${p.lineup ? `<span class="ptag${p.lineup === "starting" ? "" : " q"}">${p.lineup === "starting" ? "Starting" : "Not starting"}</span>` : ""}${p.sit ? `<span class="ptag" title="Before any news: how often a key player in this spot sits (measured). Used in the team-strength estimate until the injury report is in.">Sits ${Math.round(p.sit * 100)}% in this spot</span>` : ""}${(p.spots || []).filter(x => ["former_team", "returning", "contract_year", "without", "vs_opp"].includes(x.key) || (x.key === "hot")).map(x => `<span class="ptag" title="${h(x.text)}">${h(x.label)}</span>`).join("")}</td>
+          : `<tr><td class="nm">${plink(p.id, p.name)}<span class="sub">${h(p.pos || "")}</span>${newsTag(p.news)}${p.status ? `<span class="ptag q">${h(p.status)}</span>` : ""}${p.lineup ? `<span class="ptag${p.lineup === "starting" ? "" : " q"}">${p.lineup === "starting" ? "Starting" : "Not starting"}</span>` : ""}${p.sit ? `<span class="ptag" title="Before any news: how often a key player in this spot sits (measured). Used in the team-strength estimate until the injury report is in.">Sits ${Math.round(p.sit * 100)}% in this spot</span>` : ""}${(p.spots || []).filter(x => ["former_team", "returning", "contract_year", "without", "vs_opp"].includes(x.key) || (x.key === "hot")).map(x => `<span class="ptag" title="${h(x.text)}">${h(x.label)}</span>`).join("")}</td>
             <td class="n">${fx(p.min, 0)}</td><td class="n hl">${fx(p.pts)}</td><td class="n">${fx(p.reb)}</td><td class="n">${fx(p.ast)}</td><td class="n">${fx(p.tpm)}</td><td class="n">${fx(p.stl)}</td><td class="n">${fx(p.blk)}</td><td class="n">${fx(p.pra)}</td></tr>`).join("")}</table></div>
         <details class="more"><summary>Over/under chances for every player</summary>${rows.filter(p => !p.out && p.lines).map(p => `<h3 style="margin-top:12px">${h(p.name)}</h3>${linesBlock(p.lines)}`).join("")}</details>`;
     };
@@ -1015,8 +1015,13 @@ function renderSlip() {
 const PCOLS = [["gp", "GP", 0], ["mpg", "MIN", 1], ["ppg", "PTS", 1], ["rpg", "REB", 1], ["apg", "AST", 1], ["tpm", "3PM", 1], ["spg", "STL", 1], ["bpg", "BLK", 1], ["ts", "TS%", 3], ["usg", "USG%", 1], ["pm", "+/-", 1], ["l5", "Last 5", 1], ["next_pts", "Next game", 1]];
 const PSTATE = { sort: "ppg", dir: -1, q: "", team: "", pos: "", min: 3 };
 const plink = (id, name) => `<a href="#/player/${h(id)}">${h(name)}</a>`;
+function newsTag(n) {
+  if (!n) return "";
+  const t = n.rest ? "resting (news)" : n.min_cap ? `limit ~${Math.round(n.min_cap)} min (news)` : n.start ? "starting (news)" : n.bench ? "to the bench (news)" : n.returning ? "returning (news)" : "";
+  return t ? `<span class="ptag news" title="${h(n.quote || "")}">${h(t)}</span>` : "";
+}
 function ptags(p) {
-  return (p.out ? `<span class="ptag out">${h(p.status || "Out")}</span>` : p.status ? `<span class="ptag q">${h(p.status)}</span>` : "")
+  return newsTag(p.news) + (p.out ? `<span class="ptag out">${h(p.status || "Out")}</span>` : p.status ? `<span class="ptag q">${h(p.status)}</span>` : "")
     + (p.contract_year ? `<span class="ptag" title="Final year of his contract">contract yr</span>` : "")
     + (p.former ? `<span class="ptag" title="Has played for another team in the stored seasons">ex-team</span>` : "");
 }
@@ -1063,7 +1068,7 @@ function playerCard(p) {
   return `<article class="pc" style="--c:${ink}">
     <div class="pc-top">${mono(p.team, "sm")}<div class="grow"><a class="pc-name" href="#/player/${h(p.id)}">${h(p.name)}</a>
       <span class="sub small">${p.next_home ? "vs" : "at"} ${h(T(p.next_opp).short)} · ${tipTime(p.next_tip)}${p.pos ? ` · ${h(p.pos)}` : ""}</span></div>
-      ${p.status ? `<span class="ptag q">${h(p.status)}</span>` : ""}</div>
+      ${newsTag(p.news)}${p.status ? `<span class="ptag q">${h(p.status)}</span>` : ""}</div>
     <div class="pc-nums">${[["Points", p.next_pts], ["Rebounds", p.next_reb], ["Assists", p.next_ast], ["Threes", p.next_tpm]].map(([k, v]) => `<div><b class="num">${v == null ? "–" : fx(v, 1)}</b><span>${k}</span></div>`).join("")}</div>
     ${(p.next_best || []).length ? `<div class="pc-legs">${p.next_best.map(b => { const l = legFor(p, b); return `<div class="pc-leg"><span>${Math.ceil(b.line)}+ ${STATW[b.stat] || b.stat}</span><b class="num">${pct(b.over)}</b>${addBtn(l)}</div>`; }).join("")}</div>` : ""}
     ${(p.next_spots || []).length ? `<p class="pc-spots">${p.next_spots.map(h).join(" · ")}</p>` : ""}

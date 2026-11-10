@@ -451,3 +451,17 @@ def test_pts_reb_ast_never_in_combinations():
     from model import parlay
     assert not parlay.combinable({"kind": "prop", "stat": "pra"}) and parlay.combinable({"kind": "prop", "stat": "pts"})
     assert parlay.combinable({"kind": "ml"})
+
+
+def test_news_signals(tmp_path, monkeypatch):
+    from pipeline import news
+    f = tmp_path / "news.json"
+    f.write_text(json.dumps({"players": {"Bam Adebayo": {"day": "2026-11-10", "min_cap": 20, "source": "x"},
+                                         "Old News": {"day": "2026-11-01", "rest": True},
+                                         "Bad Cap": {"day": "2026-11-10", "min_cap": "lots"}}}))
+    monkeypatch.setattr(news, "FILE", f)
+    s = news.signals_for("2026-11-10")
+    assert list(s) == ["bam adebayo"] and s["bam adebayo"]["min_cap"] == 20.0
+    from model.player_engine import capped_factors
+    f_ = capped_factors([36, 20, 28], 1.1, caps={1: 20})
+    assert abs(20 * f_[1] - 20) < 1e-9 and f_[0] > 1 and f_[2] > 1   # the capped player stays at his limit
