@@ -26,6 +26,11 @@ PROP_SIDES = ("over",)   # Winamax lists player markets as "over" only (X+ point
 EDGE_W = 3.0             # how much a measured price edge is worth against chance when ranking tickets
 EST_EDGE_W, EST_EDGE_CAP = 1.0, 0.12   # edges against an estimated line count less, and are capped
 SAFETY = 1.05            # ask 5% more than fair odds before calling a leg worth taking
+# player legs without a posted line: the projection blended with the season average, then a confidence per stat.
+# Fitted on 2024-25 (115,000 Winamax-line legs, projections made before each game), confirmed on 2025-26: the old
+# 50/50 blend with the projection-only confidence understated ticket legs by about 10 points; this setting by about 3.
+PROP_CENTER_W = 0.7
+EST_T = {"pts": 1.05, "reb": 1.1, "ast": 1.1, "tpm": 1.05, "pra": 1.1}
 WINAMAX_PROP_MARGIN = 1.07  # assumed margin on Winamax's one-sided player prices when only another book's line is known
 BETA = {"pts": 1.0, "pra": 0.85, "ast": 0.6, "reb": 0.3, "tpm": 0.8}
 STAT_NAME = {"pts": "points", "reb": "rebounds", "ast": "assists", "tpm": "threes", "pra": "pts+reb+ast"}
@@ -207,10 +212,10 @@ def prop_legs(game, players, calib, avg, disp, real=None):
                     continue
                 if proj is None or av is None or av != av or av < (2.0 if st in ("tpm", "ast", "reb") else 3):
                     continue  # one-a-game stats: books post 0.5 or 1.5 with very uneven prices, too unreliable to estimate
-                # like team legs against the market: blend the projection 50/50 with the line's anchor
-                center = 0.5 * proj + 0.5 * av
+                # the projection blended with the season average (the line's anchor), PROP_CENTER_W measured
+                center = PROP_CENTER_W * proj + (1 - PROP_CENTER_W) * av
                 sd = sd_for(st, center, disp)
-                t = (calib.get(st) or {}).get("t", 0.75)
+                t = EST_T.get(st, 1.0)
                 for L in near_lines(st, center, 2, 1):  # Winamax's own lines around the player
                     po = over_prob(st, L, center, disp)
                     # the price a book would ask: fair on the season-average anchor, plus its margin
@@ -222,7 +227,7 @@ def prop_legs(game, players, calib, avg, disp, real=None):
                                          dist={"mu": round(center, 2), "sd": round(sd, 2), "d": round(disp.get(st, 1.5), 3), "alone": t, "model": t},
                                          team=team, player=pl["id"], player_name=pl["name"], stat=st, line=L, side="over",
                                          proj=proj, avg=round(av, 1), price_est=True,
-                                         note=f"projection {proj:.1f} vs season average {av:.1f} {LABEL.get(st, st).lower()} (blended 50/50); Winamax line, price estimated",
+                                         note=f"projection {proj:.1f} vs season average {av:.1f} {LABEL.get(st, st).lower()} (blended {round(PROP_CENTER_W * 100)}/{round(100 - PROP_CENTER_W * 100)}); Winamax line, price estimated",
                                          mind=mind, spots=[x["label"] for x in spots],
                                          sim=("prop", side, pl["id"], st, "over", L)))
     return legs
