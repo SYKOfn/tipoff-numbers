@@ -400,7 +400,19 @@ def joint(legs, sims, games):
     return p_joint, p_ind
 
 
-def search(cands, k, sims, games, max_per_game=2, min_games=None, beam=60):
+MAX_TICKETS_PER_BET = 2   # one player, or one team's result, appears in at most two of the day's tickets
+MAX_PER_TEAM = 2          # at most two legs on the same team within a ticket
+
+
+def exposure(l):
+    """What a leg really bets on: a player (any of his stats) or one side of one game."""
+    if l.get("kind") == "prop":
+        return ("player", str(l.get("player")))
+    return ("game", str(l.get("game")), l.get("team") or l.get("side") or l.get("kind"))
+
+
+def search(cands, k, sims, games, max_per_game=2, min_games=None, beam=60, max_per_team=MAX_PER_TEAM, others=()):
+    """others: exposure sets of the day's tickets so far; a new ticket shares at most one bet with each."""
     cands = sorted(cands, key=lambda l: -(math.log(l["p"]) + edge_score(l)))[:160]
     states = [((), 1.0)]
     for _ in range(k):
@@ -414,6 +426,12 @@ def search(cands, k, sims, games, max_per_game=2, min_games=None, beam=60):
                     continue
                 if used_games.get(c["game"], 0) >= max_per_game:
                     continue
+                if c.get("team") and sum(1 for l in legs if l.get("team") == c["team"]) >= max_per_team:
+                    continue
+                if others:
+                    mine = {exposure(l) for l in legs} | {exposure(c)}
+                    if any(len(mine & o) > 1 for o in others):
+                        continue
                 new = tuple(sorted(legs + (c,), key=id))
                 key = tuple(id(x) for x in new)
                 if key in nxt:
@@ -476,6 +494,20 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None)
         return out, cands
     # Main picks are short: the bookmaker's margin multiplies with every leg, so two or three legs from
     # different games (where Winamax simply multiplies the odds) keep the most of any edge.
+    # spread the day's risk: a player or a team result goes into at most MAX_TICKETS_PER_BET tickets, so one
+    # upset or one cold night cannot sink every ticket at once
+    from collections import Counter
+    uses = Counter()
+    free = lambda pool: [l for l in pool if uses[exposure(l)] < MAX_TICKETS_PER_BET]
+
+    tickets = []  # exposure sets of the tickets built so far
+
+    def take(legs):
+        for l in legs:
+            uses[exposure(l)] += 1
+        tickets.append({exposure(l) for l in legs})
+        return list(legs)
+
     priced = [l for l in elig if l.get("edge") is not None and not l.get("price_est") and l["edge"] >= 0.02]
     two = search(priced, 2, sims, games, max_per_game=1) if len(priced) >= 2 else None
     if not two and len(elig) >= 2:
@@ -483,23 +515,18 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None)
     if two:
         out["parlays"].append(package("Value 2", "The main pick: two legs from different games, each worth its price on its "
                                       "own where a real price is known. Two legs keep the bookmaker's margin small (about "
-                                      "9% at standard prices against about 24% for six).", list(two), sims, games))
+                                      "9% at standard prices against about 24% for six).", take(two), sims, games))
     if n_games >= 3:
-        core = search(elig, 3, sims, games, max_per_game=1, min_games=3)
+        core = search(free(elig), 3, sims, games, max_per_game=1, min_games=3, others=tickets)
         if core:
             out["parlays"].append(package("Core 3", "Three legs from three different games: the strongest combination of "
-                                          "chance and value without stacking one game.", list(core), sims, games))
-    six = search(elig, min(6, len(elig)), sims, games, max_per_game=2 if n_games >= 3 else 3, min_games=min(4, n_games))
-    if six:
-        out["parlays"].append(package("The daily 6", "The long shot: six legs, at most two per game. It pays big but lands "
-                                      "rarely, and the bookmaker's margin compounds over six legs, so it needs every leg to "
-                                      "carry real value. Treat it as the optional extra, not the main bet.", list(six), sims, games))
+                                          "chance and value without stacking one game.", take(core), sims, games))
     best_sg = None
     for gid in games:
-        gl = [l for l in elig if l["game"] == gid]
+        gl = [l for l in free(elig) if l["game"] == gid]
         if len(gl) < 3:
             continue
-        sg = search(gl, 3, sims, games, max_per_game=3)
+        sg = search(gl, 3, sims, games, max_per_game=3, others=tickets)
         if sg:
             pj, pi = joint(sg, sims, games)
             score = pj * (pj / pi)
@@ -508,7 +535,15 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None)
     if best_sg:
         out["parlays"].append(package("Same-game 3", "Three legs from one game that tend to land together (positive correlation). "
                                       "Winamax's same-game builder already prices in that the legs move together, so the "
-                                      "extra chance is mostly paid away: only worth it if Winamax's price beats the minimum odds.", list(best_sg[1]), sims, games))
+                                      "extra chance is mostly paid away: only worth it if Winamax's price beats the minimum odds.", take(best_sg[1]), sims, games))
+    pool6 = free(elig)
+    six = search(pool6, min(6, len(pool6)), sims, games, max_per_game=2 if n_games >= 3 else 3, min_games=min(4, n_games), others=tickets)
+    if six:
+        out["parlays"].append(package("The daily 6", "The long shot: six legs, at most two per game. It pays big but lands "
+                                      "rarely, and the bookmaker's margin compounds over six legs, so it needs every leg to "
+                                      "carry real value. Treat it as the optional extra, not the main bet.", take(six), sims, games))
+    order = {"Value 2": 0, "Core 3": 1, "The daily 6": 2, "Same-game 3": 3}
+    out["parlays"].sort(key=lambda pr: order.get(pr["name"], 9))
     singles = sorted([l for l in cands if l.get("edge") is not None and l["edge"] > 0.02 and l["mind_flag"] != "against"
                       and not l.get("price_est") and P_MIN <= l["p"] <= P_MAX],
                      key=lambda l: -l["edge"])[:6]

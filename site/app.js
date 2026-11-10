@@ -1316,7 +1316,9 @@ async function parlayPage() {
   const t = d.today;
   const rec = d.record || {};
   const clv = d.clv || {};
-  const recHtml = Object.keys(rec).length ? `<div class="grid">${Object.entries(rec).map(([k, r]) => `<div class="panel"><h3>${h(k)}</h3><div class="adv"><div><b>${r.hits}/${r.n}</b>tickets landed<br>expected ${fx(r.expected, 1)}</div><div><b>${r.leg_hits}/${r.legs}</b>legs landed<br>expected ${fx(r.leg_expected, 1)}</div></div></div>`).join("")}</div>`
+  const selR = rec._selection;
+  const selHtml = selR && selR.ticket_legs.n ? `<p class="sub small" style="margin-top:12px">Legs that went into tickets: <b>${selR.ticket_legs.hits}/${selR.ticket_legs.n}</b> landed (expected ${fx(selR.ticket_legs.expected, 1)}) · every other leg the model rated: <b>${selR.other_legs.hits}/${selR.other_legs.n}</b> (expected ${fx(selR.other_legs.expected, 1)}). If ticket legs keep falling short while the rest do not, the way tickets are chosen is biased.</p>` : "";
+  const recHtml = Object.keys(rec).filter(k => !k.startsWith("_")).length ? `<div class="grid">${Object.entries(rec).filter(([k]) => !k.startsWith("_")).map(([k, r]) => `<div class="panel"><h3>${h(k)}</h3><div class="adv"><div><b>${r.hits}/${r.n}</b>tickets landed<br>expected ${fx(r.expected, 1)}</div><div><b>${r.leg_hits}/${r.legs}</b>legs landed<br>expected ${fx(r.leg_expected, 1)}</div></div></div>`).join("")}</div>`
     : `<p class="note">No slate has been scored yet. Each day's tickets are frozen at the first tip-off and scored after the last game; nothing is ever changed afterwards.</p>`;
   const clvBox = (title, c, unit) => `<div class="panel"><h3>${title}</h3>${c && c.moved ? `<div class="adv"><div><b>${c.beat}/${c.moved}</b>moved our way<br>${pct(c.beat / c.moved)}</div>${c.avg_p != null ? `<div><b>${sgn(c.avg_p * 100, 2)}</b>avg chance points</div>` : ""}${c.avg_pts != null ? `<div><b>${sgn(c.avg_pts, 2)}</b>avg line points</div>` : ""}</div>` : `<p class="sub small">${unit}</p>`}</div>`;
   const mc = clv.model || {};
@@ -1367,7 +1369,7 @@ async function parlayPage() {
       <li><b>Distrust the story you like.</b> Confirmation bias makes the leg you want feel safer. The chance on this page doesn't know which team you support.</li>
       <li><b>Judge yourself on closing prices, not results.</b> A month of wins or losses is mostly luck; beating the closing price is skill.</li></ul></div>
       <div class="panel"><h3>How sure are the player chances?</h3><p class="sub small">Model chances are shrunk towards 50% by a factor fitted on past player-games (1.00 = no change needed), so "80%" should land about 80% of the time.</p>${calHtml}</div></div></section>
-    <section class="section"><h2>Track record</h2>${recHtml}${hist}</section>
+    <section class="section"><h2>Track record</h2>${recHtml}${selHtml}${hist}</section>
     <section class="section"><h2>All strong legs today <span class="sub">tick to build your own ticket</span></h2>${board}</section></div>`;
   app.oninput = e => {
     const bi = e.target.closest(".boostin[data-vid]");

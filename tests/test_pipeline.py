@@ -409,3 +409,19 @@ def test_player_legs_use_winamax_lines():
     ast = [l for l in legs if l["stat"] == "ast" and l.get("book") == "pinnacle"]
     assert all(not l["price_est"] for l in ast if l["line"] == 4.5)       # posted line on the ladder keeps its price
     assert all(x["line"] in WINAMAX_LADDER["reb"] for x in lines_for("reb", 7.8, disp))
+
+
+def test_tickets_spread_their_risk():
+    import collections
+    from model import parlay
+    # synthetic check of the search constraint: a ticket shares at most one bet with an earlier ticket
+    mk = lambda i, g, team: {"id": str(i), "game": g, "kind": "ml", "team": team, "p": 0.7, "edge": 0.0, "sim": None}
+    legs = [mk(i, str(i), f"T{i}") for i in range(8)]
+    orig = parlay.joint
+    parlay.joint = lambda ls, sims, games: (0.7 ** len(ls), 0.7 ** len(ls))
+    try:
+        first = parlay.search(legs, 2, {}, {}, max_per_game=1)
+        second = parlay.search(legs, 3, {}, {}, max_per_game=1, others=[{parlay.exposure(l) for l in first}])
+    finally:
+        parlay.joint = orig
+    assert len({parlay.exposure(l) for l in first} & {parlay.exposure(l) for l in second}) <= 1

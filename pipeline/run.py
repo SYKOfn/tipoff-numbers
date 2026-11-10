@@ -700,6 +700,18 @@ def main(demo=False, now=None, collect_data=True):
                             "expected": round(sum(pr["p"] for pr in items), 2),
                             "legs": len(legs), "leg_hits": sum(l["result"] == "hit" for l in legs),
                             "leg_expected": round(sum(l["p"] for l in legs), 1)}
+    # legs that went into tickets against every leg the model rated: if ticket legs land less often than their
+    # chances say while the full list does not, the ticket selection itself is biased
+    t_ids, t_legs, b_legs = set(), [], []
+    for h_ in history:
+        day_ids = set()
+        for pr in h_["parlays"]:
+            for l in pr["legs"]:
+                if l.get("result") in ("hit", "miss") and l["id"] not in day_ids:
+                    day_ids.add(l["id"]); t_legs.append(l)
+        b_legs += [l for l in h_.get("board", []) if l.get("result") in ("hit", "miss") and l["id"] not in day_ids]
+    sel = lambda ls: {"n": len(ls), "hits": sum(l["result"] == "hit" for l in ls), "expected": round(sum(l["p"] for l in ls), 1)}
+    rec["_selection"] = {"ticket_legs": sel(t_legs), "other_legs": sel(b_legs)}
     clv_legs = [l["clv"] for h_ in history for l in [l for pr in h_["parlays"] for l in pr["legs"]] + h_.get("singles", [])
                 if l.get("clv")]
     clv_all = [l["clv"] for path in sorted(PAR.glob("*.json")) for pj in [read_json(path) or {}] if pj.get("frozen")
