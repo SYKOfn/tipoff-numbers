@@ -547,7 +547,18 @@ def test_gate_skips_a_second_run_in_the_same_slot(tmp_path):
     assert S.decide(now, ups=[], par_dir=tmp_path, last="")[0]
     fresh = f"{int(now.timestamp()) - 120} Data update 2026-11-10T21:21Z"
     assert not S.decide(now, ups=[], par_dir=tmp_path, last=fresh)[0]
-    old = f"{int(now.timestamp()) - 3600} Data update 2026-11-10T20:23Z"
+    hour = f"{int(now.timestamp()) - 3600} Data update 2026-11-10T20:23Z"
+    assert not S.decide(now, ups=[], par_dir=tmp_path, last=hour)[0]      # quiet: 3-hourly by age
+    old = f"{int(now.timestamp()) - 200 * 60} Data update 2026-11-10T18:03Z"
     assert S.decide(now, ups=[], par_dir=tmp_path, last=old)[0]
+    # any trigger minute works: 23:00 and 23:30 UTC, first tip 00:30
+    from datetime import timedelta
+    ups = [{"date": "2026-11-11T00:30Z", "home": "NY", "away": "MIL"}]
+    t0 = datetime(2026, 11, 10, 23, 0, tzinfo=timezone.utc)
+    upd = lambda mins: f"{int((t0 - timedelta(minutes=mins)).timestamp())} Data update x"
+    assert S.decide(t0, ups=ups, par_dir=tmp_path, last=upd(36))[0] is False   # 90 min out, updated 36 min ago
+    assert S.decide(t0, ups=ups, par_dir=tmp_path, last=upd(55))[0]            # hourly near tip-off
+    t1 = datetime(2026, 11, 10, 23, 30, tzinfo=timezone.utc)
+    assert S.decide(t1, ups=ups, par_dir=tmp_path, last=upd(12 + 30))[0]       # 60 min out: lineups window
     code = f"{int(now.timestamp()) - 60} Player model change"
     assert S.decide(now, ups=[], par_dir=tmp_path, last=code)[0]
