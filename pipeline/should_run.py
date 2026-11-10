@@ -1,3 +1,4 @@
+from pathlib import Path
 """Decide whether a scheduled run (every 15 minutes) should do the full update.
 
 At :23 past each hour: always every 3 hours; in between, when a game tips off within the next 3 hours
@@ -5,16 +6,26 @@ At :23 past each hour: always every 3 hours; in between, when a game tips off wi
 At the other quarter hours: only when a game tips off within 75 minutes (starting lineups, late scratches).
 Prints run=true/false for GitHub Actions ($GITHUB_OUTPUT).
 """
+import json
 import os
 from datetime import datetime, timedelta, timezone
 
-from .store import STATE, read_json
+# self-contained on purpose: the gate runs before the dependencies (pandas) are installed
+ROOT = Path(__file__).resolve().parent.parent
+STATE = ROOT / "data" / "state"
+
+
+def read_json(path, default=None):
+    path = Path(path)
+    if path.exists():
+        with open(path) as f:
+            return json.load(f)
+    return default
 
 
 def lock_due(now, par_dir=None):
     """True when a slate's ticket lock time has passed, its first game has not started and the tickets
     are not locked yet (so a skipped run never delays the lock by more than one quarter hour)."""
-    from .store import ROOT
     par_dir = par_dir or (ROOT / "data" / "parlays")
     for f in sorted(par_dir.glob("*.json"))[-2:]:
         d = read_json(f, {}) or {}

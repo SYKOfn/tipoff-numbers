@@ -8,6 +8,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Gate runs without any packages (it runs before they are installed)
+        run: python -m venv /tmp/bare && /tmp/bare/bin/python -m pipeline.should_run; test $? -le 1
       - run: pip install -r requirements.txt
       - run: python -m pytest -q
       - name: End-to-end on the simulated league
