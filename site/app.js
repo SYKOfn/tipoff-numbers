@@ -1240,6 +1240,21 @@ function ticketValue(legs, p) {
   const prod = odds.reduce((a, b) => a * b, 1), ev = p * prod - 1;
   return `<b class="${ev >= 0 ? "up" : "down"}">${fx(prod, 2)}</b>your combined odds · chance ${pct(p)} · ${ev >= 0 ? "worth it" : "not worth it"}: ${sgn(ev * 100, 0)}% value`;
 }
+const tkKey = pr => `tipoff.tk.${(PAR && PAR.today && PAR.today.day) || ""}.${pr.name}`;
+const tkP = pr => pr.p * pr.legs.reduce((a, l) => a * effP(l) / l.p, 1);
+function tkVerdict(pr) {
+  const o = LS.get(tkKey(pr), null), p = tkP(pr), worth = 1.05 / p;
+  if (!o) return `<span class="tk-hint">Type the combined odds Winamax shows for this ticket. It's worth placing at <b>${fx(worth, 2)}</b> or more.</span>`;
+  const ev = p * o - 1;
+  if (o >= worth) return `<span class="tk-v up"><b>Place</b> Winamax pays ${fx(o, 2)}, at or above the ${fx(worth, 2)} needed (fair ${fx(1 / p, 2)} plus a 5% safety margin): about ${sgn(ev * 100, 0)}% in your favour.</span>`;
+  if (ev >= 0) return `<span class="tk-v flat"><b>Borderline</b> Winamax pays ${fx(o, 2)}: above the fair ${fx(1 / p, 2)} but below the ${fx(worth, 2)} with the safety margin. Too thin an edge to rely on.</span>`;
+  return `<span class="tk-v down"><b>Skip</b> Winamax pays ${fx(o, 2)}, less than the ${fx(1 / p, 2)} this ticket is worth: the bookmaker's margin takes ${Math.round(-ev * 100)}% of your stake on average. Look for better odds or skip it.</span>`;
+}
+function tkBox(pr, idx) {
+  if (pr.result) return "";
+  const o = LS.get(tkKey(pr), null);
+  return `<div class="tkbox"><label>Winamax combined odds <input class="tkodds" type="number" inputmode="decimal" step="0.01" min="1.01" placeholder="e.g. ${fx(1.1 / tkP(pr), 2)}" value="${o ?? ""}" data-tk="${idx}"></label><div class="tkv" data-tkv="${idx}">${tkVerdict(pr)}</div></div>`;
+}
 function ticketText(pr) {
   return `${pr.name} — Tip-Off Numbers\n` + (pr.story ? `${pr.story}\n` : "") + pr.legs.map((l, i) => `${i + 1}. ${legDesc(l)} (${T(matchTeams(l)[0]).abbr} @ ${T(matchTeams(l)[1]).abbr}) — ${pct(l.p)}, take at ${fx(l.min_odds, 2)}+${l.story ? `\n   ${l.story}` : ""}`).join("\n")
     + `\nAll legs: ${pct(pr.p)} · fair combined odds ${fx(pr.fair, 2)} · worth it at ${fx(pr.min_odds, 2)}+`;
@@ -1247,6 +1262,7 @@ function ticketText(pr) {
 function ticket(pr, main, idx) {
   return `<div class="ticket ${main ? "main" : ""}"><div class="ticket-head"><div><h3>${h(pr.name)}${pr.result ? ` <span class="cat ${pr.result === "hit" ? "Hot" : "Cold"}">${pr.result}</span>` : ""}</h3><p>${h(pr.why || "")}</p>${pr.story ? `<p class="story"><b>Why this ticket:</b> ${h(pr.story)}</p>` : ""}</div>
     <span><button class="copybtn" data-copy="${h(ticketText(pr))}">Copy ticket</button> <button class="copybtn" data-record="${idx}">Record as my bet</button></span></div>
+    ${tkBox(pr, idx)}
     <ul class="legs">${pr.legs.map(legRow).join("")}</ul>
     <div class="ticket-foot"><div><b>${pct(pr.p)}</b>chance all ${pr.n_legs} land</div><div><b>${fx(pr.fair, 2)}</b>fair combined odds</div>
       <div class="go"><b>${fx(pr.min_odds, 2)}+</b>worth placing at these combined odds or better</div>
@@ -1257,11 +1273,11 @@ function ticket(pr, main, idx) {
 
 /* my bets (kept in this browser) */
 const BETS_KEY = "tipoff.bets";
-function recordBet(name, legs, p) {
+function recordBet(name, legs, p, combined) {
   const odds = legs.map(l => oddsOf(l.id));
   const stake = parseFloat((document.getElementById("stake") || {}).value) || null;
   const bets = LS.get(BETS_KEY, []);
-  bets.unshift({ at: new Date().toISOString(), name, p, stake, odds: odds.every(Boolean) ? odds.reduce((a, b) => a * b, 1) : null,
+  bets.unshift({ at: new Date().toISOString(), name, p, stake, odds: combined || (odds.every(Boolean) ? odds.reduce((a, b) => a * b, 1) : null),
     legs: legs.map((l, i) => ({ id: l.id, desc: legDesc(l), kind: l.kind, line: lineOf(l), side: l.side, team: l.team, game: l.game, p: effP(l), odds: odds[i] })) });
   LS.set(BETS_KEY, bets);
 }
@@ -1382,6 +1398,13 @@ async function parlayPage() {
       if (cell) { cell.textContent = ed == null ? "–" : sgn(ed * 100, 1) + "%"; cell.className = "n " + (ed == null ? "" : ed > 0 ? "up" : "down"); }
       return;
     }
+    const tk = e.target.closest(".tkodds[data-tk]");
+    if (tk && t) {
+      const pr = t.parlays[+tk.dataset.tk], v = parseFloat(tk.value);
+      LS.set(tkKey(pr), v > 1 ? v : null);
+      const el = app.querySelector(`[data-tkv="${tk.dataset.tk}"]`); if (el) el.innerHTML = tkVerdict(pr);
+      return;
+    }
     const inp = e.target.closest(".oddsin[data-leg], .linein[data-leg]");
     if (!inp) return;
     const id = inp.dataset.leg, v = parseFloat(inp.value);
@@ -1418,7 +1441,7 @@ async function parlayPage() {
     if (r && t) {
       const k = r.dataset.record;
       if (k === "custom") { const legs = slipLegs(); if (legs.length) recordBet("My ticket", legs, jointOf(legs)); }
-      else { const pr = t.parlays[+k]; recordBet(pr.name, pr.legs, pr.p * pr.legs.reduce((a, l) => a * effP(l) / l.p, 1)); }
+      else { const pr = t.parlays[+k]; recordBet(pr.name, pr.legs, tkP(pr), LS.get(tkKey(pr), null)); }
       document.getElementById("mybets").innerHTML = myBets();
       r.textContent = "Recorded";
     }
