@@ -981,8 +981,8 @@ body { padding-bottom: env(safe-area-inset-bottom); }
 /* navigation: icons only show in the phone tab bar */
 .nav a svg { display: none; }
 .search-toggle { display: none; }
-@media (max-width: 640px) {
-  .nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; display: grid !important; grid-template-columns: repeat(5, 1fr); gap: 0 !important;
+@media (max-width: 900px), (hover: none) and (pointer: coarse), (display-mode: standalone) {
+  .nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; max-width: none !important; margin: 0 !important; display: grid !important; grid-template-columns: repeat(5, 1fr); gap: 0 !important;
     padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); background: rgba(10, 11, 15, .94); backdrop-filter: blur(14px); border-top: 1px solid rgba(255,255,255,.08); overflow: visible !important; }
   .nav a { display: flex !important; flex-direction: column; align-items: center; gap: 3px; padding: 6px 0 !important; font-size: 11px !important; border-radius: 10px; background: none !important; color: rgba(233,237,246,.6) !important; }
   .nav a svg { display: block; width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
@@ -997,7 +997,7 @@ body { padding-bottom: env(safe-area-inset-bottom); }
   .hsearch.open { display: block !important; position: absolute; left: 12px; right: 12px; top: calc(56px + env(safe-area-inset-top)); z-index: 55; }
   .top { position: sticky; top: 0; }
 }
-@media (max-width: 640px) { .more-menu { left: auto !important; right: 0; } }
+@media (max-width: 900px), (hover: none) and (pointer: coarse), (display-mode: standalone) { .more-menu { left: auto !important; right: 0; } }
 details.howto { border-radius: 16px; border: 1px solid rgba(255,255,255,.08); padding: 14px 18px; background: rgba(255,255,255,.02); }
 details.howto > summary { cursor: pointer; font-weight: 600; font-size: 16px; color: var(--ink); }
 details.howto[open] > summary { margin-bottom: 14px; }
@@ -1088,3 +1088,9 @@ details.tw-card[open] > summary { margin-bottom: 12px; }
   .tw-hd h2 { font-size: 24px !important; }
   .tk-dots { padding: 0 12px; }
 }
+
+/* tickets: one clean row per leg; the numbers behind it on request */
+.ticket:not(.show-tech) .legs li .tech, .ticket:not(.show-tech) .legs li .mflag, .ticket:not(.show-tech) .legs li > .oddsbox,
+.ticket:not(.show-tech) .ticket-foot .you { display: none !important; }
+.ticket:not(.show-tech) .legs li { grid-template-columns: 30px 1fr 110px 150px; }
+.techsw { margin: 0; padding: 4px 18px 12px; }

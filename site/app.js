@@ -1307,6 +1307,7 @@ function ticket(pr, main, idx) {
     <span><button class="copybtn" data-copy="${h(ticketText(pr))}">Copy ticket</button> <button class="copybtn" data-record="${idx}">Record as my bet</button></span></div>
     <div class="tk-dots">${dots(tkP(pr))}</div>${tkBox(pr, idx)}
     <ul class="legs">${pr.legs.map(legRow).join("")}</ul>
+    <p class="techsw"><button type="button" class="linkbtn" data-tech>Show the numbers behind it</button></p>
     <div class="ticket-foot"><div><b>${pct(pr.p)}</b>chance all ${pr.n_legs} land</div><div><b>${fx(pr.fair, 2)}</b>fair combined odds</div>
       <div class="go"><b>${fx(pr.min_odds, 2)}+</b>worth placing at these combined odds or better</div>
       <div><b>${pr.lift >= 1 ? "+" : ""}${Math.round((pr.lift - 1) * 100)}%</b>correlation lift</div>
@@ -1393,14 +1394,25 @@ async function yourBets() {
       ${chart ? `<section class="tn-sec"><div class="panel">${chart}</div></section>` : ""}
       ${done.length && done.length < 30 ? `<p class="note small">${done.length} settled ticket${done.length === 1 ? "" : "s"} is far too few to judge anything: a few weeks of results start to mean something.</p>` : ""}
       <section class="tn-sec yb">${bets.map(card).join("")}</section>
-      <p class="sub small"><button type="button" class="linkbtn" id="ybexp">Download my bets</button></p>`
-    : `<section class="tn-sec"><div class="panel"><h3>No bets recorded yet</h3><p class="sub">On a ticket, type the combined odds Winamax gives you and press "Record as my bet". Your tickets, their results and the odds you got against the fair price appear here. Nothing leaves this phone.</p><p><a class="pill-btn" href="#/parlay">Tonight's tickets</a></p></div></section>`}</div>`;
+      <p class="sub small yb-backup"><button type="button" class="linkbtn" id="ybexp">Download a backup</button> · <label class="linkbtn">Restore a backup<input type="file" accept="application/json" id="ybimp" hidden></label>
+        <br>Your bets live in this browser only: download a backup now and then, and restore it on a new phone or after clearing the browser.</p>`
+    : `<section class="tn-sec"><div class="panel"><h3>No bets recorded yet</h3><p class="sub small"><label class="linkbtn">Restore a backup<input type="file" accept="application/json" id="ybimp" hidden></label></p><p class="sub">On a ticket, type the combined odds Winamax gives you and press "Record as my bet". Your tickets, their results and the odds you got against the fair price appear here. Nothing leaves this phone.</p><p><a class="pill-btn" href="#/parlay">Tonight's tickets</a></p></div></section>`}</div>`;
+  const imp = document.getElementById("ybimp");
+  if (imp) imp.onchange = async () => {
+    try {
+      const got = JSON.parse(await imp.files[0].text());
+      if (!Array.isArray(got)) throw new Error("not a bets file");
+      const have = LS.get(BETS_KEY, []), seen = new Set(have.map(b => b.at + b.name));
+      LS.set(BETS_KEY, [...have, ...got.filter(b => b && b.at && b.legs && !seen.has(b.at + b.name))].sort((a, b) => b.at.localeCompare(a.at)));
+      yourBets();
+    } catch (err) { alert("That file is not a Tip-Off bets backup."); }
+  };
   app.onclick = e => {
     const d = e.target.closest("[data-ydel]");
     if (d) { const all = LS.get(BETS_KEY, []); all.splice(+d.dataset.ydel, 1); LS.set(BETS_KEY, all); yourBets(); }
     if (e.target.id === "ybexp") {
       const blob = new Blob([JSON.stringify(LS.get(BETS_KEY, []), null, 1)], { type: "application/json" });
-      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "tipoff-my-bets.json"; a.click();
+      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `tipoff-my-bets-${new Date().toISOString().slice(0, 10)}.json`; a.click();
     }
   };
 }
@@ -1543,7 +1555,7 @@ async function parlayPage() {
     if (del) { const b = LS.get(BETS_KEY, []); b.splice(+del.dataset.del, 1); LS.set(BETS_KEY, b); document.getElementById("mybets").innerHTML = myBets(); }
     if (e.target.id === "exp") {
       const blob = new Blob([JSON.stringify(LS.get(BETS_KEY, []), null, 1)], { type: "application/json" });
-      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "tipoff-my-bets.json"; a.click();
+      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `tipoff-my-bets-${new Date().toISOString().slice(0, 10)}.json`; a.click();
     }
   };
 }
@@ -1582,9 +1594,25 @@ function offlineNote() {
 window.addEventListener("online", offlineNote); window.addEventListener("offline", offlineNote); offlineNote();
 
 document.addEventListener("click", e => {
+  const tb = e.target.closest && e.target.closest("[data-tech]");
+  if (tb) { const tk = tb.closest(".ticket"); tk.classList.toggle("show-tech"); tb.textContent = tk.classList.contains("show-tech") ? "Hide the numbers behind it" : "Show the numbers behind it"; return; }
   const b = e.target.closest && e.target.closest(".search-toggle");
   if (!b) return;
   const f = document.querySelector(".hsearch");
   f.classList.toggle("open");
   if (f.classList.contains("open")) f.querySelector("input").focus();
 });
+
+/* phones and tablets: the tabs live at the bottom of the screen. The header blurs what is behind it, and a
+   blurred box pins anything inside it, so the tab bar is moved out of the header (and back on desktop). */
+(function placeTabs() {
+  const mq = window.matchMedia("(max-width: 900px), (hover: none) and (pointer: coarse), (display-mode: standalone)");
+  const nav = document.querySelector(".nav"), home = document.querySelector(".top-inner"), brand = home && home.querySelector(".brand");
+  if (!nav || !home) return;
+  const place = () => {
+    if (mq.matches) { if (nav.parentElement !== document.body) document.body.appendChild(nav); nav.classList.add("tabbar"); }
+    else { if (nav.parentElement !== home) brand.after(nav); nav.classList.remove("tabbar"); }
+  };
+  place();
+  (mq.addEventListener ? mq.addEventListener("change", place) : mq.addListener(place));
+})();
