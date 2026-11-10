@@ -422,6 +422,7 @@ def joint(legs, sims, games):
 
 MAX_TICKETS_PER_BET = 2   # one player, or one team's result, appears in at most two of the day's tickets
 MAX_PER_TEAM = 2          # at most two legs on the same team within a ticket
+MAX_PER_STAT = 2          # at most two player legs on the same stat within a ticket (no all-rebounds tickets)
 
 
 def exposure(l):
@@ -447,6 +448,8 @@ def search(cands, k, sims, games, max_per_game=2, min_games=None, beam=60, max_p
                 if used_games.get(c["game"], 0) >= max_per_game:
                     continue
                 if c.get("team") and sum(1 for l in legs if l.get("team") == c["team"]) >= max_per_team:
+                    continue
+                if c.get("kind") == "prop" and sum(1 for l in legs if l.get("kind") == "prop" and l.get("stat") == c.get("stat")) >= MAX_PER_STAT:
                     continue
                 if others:
                     mine = {exposure(l) for l in legs} | {exposure(c)}

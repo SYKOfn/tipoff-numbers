@@ -465,3 +465,16 @@ def test_news_signals(tmp_path, monkeypatch):
     from model.player_engine import capped_factors
     f_ = capped_factors([36, 20, 28], 1.1, caps={1: 20})
     assert abs(20 * f_[1] - 20) < 1e-9 and f_[0] > 1 and f_[2] > 1   # the capped player stays at his limit
+
+
+def test_ticket_mixes_stats():
+    from model import parlay
+    mk = lambda i, st: {"id": str(i), "game": str(i), "kind": "prop", "stat": st, "player": str(i), "team": f"T{i}", "p": 0.8, "edge": 0.0}
+    legs = [mk(i, "reb") for i in range(5)] + [mk(10, "pts")]
+    orig = parlay.joint
+    parlay.joint = lambda ls, sims, games: (0.8 ** len(ls), 0.8 ** len(ls))
+    try:
+        t = parlay.search(legs, 3, {}, {}, max_per_game=1)
+    finally:
+        parlay.joint = orig
+    assert sum(l["stat"] == "reb" for l in t) <= 2
