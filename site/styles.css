@@ -977,3 +977,58 @@ body { padding-bottom: env(safe-area-inset-bottom); }
 .installbar .go { background: #3DF0A5; color: #062014; font-weight: 700; border-radius: 999px; padding: 9px 16px; font-size: 14px; }
 #offline-note { position: fixed; top: calc(8px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 70; padding: 8px 14px; border-radius: 999px;
   background: #3a2a0a; color: #facc15; font-size: 13px; font-weight: 600; box-shadow: 0 6px 20px rgba(0,0,0,.4); }
+
+/* navigation: icons only show in the phone tab bar */
+.nav a svg { display: none; }
+.search-toggle { display: none; }
+@media (max-width: 640px) {
+  .nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; display: grid !important; grid-template-columns: repeat(5, 1fr); gap: 0 !important;
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); background: rgba(10, 11, 15, .94); backdrop-filter: blur(14px); border-top: 1px solid rgba(255,255,255,.08); overflow: visible !important; }
+  .nav a { display: flex !important; flex-direction: column; align-items: center; gap: 3px; padding: 6px 0 !important; font-size: 11px !important; border-radius: 10px; background: none !important; color: rgba(233,237,246,.6) !important; }
+  .nav a svg { display: block; width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .nav a[aria-current="page"], .nav a.on, .nav a.active { color: #3DF0A5 !important; }
+  body { padding-bottom: calc(68px + env(safe-area-inset-bottom)) !important; }
+  .installbar { bottom: calc(78px + env(safe-area-inset-bottom)) !important; }
+  .top-inner { flex-wrap: nowrap !important; align-items: center; }
+  .top .more { margin-left: auto; }
+  .search-toggle { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 999px; border: 1px solid rgba(255,255,255,.12); background: transparent; color: var(--ink); }
+  .search-toggle svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+  .hsearch { display: none !important; }
+  .hsearch.open { display: block !important; position: absolute; left: 12px; right: 12px; top: calc(56px + env(safe-area-inset-top)); z-index: 55; }
+  .top { position: sticky; top: 0; }
+}
+@media (max-width: 640px) { .more-menu { left: auto !important; right: 0; } }
+details.howto { border-radius: 16px; border: 1px solid rgba(255,255,255,.08); padding: 14px 18px; background: rgba(255,255,255,.02); }
+details.howto > summary { cursor: pointer; font-weight: 600; font-size: 16px; color: var(--ink); }
+details.howto[open] > summary { margin-bottom: 14px; }
+
+details.vb-fold > summary { cursor: pointer; color: var(--accent, #3DF0A5); font-weight: 600; margin: 6px 0 12px; }
+@media (max-width: 640px) {
+  /* Winamax vs Pinnacle on a phone: winner, Winamax, Pinnacle fair, edge (model and boost columns hidden) */
+  .vb { overflow: hidden; }
+  .vb-row { grid-template-columns: 1.6fr .8fr .8fr .9fr !important; }
+  .vb-row > :nth-child(5), .vb-row > :nth-child(6) { display: none !important; }
+  .vb-row .edgebar .tr { display: none; }
+  .vb-in { min-width: 0 !important; }
+}
+@media (max-width: 640px) {
+  .tscroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .ptable th:nth-child(2), .ptable td:nth-child(2), .ptable th:nth-child(6), .ptable td:nth-child(6) { display: none; }
+  .ptable th, .ptable td { padding: 8px 6px !important; font-size: 13px; }
+  .ptable .boostin { width: 64px; }
+}
+/* phone polish: scrollable pickers, one heading scale, tidy badges */
+@media (max-width: 640px) {
+  .daytabs, .filters { display: flex !important; flex-wrap: nowrap !important; overflow-x: auto; gap: 8px; padding-bottom: 4px; scrollbar-width: none; -webkit-overflow-scrolling: touch; margin-right: -18px; padding-right: 18px; }
+  .daytabs::-webkit-scrollbar, .filters::-webkit-scrollbar { display: none; }
+  .daytabs > *, .filters > * { flex: 0 0 auto; white-space: nowrap; }
+  h1, .tn-hero h1, .hero h1 { font-size: 32px !important; line-height: 1.08 !important; }
+  h2, .tn-sec h2, .section h2 { font-size: 22px !important; line-height: 1.2 !important; }
+  .tn-sec .hd h2 { font-size: 22px !important; }
+  .gh-mid .big, .gh-mid b { font-size: 40px; }
+  .ptag { white-space: nowrap; }
+  .pc-top .ptag { align-self: flex-start; }
+  .tn-sec { margin-top: 28px !important; }
+}
+.top .more summary { white-space: nowrap; display: inline-flex; align-items: center; gap: 2px; }
+.top-inner > .more { flex: 0 0 auto; }

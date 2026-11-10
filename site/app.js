@@ -190,7 +190,7 @@ async function home() {
         <ul class="tk-legs">${main.legs.map(tnLeg).join("")}</ul>
         <div class="tk-foot"><div><p class="k">All land</p><p class="v num">${pct(main.p)}</p></div><div><p class="k">Fair combined odds</p><p class="v num">${fx(main.fair, 2)}</p></div>
           <div><p class="k">Worth placing at</p><p class="v go num">${fx(main.min_odds, 2)}+</p></div>
-          <div class="acts"><button type="button" class="pill-btn" data-copy="${h(ticketText(main))}">Copy ticket</button><a class="pill-btn primary" href="#/parlay">Enter Winamax odds</a></div></div></article>
+          <div class="acts"><button type="button" class="pill-btn" data-copy="${h(ticketText(main))}">Copy ticket</button></div></div></article>
       <div class="tk-side">${side.map(pr => `<a class="tk-mini" href="#/parlay"><div class="hd"><h3>${h(pr.name)}${pr.legs.some(l => l.alert) ? ` <span class="chip warn">⚠ late news</span>` : ""}</h3><span class="nums num">${pct(pr.p)} · take ${fx(pr.min_odds, 2)}+</span></div>
           ${pr.story ? `<p>${h(pr.story)}</p>` : ""}<ul>${pr.legs.slice(0, 4).map(l => `<li><span>${h(legDesc(l))}</span><span class="num">${fx(l.min_odds, 2)}+</span></li>`).join("")}</ul></a>`).join("")}
         ${long.map(pr => `<a class="tk-mini tk-long" href="#/parlay"><div><p class="k">Long shot</p><h3>${h(pr.name)}</h3></div><span class="v num">${fx(pr.min_odds, 2)}+</span></a>`).join("")}</div></section>`;
@@ -214,10 +214,11 @@ async function home() {
   };
   const valueSec = val.length ? `<section class="tn-sec" aria-labelledby="vbh"><div class="hd"><div><h2 id="vbh">Winamax vs Pinnacle</h2>
       <p class="sub2">When Winamax pays more than Pinnacle's fair price, the bet pays off in the long run. Got a boosted price? Type it in the last column.</p></div>
-      <span class="chip ${anyVal ? "ok" : "warn"}">${anyVal ? `${val.filter(v => v.value).length} with value` : "No value right now"}</span></div>
+      <span class="chip ${anyVal ? "ok" : "warn"}">${anyVal ? `${val.filter(v => v.value).length} with value` : "No value right now"}</span></div>${anyVal ? "" : `<p class="sub2">Winamax pays less than Pinnacle's fair price on every winner right now. Prices move during the day.</p>`}
+      ${anyVal ? "" : `<details class="vb-fold"><summary>Show tonight's prices</summary>`}
       <div class="vb"><div class="vb-in"><div class="vb-row head"><span>Winner</span><span class="r">Winamax</span><span class="r">Pinnacle fair</span><span>Edge</span><span class="r">Our model</span><span class="r">Boosted odds</span></div>
       ${val.slice(0, 6).map(vrow).join("")}<div id="vbrest" hidden>${val.slice(6).map(vrow).join("")}</div></div>
-      ${val.length > 6 ? `<button type="button" class="vb-more" id="vbmore">Show all ${val.length} winners</button>` : ""}</div></section>` : "";
+      ${val.length > 6 ? `<button type="button" class="vb-more" id="vbmore">Show all ${val.length} winners</button>` : ""}</div>${anyVal ? "" : "</details>"}</section>` : "";
 
   // games
   const gamesSec = tonight.length ? `<section class="tn-sec" aria-labelledby="gmh"><div class="hd"><h2 id="gmh">Tonight's games</h2><a href="#/games">All games and estimates</a></div>
@@ -475,7 +476,7 @@ async function game(id) {
     <div class="gh-win"><span class="num"><b>${pct(pa)}</b> ${h(T(A).short)}</span><div class="split"><span style="width:${pa * 100}%;background:${teamInk(A)}"></span><span style="width:${e.win_home * 100}%;background:${teamInk(H)}"></span></div><span class="num">${h(T(H).short)} <b>${pct(e.win_home)}</b></span></div>
     ${storyTxt ? `<p class="gh-story">${h(storyTxt.charAt(0).toUpperCase() + storyTxt.slice(1))}.</p>` : ""}
   </div></section>
-  <div class="wrap">${demoBanner()}${BANNER}${scored}${gameBuilder(g)}
+  <div class="wrap">${demoBanner()}${scored}
     <section class="grid">
       <div class="panel"><h3>Score estimate</h3><div class="teampts"><div>${disc(A, "sm")}<b>${fx(e.away_pts, 0)}</b></div><div>${disc(H, "sm")}<b>${fx(e.home_pts, 0)}</b></div></div>
         ${marginChart(e, H, A, am)}<p class="sub small">Likely margins (±${fx(e.sd_margin)} points is one standard deviation).</p>
@@ -486,6 +487,7 @@ async function game(id) {
       <div class="panel"><h3>Why</h3><ul class="why">${g.reasoning.map(r => `<li>${h(r)}</li>`).join("")}</ul>${g.analyst ? `<p class="call"><b>Analyst view:</b> ${h(g.analyst.text || g.analyst.overall || "")}</p>` : ""}</div>
     </section>
     ${simSection(g)}
+    ${gameBuilder(g)}
     <section class="section"><h2>How the number was built <span class="sub">points on the margin</span></h2><div class="panel">${buildRows(g)}
       <p class="sub small" style="margin-top:12px">Win chance with the psychological layer: <b>${pct(Math.max(e.win_home, 1 - e.win_home))}</b> ${h(T(e.win_home >= 0.5 ? H : A).abbr)} · without it: <b>${pct(e.win_home_nomind >= 0.5 ? e.win_home_nomind : 1 - e.win_home_nomind)}</b> ${h(T(e.win_home_nomind >= 0.5 ? H : A).abbr)} · plain averages: <b>${pct(Math.max(e.baseline.win_home, 1 - e.baseline.win_home))}</b> ${h(T(e.baseline.win_home >= 0.5 ? H : A).abbr)}</p></div></section>
     <section class="section"><h2 class="mind">The mental game <span class="sub">each team's psychological spots, sized by what they have been worth in past games</span></h2>
@@ -630,12 +632,13 @@ async function accuracy() {
     <section class="rec-tiles">
       <div class="tile big"><p class="k">Live record · winners called</p>${a.live && a.live.n ? `<p class="v num">${Math.round(a.live.hit * a.live.n)}/${a.live.n}</p><p class="s">${pct(a.live.hit)} · frozen estimates only</p>` : `<p class="v" style="font-size:30px;line-height:1.15">Starts tonight</p><p class="s">The first frozen estimates are scored after tonight's games.</p>`}</div>
       <div class="tile"><p class="k">This season (research)</p><p class="v num">${a.checks ? pct(a.checks.hit) : "–"}</p><p class="s">${a.checks ? `winners in ${a.checks.n} games` : ""}</p></div>
-      <div class="tile"><p class="k">Win-chance score</p><p class="v num">${a.checks ? fx(a.checks.brier, 4) : "–"}</p><p class="s">Brier, lower is better</p></div>
+      <div class="tile"><p class="k">Calibration</p><p class="v num">${a.checks && a.checks.calibration ? (() => { const c = a.checks.calibration.filter(x => x.n >= 10); const p_ = c.reduce((s_, x) => s_ + x.p * x.n, 0), h_ = c.reduce((s_, x) => s_ + x.hit * x.n, 0), n_ = c.reduce((s_, x) => s_ + x.n, 0); return n_ ? `${pct(p_ / n_)} → ${pct(h_ / n_)}` : "–"; })() : "–"}</p><p class="s">favourites' stated chance → how often they won</p></div>
       <div class="tile"><p class="k">Player points miss</p><p class="v num">${a.players && a.players.track ? fx(a.players.track.mae_pts, 2) : "–"}</p><p class="s">${a.players && a.players.track ? `vs ${fx(a.players.track.mae_pts_base, 2)} for season averages` : ""}</p></div>
     </section></div>
   <div class="wrap">${demoBanner()}
-    ${a.live ? block("Live record: the number that counts", liveO, a.live.n, "Estimates frozen at tip-off with only what was known before the game, never changed afterwards.", a.live.calibration) : `<section><h2>Live record: the number that counts</h2><p class="note">No frozen estimates have been scored yet. The record starts with the first games after the site went live (9 November 2026); nothing is ever added afterwards. Everything below is research: made after the fact and, for the player-based checks, knowing who actually played, so it runs a little better than live estimates can.</p></section>`}
+    ${a.live ? block("Live record: the number that counts", liveO, a.live.n, `Estimates frozen at tip-off with only what was known before the game, never changed afterwards.${a.live.n < 150 ? ` With only ${a.live.n} games, luck dominates: any method, even plain averages, can look better or worse than it really is. Judge it after a few hundred games.` : ""}`, a.live.calibration) : `<section><h2>Live record: the number that counts</h2><p class="note">No frozen estimates have been scored yet. The record starts with the first games after the site went live (9 November 2026); nothing is ever added afterwards. Everything below is research: made after the fact and, for the player-based checks, knowing who actually played, so it runs a little better than live estimates can.</p></section>`}
     ${verdict}
+    <section class="section"><details class="howto"><summary>Research details: how each part of the model is tested</summary>
     ${a.upgrade ? `<section class="section"><h2>Player-based strength <span class="sub">this season, weights fitted on earlier games only (${a.upgrade.games} games)</span></h2><div class="grid">${[["Winners called", "winners", true, v => pct(v)], ["Brier score", "brier", false, v => fx(v, 4)], ["Log loss", "logloss", false, v => fx(v, 4)], ["Margin miss", "mae_margin", false, v => fx(v, 2)]].map(([l, k, up, f]) => `<div class="panel"><h3>${l}</h3><div class="adv"><div><b>${f(a.upgrade.before[k])}</b>results-based only</div><div><b class="${(up ? a.upgrade.after[k] > a.upgrade.before[k] : a.upgrade.after[k] < a.upgrade.before[k]) ? "up" : "down"}">${f(a.upgrade.after[k])}</b>with player strength</div></div></div>`).join("")}</div>${a.market_blend && a.market_blend.n ? `<p class="sub small" style="margin-top:8px">Market blend: ${a.market_blend.on ? "on" : "off"} · model ${fx(a.market_blend.brier_model, 4)} vs Pinnacle ${fx(a.market_blend.brier_market, 4)} vs blend ${fx(a.market_blend.brier_blend, 4)} on ${a.market_blend.n} frozen games</p>` : ""}</section>` : ""}
     ${a.checks ? block("This season's model checks", chkO, a.checks.n, "Research view. Walk-forward: base ratings from games before each week, factor sizes from earlier seasons, and the players who actually played (a live estimate cannot know late scratches). Made after the fact, so not part of the live record.", a.checks.calibration) : ""}
     ${bt && bt.test ? block(`Backtest: ${bt.test_season - 1}-${String(bt.test_season).slice(2)} season`, bt.test, bt.test.n, `Settings tuned on ${bt.tune_season - 1}-${String(bt.tune_season).slice(2)}, tested once on the next season, walk-forward by week. Half-life ${bt.tuned.half_life} days, last-season weight ${bt.tuned.carry}.`) : ""}
@@ -663,6 +666,7 @@ async function accuracy() {
       ${[...new Set(a.players.factors.map(r => r.key))].map(k => { const f = st => a.players.factors.find(r => r.key === k && r.stat === st) || {}; const P = f("pts");
         return `<tr><td><span class="mk" style="background:${P.layer === "mind" ? "var(--mind)" : "var(--body)"}"></span>${h(P.label)}</td><td class="sub small">${h(P.means)}</td>${["min", "pts", "reb", "ast"].map(st => `<td class="n ${effCls(f(st).pct)}">${f(st).pct == null ? "–" : sgn(f(st).pct) + "%"}</td>`).join("")}<td>${ev(P.evidence || "none")} <span class="sub small">${(P.n || 0).toLocaleString("en-GB")} games${P.applied === false ? " · measured, not applied" : ""}</span></td></tr>`; }).join("")}</table></div><p class="sub small">Applied only where a test on later seasons improved the projections. "Teammates out" is now handled by the minutes model; "Home floor" made projections worse when applied.</p></section>` : ""}
     ${a.recent && a.recent.length ? `<section class="section"><h2>Latest scored</h2><div class="tscroll"><table><tr><th>Day</th><th>Game</th><th class="n">Estimate</th><th class="n">Result</th></tr>${a.recent.map(r => `<tr><td>${day(r.day)}</td><td><a href="#/game/${r.id}">${h(T(r.away).short)} at ${h(T(r.home).short)}</a></td><td class="n">${h(T(r.margin >= 0 ? r.home : r.away).abbr)} by ${fx(Math.abs(r.margin))}</td><td class="n">${r.away_pts}–${r.home_pts}</td></tr>`).join("")}</table></div></section>` : ""}
+    </details></section>
   </div>`;
 }
 
@@ -1021,7 +1025,7 @@ function allPlayersTable(list) {
   render();
 }
 
-const STATW = { pts: "pts", reb: "reb", ast: "ast", tpm: "3s", pra: "pra" };
+const STATW = { pts: "points", reb: "rebounds", ast: "assists", tpm: "threes", pra: "pts+reb+ast" };
 function legFor(p, b) {
   // the curated leg for this player and line if tonight's list has it, else one built from his projection
   const hit = [...slipPool().values()].find(l => l.kind === "prop" && String(l.player) === String(p.id) && l.stat === b.stat && Math.abs(l.line - b.line) < 0.01 && l.side === "over");
@@ -1031,8 +1035,9 @@ function gameBuilder(g) {
   const gid = String(g.id || g.game_id || location.hash.split("/")[2]);
   const legs = [...slipPool().values()].filter(l => String(l.game) === gid).sort((a, b) => b.p - a.p).slice(0, 12);
   if (!legs.length || g.kind !== "estimate") return "";
-  return `<section class="section"><h2>Build a ticket from this game <span class="sub">tonight's checked legs; tap + to add</span></h2>
-    <div class="bb">${legs.map(l => `<div class="bb-leg"><span class="kind ${l.kind}">${KIND[l.kind] || l.kind}</span><span class="grow">${h(legDesc(l))}</span><span class="num sub">${pct(effP(l))}</span><b class="num">${fx(1.05 / effP(l), 2)}+</b>${addBtn(l)}</div>`).join("")}</div></section>`;
+  const row = l => `<div class="bb-leg"><span class="kind ${l.kind}">${KIND[l.kind] || l.kind}</span><span class="grow">${h(legDesc(l))}</span><span class="num sub">${pct(effP(l))}</span><b class="num">${fx(1.05 / effP(l), 2)}+</b>${addBtn(l)}</div>`;
+  return `<section class="section"><h2>Legs from this game <span class="sub">the model's strongest; tap + to add to your ticket</span></h2>
+    <div class="bb">${legs.slice(0, 5).map(row).join("")}${legs.length > 5 ? `<details class="vb-fold"><summary>Show ${legs.length - 5} more</summary>${legs.slice(5).map(row).join("")}</details>` : ""}</div></section>`;
 }
 function playerCard(p) {
   const ink = teamInk(p.team);
@@ -1042,7 +1047,6 @@ function playerCard(p) {
       ${p.status ? `<span class="ptag q">${h(p.status)}</span>` : ""}</div>
     <div class="pc-nums">${[["Points", p.next_pts], ["Rebounds", p.next_reb], ["Assists", p.next_ast], ["Threes", p.next_tpm]].map(([k, v]) => `<div><b class="num">${v == null ? "–" : fx(v, 1)}</b><span>${k}</span></div>`).join("")}</div>
     ${(p.next_best || []).length ? `<div class="pc-legs">${p.next_best.map(b => { const l = legFor(p, b); return `<div class="pc-leg"><span>${Math.ceil(b.line)}+ ${STATW[b.stat] || b.stat}</span><b class="num">${pct(b.over)}</b>${addBtn(l)}</div>`; }).join("")}</div>` : ""}
-    ${p.sim_lines ? `<p class="pc-sim">In ${Number(p.sim_lines.n).toLocaleString("en-GB")} simulations: ${Object.entries(p.sim_lines).filter(([k]) => k !== "n").slice(0, 2).map(([st, v]) => `${Math.ceil(v.line)}+ ${STATW[st] || st} in <b>${Math.round(v.over * p.sim_lines.n).toLocaleString("en-GB")}</b>`).join(" · ")}</p>` : ""}
     ${(p.next_spots || []).length ? `<p class="pc-spots">${p.next_spots.map(h).join(" · ")}</p>` : ""}
   </article>`;
 }
@@ -1195,7 +1199,7 @@ function effP(l) {
 const STATN = { pts: "points", reb: "rebounds", ast: "assists", tpm: "threes", pra: "pts+reb+ast" };
 function legDesc(l) {
   const L = lineOf(l);
-  if (l.kind === "prop") return l.side === "over" && Number.isFinite(+L) ? `${l.player_name} ${Math.ceil(+L)}+ ${STATN[l.stat] || l.stat} (over ${fx(L)})` : `${l.player_name} ${l.side} ${fx(L)} ${STATN[l.stat] || l.stat}`;
+  if (l.kind === "prop") return l.side === "over" && Number.isFinite(+L) ? `${l.player_name} ${Math.ceil(+L)}+ ${STATN[l.stat] || l.stat}` : `${l.player_name} ${l.side} ${fx(L)} ${STATN[l.stat] || l.stat}`;
   if (l.kind === "total") return `${l.side === "over" ? "Over" : "Under"} ${fx(L)} points`;
   if (l.kind === "spread") return `${T(l.team).short} ${L > 0 ? "+" : ""}${fx(L)} handicap`;
   if (l.kind === "ml") return `${T(l.team).short} to win`;
@@ -1360,7 +1364,7 @@ async function parlayPage() {
   const clvBox = (title, c, unit) => `<div class="panel"><h3>${title}</h3>${c && c.moved ? `<div class="adv"><div><b>${c.beat}/${c.moved}</b>moved our way<br>${pct(c.beat / c.moved)}</div>${c.avg_p != null ? `<div><b>${sgn(c.avg_p * 100, 2)}</b>avg chance points</div>` : ""}${c.avg_pts != null ? `<div><b>${sgn(c.avg_pts, 2)}</b>avg line points</div>` : ""}</div>` : `<p class="sub small">${unit}</p>`}</div>`;
   const mc = clv.model || {};
   const oa = d.odds_api || {};
-  const oddsNote = oa.enabled ? `Real prices: ${h(oa.books || "")}${oa.remaining ? ` · ${h(oa.remaining)} API credits left this month` : ""}` : `Real Winamax prices are off: add a free The Odds API key as the GitHub secret ODDS_API_KEY to switch them on. Until then market prices come from ESPN's US feed.`;
+  const oddsNote = oa.enabled ? `Prices from ${h(String(oa.books || "").split(",").map(b => ({ winamax_fr: "Winamax", pinnacle: "Pinnacle" }[b.trim()] || b.trim())).join(" and "))}, refreshed with every update.` : `Real Winamax prices are off: add a free The Odds API key as the GitHub secret ODDS_API_KEY to switch them on. Until then market prices come from ESPN's US feed.`;
   const hist = (d.history || []).length ? `<div class="tscroll"><table><tr><th>Day</th><th>Ticket</th><th class="n">Chance</th><th class="n">Fair odds</th><th>Legs</th><th>Result</th></tr>${d.history.flatMap(hd => hd.parlays.map(pr => `<tr><td>${day(hd.day)}</td><td>${h(pr.name)}</td><td class="n">${pct(pr.p)}</td><td class="n">${fx(pr.fair, 2)}</td><td class="small">${pr.legs.map(l => `<span class="${l.result === "hit" ? "up" : l.result === "miss" ? "down" : "sub"}">${l.result === "hit" ? "✓" : l.result === "miss" ? "✗" : "–"}</span> ${h(l.kind === "ml" ? T(l.team).short + " win" : l.desc)}`).join(" · ")}</td><td class="${pr.result === "hit" ? "up" : "down"}">${pr.result}</td></tr>`)).join("")}</table></div>` : "";
   const cal = d.calibration || {};
   const calHtml = `<div class="tscroll"><table><tr><th>Stat</th><th class="n">Shrink</th><th class="n">Lines tested</th><th>When we said… it happened</th></tr>${Object.entries(cal).map(([k, c]) => `<tr><td>${h({ pts: "Points", reb: "Rebounds", ast: "Assists", tpm: "Threes", pra: "Pts+Reb+Ast" }[k] || k)}</td><td class="n">${fx(c.t, 2)}</td><td class="n">${(c.n || 0).toLocaleString("en-GB")}</td><td class="small">${(c.bins || []).map(b => `${pct(b.p)} → ${pct(b.hit)}`).join(" · ") || "not enough history yet"}</td></tr>`).join("")}</table></div>`;
@@ -1374,27 +1378,21 @@ async function parlayPage() {
       return `<tr class="${v.value ? "hot" : ""}"><td><b>${h(T(v.team).short)}</b>${v.value ? ` <span class="pill strong">value</span>` : ""}</td><td class="small">${h(T(v.team).abbr)} vs ${h(T(v.opp).abbr)}</td><td class="n">${fx(v.price, 2)}</td><td class="n">${v.fair_odds ? fx(v.fair_odds, 2) : "–"}</td><td class="n ${e == null ? "" : e > 0 ? "up" : "down"}" data-vedge="${key}">${e == null ? "–" : sgn(e * 100, 1) + "%"}</td><td class="n">${v.model_p == null ? "–" : pct(v.model_p)}${v.agree === false ? ` <span class="sub small">disagrees</span>` : ""}</td><td><input class="boostin oddsin" data-vid="${key}" data-fair="${v.fair_p ?? ""}" type="number" step="0.01" min="1.01" placeholder="${fx(v.price, 2)}" value="${bo || ""}" aria-label="Boosted Winamax odds"></td></tr>`; }).join("")}</table></div>` : `<p class="sub">No Winamax and Pinnacle prices for this slate yet (they appear with the odds key, refreshed before tip-off).</p>`;
   const valueRec = vr && vr.n ? `<p class="verdict"><b>Track record of the value board:</b> ${vr.won}/${vr.n} won (Pinnacle's fair prices expected ${fx(vr.expected_won, 1)}), ${sgn(vr.profit, 2)} units at Winamax's prices for 1 unit each; ${vr.clv_beat}/${vr.clv_n} beat Pinnacle's closing price (average ${sgn((vr.clv_avg || 0) * 100, 1)}%).</p>` : "";
   const singles = t && t.singles && t.singles.length ? `<div class="ticket"><ul class="legs">${t.singles.map(legRow).join("")}</ul></div>` : `<p class="sub">No single market price is worth taking today.</p>`;
-  app.innerHTML = `<section class="hero court"><div class="wrap"><h1>Daily parlay</h1>
-    <p class="lede" style="margin-top:10px">${t ? `Slate of ${h(longDay(t.day))} (US date): ${t.games} game${t.games === 1 ? "" : "s"}, ${t.candidates} possible legs checked, ${t.eligible} worth considering. ${t.frozen ? "Frozen at the first tip-off." : `Updates every hour before the first tip-off (${tip(t.first_tip)}).`}` : "No games on the board right now."}</p></div></section>
+  const lockLine = !t ? "No games on the board right now." : t.locked && t.locked_at ? `${h(longDay(t.day))} · ${t.games} game${t.games === 1 ? "" : "s"} · locked at ${tip(t.locked_at)}, they will not change`
+    : `${h(longDay(t.day))} · ${t.games} game${t.games === 1 ? "" : "s"} · chosen once at ${tip(t.lock_at)}, three hours before the first tip-off`;
+  app.innerHTML = `<section class="hero court"><div class="wrap"><h1>Tonight's tickets</h1>
+    <p class="lede" style="margin-top:10px">${lockLine}</p></div></section>
   <div class="wrap">${demoBanner()}
-    <p class="banner">Make every leg match Winamax: if Winamax lists a different line, type its line in the first box (the chance recalculates for that line), then type its odds in the second: the value appears instantly. A leg is worth taking only when its value is positive; if Winamax doesn't list the market at all, leave the leg out. Statistical estimates, not advice; 18+.</p>
-    <p class="note">${oddsNote}</p>
-    ${t && t.book ? `<p class="verdict"><b>Every leg below is listed on ${t.book === "winamax_fr" ? "Winamax" : h(t.book)}</b>, at its own line and price (from the last refresh: prices move, so check the slip). ${t.not_on_book && t.not_on_book.length ? `Not on ${t.book === "winamax_fr" ? "Winamax" : h(t.book)} yet, so left out: ${t.not_on_book.map(x => h(x.split(" at ").map(a => T(a).short).join(" at "))).join(", ")}.` : ""}</p>` : ""}
-    <div class="principles">
-      <div><span class="n">1</span><b>Every leg must stand alone</b>A leg goes in only if its chance beats its price. A parlay of bad bets is a worse bet, not a better one.</div>
-      <div><span class="n">2</span><b>Fewer legs, less margin</b>The margin compounds with every leg: about 9% with two legs and around 24% with six at standard prices. The Value 2 is the main pick; the daily 6 is the optional long shot.</div>
-      <div><span class="n">3</span><b>Beat the closing price</b>The quickest proof of an edge is getting better odds than the final price before tip-off, long before wins and losses can tell.</div>
-      <div><span class="n">4</span><b>Psychology both ways</b>Team and player spots are inside the chances, and no leg is picked with a psychological spot working against it.</div>
-    </div>
-    <section class="section"><h2>Winamax vs Pinnacle <span class="sub">winners where Winamax pays more than the sharpest price</span></h2>
-      <p class="sub small">Pinnacle's odds with its margin removed are the best available estimate of the true chance. When Winamax pays more than that, the bet profits in the long run whatever any model says. "Value" = an edge of 2% or more and our model not rating the side clearly lower. Got a boost (<i>cote boostée</i>)? Type the boosted odds: the edge recalculates against Pinnacle's fair price.</p>
-      ${valueHtml}${valueRec}</section>
+    <p class="note small">Every player line is one Winamax lists (5+, 10+, 15+ …). Type the combined odds Winamax shows in each ticket to see Place or Skip. Statistical estimates, not advice; 18+.</p>
     ${t && t.locked === false ? `<section class="section"><div class="panel"><h3>Today's tickets are chosen at ${tip(t.lock_at)}</h3><p class="sub">Three hours before the first tip-off, once the main injury reports are in, the full model picks the day's tickets once. From then on they never change: no reshuffling on reload. If a player in a locked ticket is ruled out later, his leg is flagged (Winamax voids a leg whose player does not play).</p></div></section>`
-      : t && t.parlays && t.parlays.length ? `${t.locked_at ? `<p class="verdict"><b>Locked at ${tip(t.locked_at)}:</b> these are today's tickets and they will not change.</p>` : ""}${t.parlays.map((pr, i) => ticket(pr, i === 0, i)).join("")}` : `<p class="empty">No ticket today: not enough legs pass the filters. That is an answer too.</p>`}
+      : t && t.parlays && t.parlays.length ? `${t.parlays.map((pr, i) => ticket(pr, i === 0, i)).join("")}` : `<p class="empty">No ticket today: not enough legs pass the filters. That is an answer too.</p>`}
     <section class="section"><h2>Value singles <span class="sub">market prices worth taking on their own — the research favours these over parlays</span></h2>${singles}</section>
     <section class="section"><h2>Build your own ticket</h2><div class="panel"><div id="custom">${custom()}</div><p class="sub small" style="margin-top:10px">Optional stake to record with your bets (for your own log; the site never suggests stakes): <input id="stake" type="number" min="0" step="0.5" class="oddsin" style="width:90px"></p></div></section>
     <section class="section"><h2>My bets <span class="sub">kept in this browser only</span></h2><div id="mybets">${myBets()}</div>
       <p style="margin-top:10px"><button class="copybtn" id="exp">Export my bets</button> <label class="copybtn" style="display:inline-block">Import<input id="imp" type="file" accept="application/json" hidden></label></p></section>
+    <section class="section"><h2>Winamax vs Pinnacle <span class="sub">winners where Winamax pays more than the sharpest price</span></h2>
+      <p class="sub small">Pinnacle's odds with its margin removed are the best available estimate of the true chance. When Winamax pays more than that, the bet profits in the long run whatever any model says. "Value" = an edge of 2% or more and our model not rating the side clearly lower. Got a boost (<i>cote boostée</i>)? Type the boosted odds: the edge recalculates against Pinnacle's fair price.</p>
+      ${valueHtml}${valueRec}</section>
     <section class="section"><h2>Closing-line value <span class="sub">did the market move our way after we published?</span></h2>
       <div class="grid">${clvBox("Ticket legs", clv.tickets, "Measured from the first frozen slate on.")}${clvBox("Every published leg", clv.all_legs, "Measured from the first frozen slate on.")}
       <div class="panel"><h3>Model vs market</h3>${mc.n ? `<div class="adv"><div><b>${mc.with}/${mc.n}</b>games where the closing price moved towards the model<br>${pct(mc.with / mc.n)}</div><div><b>${sgn((mc.avg_move_our_way || 0) * 100, 2)}</b>avg chance points our way</div></div>` : `<p class="sub small">Every game where the model disagreed with the opening price: did the closing price move towards the model? Fills in as games are played.</p>`}</div></div></section>
@@ -1407,7 +1405,16 @@ async function parlayPage() {
       <li><b>Judge yourself on closing prices, not results.</b> A month of wins or losses is mostly luck; beating the closing price is skill.</li></ul></div>
       <div class="panel"><h3>How sure are the player chances?</h3><p class="sub small">Model chances are shrunk towards 50% by a factor fitted on past player-games (1.00 = no change needed), so "80%" should land about 80% of the time.</p>${calHtml}</div></div></section>
     <section class="section"><h2>Track record</h2>${recHtml}${selHtml}${hist}</section>
-    <section class="section"><h2>All strong legs today <span class="sub">tick to build your own ticket</span></h2>${board}</section></div>`;
+    <section class="section"><h2>All strong legs today <span class="sub">tick to build your own ticket</span></h2>${board}</section>
+    <section class="section"><details class="howto"><summary>How tickets are chosen</summary>
+    <div class="principles">
+      <div><span class="n">1</span><b>Every leg must stand alone</b>A leg goes in only if its chance beats its price. A parlay of bad bets is a worse bet, not a better one.</div>
+      <div><span class="n">2</span><b>Fewer legs, less margin</b>The margin compounds with every leg: about 9% with two legs and around 24% with six at standard prices. The Value 2 is the main pick; the daily 6 is the optional long shot.</div>
+      <div><span class="n">3</span><b>Beat the closing price</b>The quickest proof of an edge is getting better odds than the final price before tip-off, long before wins and losses can tell.</div>
+      <div><span class="n">4</span><b>Psychology both ways</b>Team and player spots are inside the chances, and no leg is picked with a psychological spot working against it.</div>
+    </div>
+    ${t && t.book ? `<p class="verdict"><b>Every leg below is listed on ${t.book === "winamax_fr" ? "Winamax" : h(t.book)}</b>, at its own line and price (from the last refresh: prices move, so check the slip). ${t.not_on_book && t.not_on_book.length ? `Not on ${t.book === "winamax_fr" ? "Winamax" : h(t.book)} yet, so left out: ${t.not_on_book.map(x => h(x.split(" at ").map(a => T(a).short).join(" at "))).join(", ")}.` : ""}</p>` : ""}
+    <p class="note small">${oddsNote}</p></details></section></div>`;
   app.oninput = e => {
     const bi = e.target.closest(".boostin[data-vid]");
     if (bi && t) {
@@ -1501,3 +1508,11 @@ function offlineNote() {
   if (!n) { n = document.createElement("div"); n.id = "offline-note"; n.textContent = "No signal: showing the last saved data."; document.body.appendChild(n); }
 }
 window.addEventListener("online", offlineNote); window.addEventListener("offline", offlineNote); offlineNote();
+
+document.addEventListener("click", e => {
+  const b = e.target.closest && e.target.closest(".search-toggle");
+  if (!b) return;
+  const f = document.querySelector(".hsearch");
+  f.classList.toggle("open");
+  if (f.classList.contains("open")) f.querySelector("input").focus();
+});

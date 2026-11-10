@@ -87,20 +87,21 @@ def reasoning(est, ctx, home, away, sd, rts_net=None):
     lines = []
     if rts_net:
         nh, na = rts_net
-        lines.append(f"Base ratings: the {H} are {nh:+.1f} and the {A} {na:+.1f} points per game against an average team; "
-                     f"with home court that makes the {fav} {abs(b['margin']):.1f} better here, total {b['total']:.0f}.")
+        better = H if nh >= na else A
+        lines.append(f"On the season so far the {better} are the stronger team; with home court the {fav} start about "
+                     f"{abs(b['margin']):.0f} points better, in a game of about {b['total']:.0f} points.")
     else:
-        lines.append(f"Base ratings make the {fav} {abs(b['margin']):.1f} points better here, total {b['total']:.0f}.")
+        lines.append(f"On the season so far the {fav} start about {abs(b['margin']):.0f} points better, in a game of about {b['total']:.0f} points.")
     pm, mm = est["physical"]["margin"], est["mind"]["margin"]
     if abs(pm) >= 0.3:
-        lines.append(f"Rest, travel and availability move it {abs(pm):.1f} towards the {H if pm > 0 else A}.")
+        lines.append(f"Rest, travel and who is missing tilt it about {abs(pm):.0f} point{'s' if round(abs(pm)) != 1 else ''} towards the {H if pm > 0 else A}.")
     else:
-        lines.append("Rest, travel and availability barely move it.")
+        lines.append("Rest, travel and who is missing barely change it.")
     phome, paway = sd["home"]["mind"], sd["away"]["mind"]
     if abs(mm) >= 0.3:
         lead = H if mm > 0 else A
         why = [x["label"].lower() for x in (phome if mm > 0 else paway) if abs(x["pts"]) >= 0.2][:2]
-        lines.append(f"The psychological spots lean {abs(mm):.1f} towards the {lead}"
+        lines.append(f"The mental side leans about {abs(mm):.0f} point{'s' if round(abs(mm)) != 1 else ''} towards the {lead}"
                      + (f" ({', '.join(why)})." if why else "."))
     elif phome or paway:
         lines.append("There are psychological storylines, but history says they are worth little here.")
@@ -108,6 +109,7 @@ def reasoning(est, ctx, home, away, sd, rts_net=None):
         lines.append("No psychological spot stands out for either team.")
     m = est["margin"]
     w = est["win_home"]
-    lines.append(f"Bottom line: {H if m >= 0 else A} by {abs(m):.1f}, {round(max(w, 1 - w) * 100)}% to win; "
-                 f"total {est['total']:.0f} (80% range {est['total'] - 1.28 * est['sd_total']:.0f}-{est['total'] + 1.28 * est['sd_total']:.0f}).")
+    by = f", by about {abs(m):.0f}" if (m >= 0) == (w >= 0.5) and abs(m) >= 1 else ""
+    lines.append(f"Bottom line: the {H if w >= 0.5 else A} win {round(max(w, 1 - w) * 100)} times in 100{by}; "
+                 f"most games like this end between {est['total'] - 1.28 * est['sd_total']:.0f} and {est['total'] + 1.28 * est['sd_total']:.0f} total points.")
     return lines

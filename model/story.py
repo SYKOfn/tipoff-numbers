@@ -223,7 +223,20 @@ def ticket_story(pr, pays):
         txt += " Every leg comes from a different game, so one surprise result cannot sink two legs at once."
     elif len(games) == 1 and len(legs) > 1:
         txt += " The legs come from one game and tell the same story, so they tend to land together."
-    analyst = [a for a in (_analyst(pays.get(g)) for g in games if pays.get(g)) if a]
+    # an analyst note only when it is about a team or player the ticket actually bets on
+    names = set()
+    for l in legs:
+        if l.get("player_name"):
+            names |= {l["player_name"], l["player_name"].split()[-1]}
+        tm = l.get("team")
+        if tm:
+            for g in games:
+                for side in ("home", "away"):
+                    t_ = (pays.get(g) or {}).get(side) or {}
+                    if t_.get("abbr") == tm:
+                        names |= {t_.get("name", ""), t_.get("short", "")}
+    names = {n for n in names if n and len(n) > 2}
+    analyst = [a for a in (_analyst(pays.get(g)) for g in games if pays.get(g)) if a and any(n in a for n in names)]
     if analyst:
         txt += " " + analyst[0]
     txt = txt.strip()
