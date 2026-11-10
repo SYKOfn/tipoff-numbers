@@ -1468,3 +1468,36 @@ async function parlayPage() {
     }
   };
 }
+
+/* ---------------------------------------------------------------- installable app (home-screen icon, offline copy) */
+if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+}
+(function installPrompt() {
+  const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+  const phone = window.matchMedia("(max-width: 820px)").matches;
+  if (standalone || !phone || LS.get("tipoff.install.dismissed", false)) return;
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const bar = document.createElement("div");
+  bar.className = "installbar";
+  const close = () => { bar.remove(); LS.set("tipoff.install.dismissed", true); };
+  if (ios) {
+    bar.innerHTML = `<img src="icons/icon-192.png" alt=""><p><b>Get the app</b>Tap <span class="ios-share" aria-label="Share">⬆︎</span> Share, then <b class="in">Add to Home Screen</b>.</p><button type="button" aria-label="Close">✕</button>`;
+    bar.querySelector("button").onclick = close;
+    setTimeout(() => document.body.appendChild(bar), 2500);
+  } else {
+    window.addEventListener("beforeinstallprompt", e => {
+      e.preventDefault();
+      bar.innerHTML = `<img src="icons/icon-192.png" alt=""><p><b>Get the app</b>One tap, opens full screen, works without signal.</p><button type="button" class="go">Install</button><button type="button" aria-label="Close">✕</button>`;
+      bar.querySelector(".go").onclick = async () => { e.prompt(); await e.userChoice.catch(() => {}); close(); };
+      bar.querySelector("[aria-label=Close]").onclick = close;
+      document.body.appendChild(bar);
+    });
+  }
+})();
+function offlineNote() {
+  let n = document.getElementById("offline-note");
+  if (navigator.onLine) { if (n) n.remove(); return; }
+  if (!n) { n = document.createElement("div"); n.id = "offline-note"; n.textContent = "No signal: showing the last saved data."; document.body.appendChild(n); }
+}
+window.addEventListener("online", offlineNote); window.addEventListener("offline", offlineNote); offlineNote();

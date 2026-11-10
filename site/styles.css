@@ -961,3 +961,19 @@ table.simt td .num { color: var(--muted); }
   .ticket-foot .you { display: none; }
   .late-banner { padding: 12px 14px; }
 }
+
+/* installable app */
+.top { padding-top: env(safe-area-inset-top); }
+body { padding-bottom: env(safe-area-inset-bottom); }
+.installbar { position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 60; display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px; border-radius: 18px; background: rgba(22, 24, 32, .96); border: 1px solid rgba(255,255,255,.12); box-shadow: 0 12px 40px rgba(0,0,0,.5);
+  backdrop-filter: blur(12px); animation: rise .4s ease both; }
+.installbar img { width: 44px; height: 44px; border-radius: 11px; }
+.installbar p { margin: 0; flex: 1; font-size: 14px; color: var(--muted); line-height: 1.35; }
+.installbar p > b:first-child { display: block; color: var(--ink); font-size: 15px; }
+.installbar .in { color: var(--ink); }
+.installbar .ios-share { display: inline-block; padding: 0 5px; border-radius: 6px; background: rgba(255,255,255,.1); color: var(--ink); }
+.installbar button { border: 0; background: transparent; color: var(--muted); font-size: 16px; padding: 8px; cursor: pointer; }
+.installbar .go { background: #3DF0A5; color: #062014; font-weight: 700; border-radius: 999px; padding: 9px 16px; font-size: 14px; }
+#offline-note { position: fixed; top: calc(8px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 70; padding: 8px 14px; border-radius: 999px;
+  background: #3a2a0a; color: #facc15; font-size: 13px; font-weight: 600; box-shadow: 0 6px 20px rgba(0,0,0,.4); }
