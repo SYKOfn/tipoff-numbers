@@ -425,3 +425,23 @@ def test_tickets_spread_their_risk():
     finally:
         parlay.joint = orig
     assert len({parlay.exposure(l) for l in first} & {parlay.exposure(l) for l in second}) <= 1
+
+
+def test_notifications_once(tmp_path):
+    from pipeline import notify
+    f = tmp_path / "2026-11-10.json"
+    leg = {"id": "x1", "tip": "2099-01-01T00:00:00+00:00", "kind": "prop", "side": "over", "line": 14.5, "stat": "pts", "player_name": "A Player", "desc": "A Player over 14.5 points"}
+    from datetime import datetime, timedelta, timezone
+    tip = (datetime.now(timezone.utc) + timedelta(hours=3)).replace(minute=30, second=0, microsecond=0).isoformat()
+    d = {"locked": True, "first_tip": tip,
+         "parlays": [{"name": "Value 2", "p": 0.4, "min_odds": 2.6, "legs": [leg, {"id": "x2", "kind": "ml", "desc": "BOS to win"}]},
+                     {"name": "Core 3", "p": 0.3, "min_odds": 3.5, "legs": [dict(leg)]}]}
+    f.write_text(json.dumps(d))
+    m = notify.messages(f, {})
+    assert [k for k, _ in m] == ["lock:2026-11-10"] and "A Player 15+ points" in m[0][1]["message"] and ":30" in m[0][1]["message"]
+    assert notify.messages(f, {"lock:2026-11-10": "t"}) == []
+    d["parlays"][0]["legs"][0]["alert"] = "Out since the picks were locked"
+    d["parlays"][1]["legs"][0]["alert"] = "Out since the picks were locked"
+    f.write_text(json.dumps(d))
+    m = notify.messages(f, {"lock:2026-11-10": "t"})
+    assert len(m) == 1 and m[0][0] == "alert:2026-11-10:x1" and "Value 2, Core 3" in m[0][1]["message"]

@@ -64,6 +64,11 @@ jobs:
             cp /tmp/checks.json site/data/checks_failed.json
             echo "failed=true" >> "$GITHUB_OUTPUT"
           fi
+      - name: Phone notifications (tickets locked, late news on a locked leg; only after the checks pass)
+        if: steps.gate.outputs.run == 'true' && steps.checks.outputs.failed != 'true'
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python -m pipeline.notify
       - name: Save data
         if: steps.gate.outputs.run == 'true'
         run: |
