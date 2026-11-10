@@ -34,6 +34,8 @@ const tip = iso => (iso ? tipFmt.format(new Date(iso)) : "");
 const tm = iso => (iso ? timeFmt.format(new Date(iso)) : "");
 const day = d => (d ? dayFmt.format(asDay(d)) : "");
 const longDay = d => (d ? longDayFmt.format(asDay(d)) : "");
+// the league's usual three-letter codes for labels (the feed uses GS, SA, NO, NY, WSH, UTAH)
+const lab3 = ab => ({ UTAH: "UTA", GS: "GSW", SA: "SAS", NO: "NOP", NY: "NYK", WSH: "WAS" })[ab] || ab;
 const T = ab => TEAMS[ab] || { abbr: ab, short: ab, name: ab, color: "#555", alt: "#999" };
 function ago(iso) {
   const m = Math.round((Date.now() - new Date(iso)) / 60000);
@@ -1118,13 +1120,17 @@ function linesBlock(lines, which) {
 function formChart(log) {
   const g = log.slice(0, 15).reverse();
   if (!g.length) return "";
-  const W = 520, H = 150, pad = 22, bw = (W - pad * 2) / g.length;
-  const mx = Math.max(10, ...g.map(x => Math.max(x.pts, x.proj ? x.proj.pts : 0))) * 1.1;
-  const y = v => H - pad - v / mx * (H - pad * 2);
+  const W = 520, H = 160, pad = 22, top = 18, bw = (W - pad * 2) / g.length;
+  const mx = Math.max(10, ...g.map(x => Math.max(x.pts, x.proj ? x.proj.pts : 0)));
+  const y = v => H - pad - v / mx * (H - pad - top);
   return `<svg class="formchart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Points in recent games">
-    ${g.map((x, i) => `<rect x="${pad + i * bw + 3}" y="${y(x.pts)}" width="${bw - 6}" height="${H - pad - y(x.pts)}" rx="3" fill="${x.win ? "var(--pos)" : "var(--neg)"}" opacity=".8"><title>${day(x.day)} ${x.home ? "vs" : "at"} ${x.opp}: ${x.pts} pts</title></rect>
-      ${x.proj ? `<line x1="${pad + i * bw + 1}" x2="${pad + (i + 1) * bw - 1}" y1="${y(x.proj.pts)}" y2="${y(x.proj.pts)}" stroke="var(--ink)" stroke-width="2.5"/>` : ""}
-      <text x="${pad + i * bw + bw / 2}" y="${y(x.pts) - 4}" text-anchor="middle">${x.pts}</text><text x="${pad + i * bw + bw / 2}" y="${H - 6}" text-anchor="middle">${h(T(x.opp).abbr)}</text>`).join("")}
+    ${g.map((x, i) => {
+      const cx = pad + i * bw + bw / 2, yb = y(x.pts), yp = x.proj ? y(x.proj.pts) : null;
+      // the number sits above both the bar and the projection mark, so they never overlap
+      const yl = Math.min(yb, yp ?? yb) - 6;
+      return `<rect x="${pad + i * bw + 3}" y="${yb}" width="${bw - 6}" height="${H - pad - yb}" rx="3" fill="${x.win ? "var(--pos)" : "var(--neg)"}" opacity=".8"><title>${day(x.day)} ${x.home ? "vs" : "at"} ${lab3(x.opp)}: ${x.pts} pts${x.proj ? `, projected ${fx(x.proj.pts)}` : ""} (${x.win ? "win" : "loss"} ${h(x.score)})</title></rect>
+      ${yp != null ? `<line x1="${pad + i * bw + 1}" x2="${pad + (i + 1) * bw - 1}" y1="${yp}" y2="${yp}" stroke="var(--ink)" stroke-width="2.5"/>` : ""}
+      <text x="${cx}" y="${yl}" text-anchor="middle">${x.pts}</text><text x="${cx}" y="${H - 6}" text-anchor="middle">${h(lab3(x.opp))}</text>`; }).join("")}
     <line x1="${pad}" x2="${W - pad}" y1="${H - pad}" y2="${H - pad}" stroke="var(--line)"/></svg>`;
 }
 
@@ -1151,7 +1157,7 @@ async function player(id) {
   const splits = p.splits.length ? `<div class="tscroll"><table><tr><th>Split</th><th class="n">GP</th><th class="n">MIN</th><th class="n">PTS</th><th class="n">REB</th><th class="n">AST</th><th class="n">3PM</th><th class="n">TS%</th></tr>${p.splits.map(s => `<tr><td>${h(s.name)}</td><td class="n">${s.gp}</td><td class="n">${fx(s.mpg)}</td><td class="n">${fx(s.ppg)}</td><td class="n">${fx(s.rpg)}</td><td class="n">${fx(s.apg)}</td><td class="n">${fx(s.tpm)}</td><td class="n">${s.ts == null ? "–" : (s.ts * 100).toFixed(1)}</td></tr>`).join("")}</table></div>` : "";
   const vs = p.vs.length ? `<div class="tscroll"><table><tr><th>Opponent</th><th class="n">GP</th><th class="n">PTS</th><th class="n">REB</th><th class="n">AST</th></tr>${p.vs.map(s => `<tr><td>${tlink(s.opp)}</td><td class="n">${s.gp}</td><td class="n">${fx(s.ppg)}</td><td class="n">${fx(s.rpg)}</td><td class="n">${fx(s.apg)}</td></tr>`).join("")}</table></div>` : "";
   const glog = `<div class="tscroll"><table class="ptable"><tr><th>Date</th><th>Opp</th><th>Result</th><th class="n">MIN</th><th class="n">PTS</th><th class="n">Proj</th><th class="n">REB</th><th class="n">AST</th><th class="n">3PM</th><th class="n">STL</th><th class="n">BLK</th><th class="n">TO</th><th class="n">FG</th><th class="n">3PT</th><th class="n">FT</th><th class="n">+/-</th></tr>
-    ${p.log.map(r => `<tr><td><a href="#/game/${r.id}">${day(r.day)}</a></td><td>${r.home ? "vs" : "@"} ${h(T(r.opp).abbr)}</td><td class="${r.win ? "up" : "down"}">${r.win ? "W" : "L"} ${h(r.score)}</td><td class="n">${r.min}</td><td class="n hl">${r.pts}</td><td class="n sub">${r.proj ? fx(r.proj.pts) : "–"}</td><td class="n">${r.reb}</td><td class="n">${r.ast}</td><td class="n">${r.tpm ?? "–"}</td><td class="n">${r.stl ?? "–"}</td><td class="n">${r.blk ?? "–"}</td><td class="n">${r.tov ?? "–"}</td><td class="n">${r.fg ?? "–"}</td><td class="n">${r.tp ?? "–"}</td><td class="n">${r.ft ?? "–"}</td><td class="n">${sgn(r.pm, 0)}</td></tr>`).join("")}</table></div>`;
+    ${p.log.map(r => `<tr><td><a href="#/game/${r.id}">${day(r.day)}</a></td><td>${r.home ? "vs" : "@"} ${h(lab3(r.opp))}</td><td class="${r.win ? "up" : "down"}">${r.win ? "W" : "L"} ${h(r.score)}</td><td class="n">${r.min}</td><td class="n hl">${r.pts}</td><td class="n sub">${r.proj ? fx(r.proj.pts) : "–"}</td><td class="n">${r.reb}</td><td class="n">${r.ast}</td><td class="n">${r.tpm ?? "–"}</td><td class="n">${r.stl ?? "–"}</td><td class="n">${r.blk ?? "–"}</td><td class="n">${r.tov ?? "–"}</td><td class="n">${r.fg ?? "–"}</td><td class="n">${r.tp ?? "–"}</td><td class="n">${r.ft ?? "–"}</td><td class="n">${sgn(r.pm, 0)}</td></tr>`).join("")}</table></div>`;
   app.innerHTML = `<section class="gh ph" style="--ca:${teamInk(p.team)};--ch:${teamInk(p.team)}"><div class="wrap">
     <div class="ph-main"><div class="ph-num num">${h(p.jersey ?? p.pos ?? "")}</div>
       <div class="ph-id"><p class="eyebrow">${h(p.pos || "")} · <a href="#/team/${p.team}">${h(t.name)}</a>${p.former.length ? ` · formerly ${p.former.map(x => h(T(x).short)).join(", ")}` : ""}</p><h1>${h(p.name)}</h1></div></div>
@@ -1159,7 +1165,7 @@ async function player(id) {
   </div></section>
   <div class="wrap">${demoBanner()}
     ${p.story.length ? `<p class="call"><b>Storylines:</b> ${p.story.map(h).join(" ")}</p>` : ""}
-    <section class="grid2" style="margin-top:14px">${nextHtml}<div class="panel"><h3>Recent games</h3><p class="sub small">Points per game, newest right; bars green in wins, red in losses; the dark line is what the model projected before the game.</p>${formChart(p.log)}</div></section>
+    <section class="grid2" style="margin-top:14px">${nextHtml}<div class="panel" style="align-self:start"><h3>Recent games</h3><p class="sub small">Points per game, newest on the right. Green bar: his team won; red: it lost. White line: what the model projected before that game.</p>${formChart(p.log)}</div></section>
     ${adv ? `<section class="section"><h2>Advanced <span class="sub">this season</span></h2>${adv}</section>` : ""}
     ${splits ? `<section class="section grid2"><div><h2>Splits</h2>${splits}</div><div><h2>Against each opponent <span class="sub">this season and last</span></h2>${vs}</div></section>` : ""}
     <section class="section"><h2>Season by season</h2><div class="tscroll"><table><tr><th>Season</th><th>Team</th><th class="n">GP</th><th class="n">MIN</th><th class="n">PTS</th><th class="n">REB</th><th class="n">AST</th><th class="n">3PM</th><th class="n">STL</th><th class="n">BLK</th><th class="n">FG%</th><th class="n">3P%</th><th class="n">FT%</th><th class="n">TS%</th><th class="n">USG%</th><th class="n">Pts/36</th><th class="n">+/-</th></tr>${seasonRows}</table></div></section>
