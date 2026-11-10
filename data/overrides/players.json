@@ -1,4 +1,85 @@
 {
  "_about": "Player notes the data can't show, keyed by ESPN player id or full name: {\"contract_year\": true|false, \"note\": \"short storyline\"}. Kept up to date by the daily analyst task. contract_year feeds the measured 'Contract year' effect; notes are shown on player pages.",
- "players": {}
+ "players": {
+  "Tyler Herro": {
+   "contract_year": true,
+   "note": "Ex-Heat player leading Milwaukee after the Giannis trade; contract year."
+  },
+  "Jaime Jaquez Jr.": {
+   "contract_year": true
+  },
+  "Gradey Dick": {
+   "contract_year": true
+  },
+  "Brice Sensabaugh": {
+   "contract_year": true
+  },
+  "Michael Porter Jr.": {
+   "contract_year": true,
+   "note": "On the trade block in a contract year; talks stalled over asking price."
+  },
+  "Draymond Green": {
+   "contract_year": true
+  },
+  "Anthony Black": {
+   "contract_year": true
+  },
+  "Jarace Walker": {
+   "contract_year": true
+  },
+  "Ben Sheppard": {
+   "contract_year": true
+  },
+  "Zach LaVine": {
+   "contract_year": true
+  },
+  "De'Andre Hunter": {
+   "contract_year": true
+  },
+  "Giannis Antetokounmpo": {
+   "note": "Public spat with former Bucks coach Doc Rivers over how his trade to Miami happened."
+  },
+  "Jaylen Brown": {
+   "note": "First regular-season game vs Boston since the summer trade; says he hasn't spoken to Tatum."
+  },
+  "Jayson Tatum": {
+   "note": "Says there's \"no beef\" with Jaylen Brown ahead of the reunion."
+  },
+  "Kyle Kuzma": {
+   "note": "Called for more urgency during Milwaukee's 1-9 start; faces his former team, the Lakers."
+  },
+  "Brandon Ingram": {
+   "note": "Close to his Clippers debut after heel surgery; practicing five-on-five."
+  },
+  "Darryn Peterson": {
+   "note": "No. 2 pick coming off a career-high 26 points."
+  },
+  "Ja Morant": {
+   "note": "Out at least four weeks (hamstring), hurt against his former team Memphis."
+  },
+  "Anthony Davis": {
+   "note": "Publicly criticised Wizards' effort after a 44-point game; extension undecided, trade rumours."
+  },
+  "Domantas Sabonis": {
+   "note": "Shrinking role next to rookie Darius Acuff Jr.; deadline-trade talk."
+  },
+  "Darius Acuff Jr.": {
+   "note": "Rookie leading the league in scoring with four 30-point games in his first 10."
+  },
+  "Noah Clowney": {
+   "note": "Frustration since losing his starting role; fouled out and shoved an opponent in Dallas."
+  },
+  "Kevin Durant": {
+   "note": "Taking fewer shots by design under Ime Udoka; touchy with media about it."
+  },
+  "Kristaps Porzingis": {
+   "note": "Stepped away for an undisclosed health issue; Warriors trying to trade him."
+  },
+  "Victor Wembanyama": {
+   "note": "40 points and 9 blocks at Phoenix; Spurs on a nine-game winning streak."
+  },
+  "Trae Young": {
+   "note": "Faced former team Atlanta for the first time on Nov 6."
+  }
+ }
 }
