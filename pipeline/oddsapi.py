@@ -195,6 +195,12 @@ def collect(upcoming, now=None):
         if not phase or phase in taken.get(gid, []):
             continue
         eid = snap[gid]["event_id"]
+        # Winamax often posts its player markets later in the day: ask again once in the last 75 minutes if the
+        # morning menu was empty (1 credit per game)
+        menu_close = st.setdefault("menu_close", [])
+        if gid in menus and not menus[gid] and phase == "close" and gid not in menu_close and st["spent"] + 1 <= daily:
+            menus.pop(gid)
+            menu_close.append(gid)
         if gid not in menus and st["spent"] + 1 <= daily:
             data, used, _ = _get(f"/events/{eid}/markets", {"bookmakers": book})
             st["spent"] += used or 1
