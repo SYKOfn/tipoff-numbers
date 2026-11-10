@@ -88,7 +88,7 @@ def walk(c, players_df, notes, cur, use_mm=True, ev=None, opp_mode="team", norm=
         ctx = c.ctxs.get(gid)
         b = c.base.get(gid)
         em = (b[0] - b[1]) if b else None
-        done, mrows, wo_upd = [], [], []
+        done, mrows, wo_upd, dsp_upd = [], [], [], []
         for team, opp, side in ((g["home"], g["away"], "home"), (g["away"], g["home"], "away")):
             trs = rows.get(team, [])
             played = {r["player_id"] for r in trs if r["min"] > 0}
@@ -129,6 +129,7 @@ def walk(c, players_df, notes, cur, use_mm=True, ev=None, opp_mode="team", norm=
                         e[1] += abs(a - proj[st])
                         e[2] += (a - proj[st]) ** 2
                 rows_eff.append((x, {st: (r[st] if st != "min" else r["min"], proj[st]) for st in P.EFFECT_STATS}))
+                dsp_upd.append((pid, r, proj))
                 if ev is not None:
                     ev.setdefault("rows", []).append(int(g["season"]))
                     if "pg" in ev:  # player-games with their out-of-sample projection (simulation research)
@@ -144,6 +145,7 @@ def walk(c, players_df, notes, cur, use_mm=True, ev=None, opp_mode="team", norm=
                     sp[st] += proj[st]
                 if int(g["season"]) == cur:
                     logs[(gid, pid)] = {k: round(v, 1) for k, v in proj.items() if k in ("min", "pts", "reb", "ast", "tpm", "pra")}
+                    pt.dsp_log[(gid, pid)] = dict(pt.p[pid].get("dsp") or {})  # his own spread before the game
                     key = (cur, pid)
                     if season_sum[key][1] >= 1:
                         acc["n"] += 1
@@ -157,6 +159,8 @@ def walk(c, players_df, notes, cur, use_mm=True, ev=None, opp_mode="team", norm=
                     s[0] += r["pts"]
                     s[1] += 1
         pt.post_game(g, rows)
+        for pid, a, prj in dsp_upd:
+            P.note_disp(pt.p[pid], a, prj)
         for f, y in mrows:
             pt.mm.add(f, y)
         for u in wo_upd:
@@ -283,6 +287,7 @@ def project_game(pt, pe, disp, g, ctx, injuries, notes, news=True, exp_margin=No
         for r in lst:
             if r["out"]:
                 continue
-            r["lines"] = {st: P.lines_for(st, r[st], disp) for st in ("pts", "reb", "ast", "tpm", "pra")}
+            r["disp"] = {k: round(v, 3) for k, v in P.player_disp(pt.p[r["id"]], disp).items()}
+            r["lines"] = {st: P.lines_for(st, r[st], r["disp"]) for st in ("pts", "reb", "ast", "tpm", "pra")}
         out[side] = lst
     return out

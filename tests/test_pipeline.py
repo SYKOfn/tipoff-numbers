@@ -491,3 +491,27 @@ def test_per_stat_padding_and_opponent_weights():
     want = (100.0 + pr * P.K_STAT["pts"]) / (200.0 + P.K_STAT["pts"])
     assert abs(pt.rate(q, "pts") - want) < 1e-9
     assert P.OPP_W.get("stl", 0.5) == 0.5
+
+
+def test_threes_split_and_player_spread():
+    from model import players as P
+    pt = P.PlayerTracker()
+    for i in range(12):  # a 40% shooter on 8 attempts in 32 minutes, a non-shooter beside him
+        g = {"home": "BOS", "away": "LAL", "season": 2027}
+        rows = {"BOS": [{"player_id": "1", "name": "A", "pos": "G", "min": 32, "pts": 20, "reb": 4, "ast": 5,
+                         "tpm": 4 if i % 5 < 2 else 3, "tpa": 8},
+                        {"player_id": "2", "name": "B", "pos": "C", "min": 30, "pts": 10, "reb": 10, "ast": 1, "tpm": 0, "tpa": 0}],
+                "LAL": [{"player_id": "3", "name": "C", "pos": "F", "min": 36, "pts": 20, "reb": 7, "ast": 4, "tpm": 2, "tpa": 6}]}
+        pt.post_game(g, rows)
+    q = pt.p["1"]
+    r = pt.rate(q, "tpm") * 32
+    assert 2.0 < r < 4.0                      # attempts x a padded make rate
+    assert pt.rate(pt.p["2"], "tpm") * 30 < 0.6
+    # own spread: a steady player gets a tighter distribution than the league's, a volatile one a wider one
+    steady, wild = {}, {}
+    for i in range(80):
+        P.note_disp(steady, {"pts": 20 + (i % 3 - 1), "reb": 5}, {"pts": 20.0, "reb": 5.0})
+        P.note_disp(wild, {"pts": 20 + (12 if i % 2 else -12), "reb": 5}, {"pts": 20.0, "reb": 5.0})
+    d = {"pts": 3.0, "reb": 1.5, "ast": 1.3}
+    assert P.player_disp(steady, d)["pts"] < 3.0 < P.player_disp(wild, d)["pts"]
+    assert P.player_disp(steady, d)["ast"] == 1.3

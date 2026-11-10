@@ -75,7 +75,7 @@ def simulate(game, est, players, disp, rng, sims=SIMS):
                 # spread left after minutes and team points: total variance mu x disp, minus what the
                 # simulated mean already varies
                 v_mu = float(np.var(mu)); mbar = max(float(np.mean(mu)), 1e-3)
-                d_left = max(1.02, float(disp.get(st, 1.5)) - v_mu / mbar)
+                d_left = max(1.02, float((pl.get("disp") or disp).get(st, 1.5)) - v_mu / mbar)
                 sims_[st] = _nb(rng, mu, d_left).astype(float)
             team[pl["id"]] = sims_
             f_mean[pl["id"]] = np.exp(MIN_BLOW[big] * blow + MIN_OT[big] * ot)  # expected minutes factor this run

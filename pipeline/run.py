@@ -143,7 +143,7 @@ def main(demo=False, now=None, collect_data=True):
             notes[pid] = v
     if notes != raw_notes:
         pt, pe, pdisp, plogs, ptrack, byg = PE.walk(c, players, notes, cur)
-    calib = parlay.fit_prop_calibration(plogs, byg, pdisp)
+    calib = parlay.fit_prop_calibration(plogs, byg, pdisp, pt.dsp_log)
     qshares = extras.quarter_shares(games)
     adv = extras.advanced(games, cur)
     if not any(adv.values()):

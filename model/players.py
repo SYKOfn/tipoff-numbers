@@ -18,12 +18,25 @@ import numpy as np
 
 from . import effects as eff_mod
 
-STATS = ["pts", "reb", "ast", "tpm", "stl", "blk", "tov", "fgm", "fga", "ftm", "fta"]
+STATS = ["pts", "reb", "ast", "tpm", "stl", "blk", "tov", "fgm", "fga", "ftm", "fta", "tpa"]
 SHOW = ["pts", "reb", "ast", "tpm", "stl", "blk", "tov"]
 LABEL = {"pts": "Points", "reb": "Rebounds", "ast": "Assists", "tpm": "Threes", "stl": "Steals", "blk": "Blocks",
          "tov": "Turnovers", "pra": "Pts+Reb+Ast", "min": "Minutes"}
 MIN_HL = 8          # games, minutes
 RATE_HL = 30        # games, per-minute rates
+RATE_HL_STAT = {"reb": 80.0}   # rebounding is a steadier skill: a longer memory fits better (Nov 2026 test)
+# Threes = attempts per minute x a separately stabilised make rate. Volume settles within a few games, the
+# percentage needs hundreds of attempts, so the two get their own padding and memory (Nov 2026 test:
+# 0.4-0.6% better on three seasons than one rate for makes).
+TPM_SPLIT = True
+# Some players are steadier than others: their own spread around the projection (padded with K_DISP of the
+# league's) prices lines better for points and rebounds (Nov 2026 test on 2024-25 and 2025-26: lower Brier and
+# log loss on the 55-92% lines tickets use). Assists and threes keep the league spread (no gain there).
+K_DISP = {"pts": 100.0, "reb": 100.0}
+DISP_HL = 60        # player-games of memory for a player's own spread
+K_TPA = 10.0        # minutes of position-average prior on attempts
+K_3P = 60.0         # attempts of position-average prior on the make rate
+P3_HL = 250         # games of memory for the make rate
 K_PRIOR = 150.0     # minutes of prior on rates
 # per-stat padding (minutes of position-average prior); stats not listed use K_PRIOR.
 # Chosen on 2024-25, confirmed on 2025-26: a lighter prior fits better for every stat (Nov 2026 test).
@@ -124,6 +137,7 @@ class PlayerTracker:
         self.mm = MinutesModel()
         self.use_mm = True
         self.last_mf = None
+        self.dsp_log = {}   # (game, player): his own spread going into that game (for the calibration fit)
 
     # ------------------------------------------------------------ player state
     def get(self, pid, name=None, pos=None):
@@ -144,10 +158,22 @@ class PlayerTracker:
             s = self.pos_rate["ALL"][stat]
         return s[0] / s[1] if s[1] else 0.0
 
+    def _rate_k(self, q, stat, k):
+        num, den = q["rate"].get(stat, (0.0, 0.0))
+        mins = q["rate"].get("_min_" + stat, q["rate"].get("_min", (0.0, 0.0)))[0]
+        pr = self.prior(q["pos"], stat)
+        return (num + pr * k) / (mins + k) if (mins + k) else pr
+
     def rate(self, q, stat):
         num, den = q["rate"].get(stat, (0.0, 0.0))
         mins = q["rate"].get("_min_" + stat, q["rate"].get("_min", (0.0, 0.0)))[0]
         pr = self.prior(q["pos"], stat)
+        if stat == "tpm" and TPM_SPLIT and "tpa" in q["rate"]:
+            att = self._rate_k(q, "tpa", K_TPA)
+            pa, pm = self.prior(q["pos"], "tpa"), self.prior(q["pos"], "tpm")
+            pp = pm / pa if pa > 0 else 0.35
+            mk, at = q.get("p3", (0.0, 0.0))
+            return att * (mk + pp * K_3P) / (at + K_3P)
         k = K_STAT.get(stat, K_PRIOR)
         return (num + pr * k) / (mins + k) if (mins + k) else pr
 
@@ -251,7 +277,7 @@ class PlayerTracker:
                 mult[st] = max(0.5, min(1.6, 1.0 + (eff[st].get("bias", 0.0) if st in BIAS_STATS else 0.0)
                                         + sum(eff[st]["coef"][k] * v for k, v in x.items() if k in APPLY and st in ONLY_FOR.get(k, {st}) and usable(eff[st], k))))
         use = {"min": "min", "pts": "pts", "reb": "reb", "ast": "ast", "tpm": "pts", "fgm": "pts", "fga": "pts",
-               "ftm": "pts", "fta": "pts", "stl": "min", "blk": "min", "tov": "min"}
+               "ftm": "pts", "fta": "pts", "tpa": "pts", "stl": "min", "blk": "min", "tov": "min"}
         proj = {"min": mins * mult["min"]}
         for st in STATS:
             key_ = st if st in ("pts", "reb", "ast", "tpm") else "_"
@@ -305,10 +331,14 @@ class PlayerTracker:
                 q["started"] = int(r.get("starter") == 1 or r.get("starter") is True)
                 q["smin"][0] += mn
                 q["smin"][1] += 1
-                al = 0.5 ** (1 / RATE_HL)
                 for k_ in list(q["rate"]):  # every stat's history decays once per game played
+                    al = 0.5 ** (1 / RATE_HL_STAT.get(k_[5:] if k_.startswith("_min_") else k_, RATE_HL))
                     a_, b_ = q["rate"][k_]
                     q["rate"][k_] = (a_ * al, b_ * al)
+                if r.get("tpm") is not None and r.get("tpa") is not None:
+                    a3 = 0.5 ** (1 / P3_HL)
+                    mk, at = q.get("p3", (0.0, 0.0))
+                    q["p3"] = (mk * a3 + float(r["tpm"]), at * a3 + float(r["tpa"]))
                 for st in STATS:
                     v = r.get(st)
                     if v is None:  # not recorded for this game: no information, not a zero
@@ -401,6 +431,28 @@ def usable(e, k):
 
 def sd_for(stat, proj, disp):
     return max(0.6, math.sqrt(max(proj, 0.3) * disp.get(stat, 1.5)))
+
+
+def player_disp(q, disp):
+    """The dispersion dict for one player: the league's, with his own spread for the stats in K_DISP."""
+    out = dict(disp)
+    for st, k in K_DISP.items():
+        sq, sm = (q.get("dsp") or {}).get(st, (0.0, 0.0))
+        d0 = disp.get(st, 1.5)
+        out[st] = max(1.02, (sq + d0 * k) / (sm + k))
+    return out
+
+
+def note_disp(q, actual, proj):
+    """After a game: add how far he landed from his projection to his own spread."""
+    a = 0.5 ** (1 / DISP_HL)
+    dsp = q.setdefault("dsp", {})
+    for st in K_DISP:
+        y, m = actual.get(st), proj.get(st)
+        if y is None or m is None or m <= 0:
+            continue
+        sq, sm = dsp.get(st, (0.0, 0.0))
+        dsp[st] = (sq * a + (float(y) - m) ** 2, sm * a + m)
 
 
 def over_prob(stat, line, mu, disp):
