@@ -38,10 +38,27 @@ def lock_due(now, par_dir=None):
     return False
 
 
-def decide(now=None, ups=None, par_dir=None):
+RECENT_MIN = 10   # a data update this recent makes another one in the same slot pointless
+
+
+def recent_update(now, last=None):
+    """last: "<unix time> <subject>" of the newest commit (env LAST_DATA_COMMIT). True when it is a data update
+    made in the last RECENT_MIN minutes (GitHub's schedule and the external timer firing in the same slot)."""
+    last = os.environ.get("LAST_DATA_COMMIT", "") if last is None else last
+    try:
+        ts, subject = last.split(" ", 1)
+        age = now.timestamp() - int(ts)
+    except ValueError:
+        return False
+    return subject.startswith("Data update") and 0 <= age < RECENT_MIN * 60
+
+
+def decide(now=None, ups=None, par_dir=None, last=None):
     now = now or datetime.now(timezone.utc)
     if lock_due(now, par_dir):
         return True, "the day's tickets are due to be locked"
+    if recent_update(now, last):
+        return False, f"data updated less than {RECENT_MIN} minutes ago"
     main_slot = 18 <= now.minute <= 33
     ups = (read_json(STATE / "upcoming.json", []) or []) if ups is None else ups
     if not main_slot:

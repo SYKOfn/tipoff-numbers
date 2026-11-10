@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: "8,23,38,53 * * * *"  # every 15 min; the gate skips quiet times (3-hourly, hourly near tip-off, every 15 min in the last 75)
   workflow_dispatch:
+    inputs:
+      gate:
+        description: "true = decide like a scheduled run (used by the external timer, cron-job.org)"
+        required: false
+        default: "false"
   push:
     branches: [main]
     paths: ["pipeline/**", "model/**", "site/*.*", "data/overrides/**", ".github/workflows/update.yml"]
@@ -26,10 +31,12 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - name: Gate (scheduled runs only)
+      - name: Gate (scheduled runs and the external timer)
         id: gate
         run: |
-          if [ "${{ github.event_name }}" = "schedule" ]; then
+          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event.inputs.gate }}" = "true" ]; then
+            # the last data update: GitHub's schedule and the external timer can both fire in one slot
+            export LAST_DATA_COMMIT="$(git log -1 --format='%ct %s')"
             python -m pipeline.should_run
           else
             echo "run=true" >> "$GITHUB_OUTPUT"

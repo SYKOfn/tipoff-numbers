@@ -538,3 +538,16 @@ def test_estimated_prop_chance_stays_near_the_anchor():
     lo = lambda p: math.log(p / (1 - p))
     pc = 1 / (1 + math.exp(-(lo(pa) + parlay.EST_K * (parlay.EST_T["pts"] * lo(po) - lo(pa)))))
     assert pa < pc < po and pc - pa < 0.5 * (po - pa)
+
+
+def test_gate_skips_a_second_run_in_the_same_slot(tmp_path):
+    from datetime import datetime, timezone
+    from pipeline import should_run as S
+    now = datetime(2026, 11, 10, 21, 23, tzinfo=timezone.utc)   # a 3-hour slot: normally runs
+    assert S.decide(now, ups=[], par_dir=tmp_path, last="")[0]
+    fresh = f"{int(now.timestamp()) - 120} Data update 2026-11-10T21:21Z"
+    assert not S.decide(now, ups=[], par_dir=tmp_path, last=fresh)[0]
+    old = f"{int(now.timestamp()) - 3600} Data update 2026-11-10T20:23Z"
+    assert S.decide(now, ups=[], par_dir=tmp_path, last=old)[0]
+    code = f"{int(now.timestamp()) - 60} Player model change"
+    assert S.decide(now, ups=[], par_dir=tmp_path, last=code)[0]
