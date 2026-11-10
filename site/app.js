@@ -152,6 +152,30 @@ function gameCard(c) {
     ${c.story ? `<p class="story2">${h(c.story)}</p>` : (c.tags && c.tags.length ? `<p class="story2">${h(c.tags.map(t => t.label).join(" · "))}</p>` : "")}</a>`;
 }
 const tipTime = iso => (iso ? new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false }) : "");
+
+/* ---------------------------------------------------------------- Tonight cards (one answer per card, details on tap) */
+function dots(p, label = "nights like this") {
+  const n = Math.max(0, Math.min(100, Math.round(p * 100)));
+  return `<div class="dots" role="img" aria-label="Lands in ${n} of 100 ${label}"><div class="dg">${Array.from({ length: 100 }, (_, i) => `<i class="${i < n ? "on" : ""}"></i>`).join("")}</div>
+    <p class="dc">Lands on <b>${n} of 100</b> ${label}</p></div>`;
+}
+function twLeg(l) {
+  const teams = matchTeams(l), p = effP(l);
+  return `<li class="tw-leg${l.alert ? " warn" : ""}"><details><summary><span class="w"><b>${h(legDesc(l))}</b><span class="m">${h(T(teams[0]).short)} at ${h(T(teams[1]).short)} · ${tipTime(l.tip)}</span></span><span class="c num">${pct(p)}</span></summary>
+    ${l.story ? `<p class="why">${h(l.story)}</p>` : ""}${l.alert ? `<p class="alert">⚠ ${h(l.alert)}</p>` : ""}${l.swap ? `<p class="swap">Suggested swap: <b>${h(l.swap.desc)}</b> · ${h(l.swap.matchup || "")} · ${pct(l.swap.p)}</p>` : ""}
+    <p class="m">Worth taking alone at ${fx(1.05 / p, 2)}+ · <a href="#/game/${h(l.game)}">game page</a></p></details></li>`;
+}
+function twCard(pr, i, main) {
+  const head = `<div class="tw-hd"><div><p class="tw-tag">${main ? "Main pick" : pr.name === "The daily 6" ? "Long shot" : pr.name === "Same-game 3" ? "One game" : "Also tonight"}</p><h2>${h(pr.name)}</h2></div>
+    <div class="tw-big"><b class="num">${fx(pr.min_odds, 2)}+</b><span>place at these odds or better</span></div></div>`;
+  const body = `${dots(tkP(pr))}${tkBox(pr, i)}<ul class="tw-legs">${pr.legs.map(twLeg).join("")}</ul>
+    ${pr.story ? `<p class="tw-story">${h(pr.story)}</p>` : ""}
+    <div class="tw-acts"><button type="button" class="pill-btn" data-copy="${h(ticketText(pr))}">Copy ticket</button><a class="pill-btn" href="#/parlay">Ticket details</a></div>`;
+  const warn = pr.legs.some(l => l.alert) ? ` <span class="chip warn">⚠ late news</span>` : "";
+  if (main) return `<article class="tw-card main">${head}${body}</article>`;
+  return `<details class="tw-card"><summary>${head.replace("</h2>", `${warn}</h2>`)}<span class="tw-mini num">${Math.round(tkP(pr) * 100)} in 100 · ${pr.n_legs} legs</span></summary>${body}</details>`;
+}
+
 async function home() {
   const [sch, acc, par, pl] = await Promise.all([get("schedule.json"), get("accuracy.json"), get("parlay.json").catch(() => ({})), get("players.json").catch(() => [])]);
   PAR = par;
@@ -181,19 +205,7 @@ async function home() {
     const seenA = new Set(), hitU = hit.filter(x => !seenA.has(x.l.id) && seenA.add(x.l.id));
     if (hitU.length) tickets += `<section class="late-banner" role="alert"><p class="eyebrow">Late news since the lock</p>
       <ul>${hitU.map(x => `<li><b>${h(legDesc(x.l))}</b> (${h(t.parlays.filter(pr => pr.legs.some(l => l.id === x.l.id)).map(pr => pr.name).join(", "))}): ${h(x.l.alert)}${x.l.swap ? `<br><span class="swapline">Suggested swap: <b>${h(x.l.swap.desc)}</b> · ${h(x.l.swap.matchup || "")} · ${pct(x.l.swap.p)}</span>` : ""}</li>`).join("")}</ul></section>`;
-    const [main, ...rest] = t.parlays;
-    const long = rest.filter(pr => pr.name === "The daily 6"), side = rest.filter(pr => pr.name !== "The daily 6");
-    tickets += `<section class="tk-row" aria-label="Tonight's tickets">
-      <article class="tk-main"><span class="tk-tag">Main pick</span> <span class="sub small" style="margin-left:10px">${new Set(main.legs.map(l => l.game)).size} game${main.n_legs > 1 ? "s" : ""}${t.locked_at ? ` · locked ${tipTime(t.locked_at)}` : ""}</span>
-        <h2>${h(main.name)}</h2>${main.story ? `<p class="tk-story">${h(main.story)}</p>` : ""}
-        ${tkBox(main, 0)}
-        <ul class="tk-legs">${main.legs.map(tnLeg).join("")}</ul>
-        <div class="tk-foot"><div><p class="k">All land</p><p class="v num">${pct(main.p)}</p></div><div><p class="k">Fair combined odds</p><p class="v num">${fx(main.fair, 2)}</p></div>
-          <div><p class="k">Worth placing at</p><p class="v go num">${fx(main.min_odds, 2)}+</p></div>
-          <div class="acts"><button type="button" class="pill-btn" data-copy="${h(ticketText(main))}">Copy ticket</button></div></div></article>
-      <div class="tk-side">${side.map(pr => `<a class="tk-mini" href="#/parlay"><div class="hd"><h3>${h(pr.name)}${pr.legs.some(l => l.alert) ? ` <span class="chip warn">⚠ late news</span>` : ""}</h3><span class="nums num">${pct(pr.p)} · take ${fx(pr.min_odds, 2)}+</span></div>
-          ${pr.story ? `<p>${h(pr.story)}</p>` : ""}<ul>${pr.legs.slice(0, 4).map(l => `<li><span>${h(legDesc(l))}</span><span class="num">${fx(l.min_odds, 2)}+</span></li>`).join("")}</ul></a>`).join("")}
-        ${long.map(pr => `<a class="tk-mini tk-long" href="#/parlay"><div><p class="k">Long shot</p><h3>${h(pr.name)}</h3></div><span class="v num">${fx(pr.min_odds, 2)}+</span></a>`).join("")}</div></section>`;
+    tickets += `<section class="tw" aria-label="Tonight's tickets">${t.parlays.map((pr, i) => twCard(pr, i, i === 0)).join("")}</section>`;
   } else if (t && t.locked === false) {
     tickets = `<section class="tk-row"><div class="tk-wait"><p class="eyebrow">Tonight's tickets</p><h2>Chosen once, then locked</h2><p class="clock num" id="lockclock">${tipTime(t.lock_at)}</p><p class="lockin num" data-at="${h(t.lock_at)}"></p>
       <p class="sub2" style="color:var(--muted);max-width:620px;margin-top:16px">Three hours before the first tip-off, once the main injury reports are in, the full model picks the day's tickets and explains each one in plain words. They never change after that.</p></div></section>`;
@@ -627,7 +639,7 @@ async function accuracy() {
     <div class="grid"><div class="panel"><h3>Win chances</h3><p class="sub small">Brier score, lower is better</p>${duel(rowsFor(o), "brier", true, 4)}<p class="sub small" style="margin-top:12px">Winners called</p>${duel(rowsFor(o), "hit", false)}</div>
     <div class="panel"><h3>Margin</h3><p class="sub small">Average miss in points, lower is better</p>${duel(rowsFor(o), "mae_margin", true, 2)}<p class="sub small" style="margin-top:12px">Total points, average miss</p>${duel(rowsFor(o), "mae_total", true, 2)}</div>
     ${cal ? `<div class="panel"><h3>Calibration</h3><p class="sub small">When the favourite was given X%, how often did it win? Dots on the line = honest chances.</p>${calibSvg(cal)}</div>` : ""}</div></section>` : "";
-  app.innerHTML = `<div class="wrap tn" style="padding-bottom:0"><section class="tn-hero" style="padding-bottom:28px"><div class="lead"><p class="eyebrow">Frozen at tip-off · scored after the buzzer</p><h1>Track record</h1>
+  app.innerHTML = `<div class="wrap tn" style="padding-bottom:0"><section class="tn-hero" style="padding-bottom:28px"><div class="lead"><p class="eyebrow">Frozen at tip-off · scored after the buzzer</p><h1>Track record</h1><nav class="daytabs seg" aria-label="Whose record"><a href="#/accuracy" aria-current="page">The model</a><a href="#/you" aria-current="false">Your bets</a></nav>
     <p class="sublede">Every estimate is locked before the game and checked afterwards, against simpler methods, including the same model without its psychological layer.</p></div></section>
     <section class="rec-tiles">
       <div class="tile big"><p class="k">Live record · winners called</p>${a.live && a.live.n ? `<p class="v num">${Math.round(a.live.hit * a.live.n)}/${a.live.n}</p><p class="s">${pct(a.live.hit)} · frozen estimates only</p>` : `<p class="v" style="font-size:30px;line-height:1.15">Starts tonight</p><p class="s">The first frozen estimates are scored after tonight's games.</p>`}</div>
@@ -792,11 +804,16 @@ function setupSearch() {
   window.addEventListener("hashchange", () => { close(); input.value = ""; });
 }
 
+let LAST_HASH = null;
+const SCROLL = {};
 async function route() {
+  if (LAST_HASH !== null) SCROLL[LAST_HASH] = window.scrollY;
+  const HERE = location.hash || "#/";
+  LAST_HASH = HERE;
   app.oninput = app.onchange = app.onclick = null;
   const parts = location.hash.replace(/^#\/?/, "").split("/");
   const [page, arg] = parts;
-  document.querySelectorAll("[data-nav]").forEach(a => a.setAttribute("aria-current", a.dataset.nav === (page || "home") || (page === "game" && a.dataset.nav === "games") || (page === "team" && a.dataset.nav === "teams") || (page === "player" && a.dataset.nav === "players") ? "page" : "false"));
+  document.querySelectorAll("[data-nav]").forEach(a => a.setAttribute("aria-current", a.dataset.nav === (page || "home") || (page === "game" && a.dataset.nav === "games") || (page === "team" && a.dataset.nav === "teams") || (page === "player" && a.dataset.nav === "players") || (page === "you" && a.dataset.nav === "accuracy") ? "page" : "false"));
   const more = document.querySelector("[data-nav-more]");
   if (more) {
     more.setAttribute("aria-current", document.querySelector(".more-menu [aria-current='page']") ? "page" : "false");
@@ -820,12 +837,13 @@ async function route() {
     else if (page === "mind") await mind();
     else if (page === "parlay") await parlayPage();
     else if (page === "accuracy") await accuracy();
+    else if (page === "you") await yourBets();
     else if (page === "about") await about();
     else await home();
   } catch (err) {
     app.innerHTML = `<div class="wrap" style="padding-top:40px"><p class="empty">Couldn't load this page (${h(err.message)}).</p><p><a href="#/">Back home</a></p></div>`;
   }
-  window.scrollTo(0, 0);
+  window.scrollTo(0, SCROLL[HERE] || 0);
   app.classList.remove("leaving");
   void app.offsetWidth;  // restart the entrance animation
   app.classList.add("entering");
@@ -1287,7 +1305,7 @@ function ticketText(pr) {
 function ticket(pr, main, idx) {
   return `<div class="ticket ${main ? "main" : ""}"><div class="ticket-head"><div><h3>${h(pr.name)}${pr.result ? ` <span class="cat ${pr.result === "hit" ? "Hot" : "Cold"}">${pr.result}</span>` : ""}</h3><p>${h(pr.why || "")}</p>${pr.story ? `<p class="story"><b>Why this ticket:</b> ${h(pr.story)}</p>` : ""}</div>
     <span><button class="copybtn" data-copy="${h(ticketText(pr))}">Copy ticket</button> <button class="copybtn" data-record="${idx}">Record as my bet</button></span></div>
-    ${tkBox(pr, idx)}
+    <div class="tk-dots">${dots(tkP(pr))}</div>${tkBox(pr, idx)}
     <ul class="legs">${pr.legs.map(legRow).join("")}</ul>
     <div class="ticket-foot"><div><b>${pct(pr.p)}</b>chance all ${pr.n_legs} land</div><div><b>${fx(pr.fair, 2)}</b>fair combined odds</div>
       <div class="go"><b>${fx(pr.min_odds, 2)}+</b>worth placing at these combined odds or better</div>
@@ -1331,6 +1349,60 @@ function myBets() {
   }).join("");
   return `${clvN ? `<p class="verdict"><b>Your closing-line value:</b> you beat the closing price on ${clvBeat} of ${clvN} legs (${pct(clvBeat / clvN)}). For winners the yardstick is Pinnacle's closing price with its margin removed: beating it on more than half of 200+ bets is the earliest reliable sign of a real edge.</p>` : ""}
     <div class="tscroll"><table><tr><th>Day</th><th>Ticket</th><th>Legs</th><th class="n">Odds</th><th class="n">Chance</th><th class="n">Value</th><th class="n">Stake</th><th>Status</th><th></th></tr>${rows}</table></div>`;
+}
+
+
+/* ---------------------------------------------------------------- your bets (kept on this phone only) */
+async function yourBets() {
+  const par = await get("parlay.json").catch(() => ({}));
+  PAR = par;
+  setTitle("Your bets");
+  const res = par.leg_results || {};
+  const bets = LS.get(BETS_KEY, []).map(b => {
+    const lr = b.legs.map(l => res[l.id]);
+    const status = lr.some(r => r === "miss") ? "lost" : lr.length && lr.every(r => r === "hit" || r === "void") ? "won" : "open";
+    return { ...b, lr, status };
+  });
+  const done = bets.filter(b => b.status !== "open").reverse();  // oldest first
+  const won = done.filter(b => b.status === "won").length, exp = done.reduce((a, b) => a + (b.p || 0), 0);
+  const priced = done.filter(b => b.odds);
+  const avgVal = priced.length ? priced.reduce((a, b) => a + (b.p * b.odds - 1), 0) / priced.length : null;
+  const staked = done.filter(b => b.stake && b.odds);
+  const net = staked.reduce((a, b) => a + (b.status === "won" ? b.stake * (b.odds - 1) : -b.stake), 0);
+  // landed against expected, bet by bet
+  let cw = 0, ce = 0;
+  const pts = done.map(b => { cw += b.status === "won" ? 1 : 0; ce += b.p || 0; return [cw, ce]; });
+  const W = 320, Hh = 110, mx = Math.max(1, ...pts.map(x => Math.max(x[0], x[1])));
+  const path = k => pts.map((x, i) => `${i ? "L" : "M"}${(pts.length < 2 ? 0 : i / (pts.length - 1)) * W},${Hh - (x[k] / mx) * Hh}`).join(" ");
+  const chart = pts.length >= 2 ? `<svg class="yb-chart" viewBox="-4 -4 ${W + 8} ${Hh + 8}" role="img" aria-label="Tickets landed against expected">
+      <path d="${path(1)}" fill="none" stroke="#5B5F70" stroke-width="2" stroke-dasharray="4 4"/><path d="${path(0)}" fill="none" stroke="#3DF0A5" stroke-width="2.5"/></svg>
+      <p class="sub small"><span style="color:#3DF0A5">━</span> tickets landed &nbsp; <span style="color:#8b8f9c">┅</span> what the chances said</p>` : "";
+  const card = (b, i) => `<article class="yb-item ${b.status}"><div class="yb-top"><span class="sub small">${day(b.at.slice(0, 10))}</span>
+      <span class="chip ${b.status === "won" ? "ok" : b.status === "lost" ? "warn" : ""}">${b.status === "won" ? "Landed" : b.status === "lost" ? "Missed" : "Open"}</span></div>
+    <h3>${h(b.name)}</h3>
+    <ul>${b.legs.map((l, j) => `<li><span class="${b.lr[j] === "hit" ? "up" : b.lr[j] === "miss" ? "down" : "sub"}">${b.lr[j] === "hit" ? "✓" : b.lr[j] === "miss" ? "✗" : "·"}</span> ${h(l.desc)}</li>`).join("")}</ul>
+    <p class="sub small">${pct(b.p)} chance${b.odds ? ` · your odds ${fx(b.odds, 2)} (fair ${fx(1 / b.p, 2)}: ${sgn((b.p * b.odds - 1) * 100, 0)}% ${b.p * b.odds >= 1 ? "in your favour" : "against you"})` : ""}${b.stake ? ` · stake ${fx(b.stake, 2)}` : ""}</p>
+    <button type="button" class="linkbtn" data-ydel="${i}">Remove</button></article>`;
+  app.innerHTML = `<div class="wrap tn"><section class="tn-hero" style="padding-bottom:18px"><div class="lead"><p class="eyebrow">Kept on this phone only</p><h1>Track record</h1>
+      <nav class="daytabs seg" aria-label="Whose record"><a href="#/accuracy" aria-current="false">The model</a><a href="#/you" aria-current="page">Your bets</a></nav></div></section>
+    ${bets.length ? `<section class="rec-tiles">
+      <div class="tile big"><p class="k">Tickets landed</p><p class="v num">${won}/${done.length}</p><p class="s">the chances said about ${fx(exp, 1)}</p></div>
+      <div class="tile"><p class="k">Your odds vs fair</p><p class="v num ${avgVal == null ? "" : avgVal >= 0 ? "up" : "down"}">${avgVal == null ? "–" : sgn(avgVal * 100, 0) + "%"}</p><p class="s">the real measure of skill: getting more than the fair price</p></div>
+      ${staked.length ? `<div class="tile"><p class="k">Net, recorded stakes</p><p class="v num ${net >= 0 ? "up" : "down"}">${sgn(net, 2)}</p><p class="s">${staked.length} settled bets with a stake</p></div>` : ""}
+      <div class="tile"><p class="k">Open</p><p class="v num">${bets.length - done.length}</p><p class="s">waiting for results</p></div></section>
+      ${chart ? `<section class="tn-sec"><div class="panel">${chart}</div></section>` : ""}
+      ${done.length && done.length < 30 ? `<p class="note small">${done.length} settled ticket${done.length === 1 ? "" : "s"} is far too few to judge anything: a few weeks of results start to mean something.</p>` : ""}
+      <section class="tn-sec yb">${bets.map(card).join("")}</section>
+      <p class="sub small"><button type="button" class="linkbtn" id="ybexp">Download my bets</button></p>`
+    : `<section class="tn-sec"><div class="panel"><h3>No bets recorded yet</h3><p class="sub">On a ticket, type the combined odds Winamax gives you and press "Record as my bet". Your tickets, their results and the odds you got against the fair price appear here. Nothing leaves this phone.</p><p><a class="pill-btn" href="#/parlay">Tonight's tickets</a></p></div></section>`}</div>`;
+  app.onclick = e => {
+    const d = e.target.closest("[data-ydel]");
+    if (d) { const all = LS.get(BETS_KEY, []); all.splice(+d.dataset.ydel, 1); LS.set(BETS_KEY, all); yourBets(); }
+    if (e.target.id === "ybexp") {
+      const blob = new Blob([JSON.stringify(LS.get(BETS_KEY, []), null, 1)], { type: "application/json" });
+      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "tipoff-my-bets.json"; a.click();
+    }
+  };
 }
 
 function custom() {

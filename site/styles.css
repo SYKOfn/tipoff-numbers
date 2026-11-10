@@ -1032,3 +1032,59 @@ details.vb-fold > summary { cursor: pointer; color: var(--accent, #3DF0A5); font
 }
 .top .more summary { white-space: nowrap; display: inline-flex; align-items: center; gap: 2px; }
 .top-inner > .more { flex: 0 0 auto; }
+
+/* ---------- Tonight cards (one answer per card) ---------- */
+.tw { display: grid; gap: 14px; margin: 8px 0 26px; }
+.tw-card { border-radius: 22px; background: #12141B; border: 1px solid rgba(255,255,255,.07); padding: 18px 20px; }
+.tw-card.main { background: linear-gradient(160deg, #13261E, #101218 60%); border-color: rgba(61,240,165,.35); padding: 22px; }
+details.tw-card > summary { list-style: none; cursor: pointer; }
+details.tw-card > summary::-webkit-details-marker { display: none; }
+details.tw-card[open] > summary { margin-bottom: 12px; }
+.tw-hd { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; }
+.tw-tag { margin: 0 0 4px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: #3DF0A5; font-weight: 700; }
+.tw-hd h2 { margin: 0; font-size: 26px !important; line-height: 1.1; }
+.tw-card:not(.main) .tw-hd h2 { font-size: 20px !important; }
+.tw-big { text-align: right; flex: 0 0 auto; }
+.tw-big b { display: block; font-size: 32px; line-height: 1; color: #3DF0A5; font-weight: 800; }
+.tw-card:not(.main) .tw-big b { font-size: 22px; }
+.tw-big span { font-size: 11px; color: var(--muted); display: block; max-width: 120px; margin-left: auto; margin-top: 4px; }
+.tw-mini { display: block; margin-top: 8px; font-size: 13px; color: var(--muted); }
+.tw-legs { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 8px; }
+.tw-leg details { border-radius: 14px; background: rgba(255,255,255,.04); padding: 12px 14px; }
+.tw-leg.warn details { box-shadow: inset 0 0 0 1px rgba(239,68,68,.5); }
+.tw-leg summary { list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 12px; cursor: pointer; }
+.tw-leg summary::-webkit-details-marker { display: none; }
+.tw-leg .w b { display: block; font-size: 16px; font-weight: 650; }
+.tw-leg .m { font-size: 12.5px; color: var(--muted); margin: 2px 0 0; }
+.tw-leg .c { font-size: 20px; font-weight: 800; flex: 0 0 auto; }
+.tw-leg .why { font-size: 14px; margin: 10px 0 4px; color: var(--text, #d6d9e2); }
+.tw-leg .alert { color: #f87171; font-weight: 600; font-size: 14px; margin: 6px 0; }
+.tw-leg .swap { font-size: 13.5px; margin: 6px 0; }
+.tw-story { font-size: 14px; color: var(--muted); margin: 14px 0 0; }
+.tw-acts { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+.tw-card .tkbox { margin: 14px 0 0; }
+/* lands in N of 100 */
+.dots { margin: 16px 0 4px; }
+.dots .dg { display: grid; grid-template-columns: repeat(20, 1fr); gap: 4px; max-width: 360px; }
+.dots i { aspect-ratio: 1; border-radius: 50%; background: rgba(255,255,255,.12); }
+.dots i.on { background: #3DF0A5; }
+.dots .dc { margin: 8px 0 0; font-size: 13.5px; color: var(--muted); }
+.dots .dc b { color: var(--ink); }
+.tk-dots { padding: 0 18px; }
+/* your bets */
+.seg { margin-top: 14px; }
+.yb { display: grid; gap: 12px; }
+.yb-item { border-radius: 18px; background: #12141B; border: 1px solid rgba(255,255,255,.07); padding: 16px 18px; }
+.yb-item.won { border-color: rgba(61,240,165,.35); }
+.yb-item.lost { border-color: rgba(239,68,68,.3); }
+.yb-top { display: flex; justify-content: space-between; align-items: center; }
+.yb-item h3 { margin: 6px 0 8px; font-size: 18px; }
+.yb-item ul { list-style: none; padding: 0; margin: 0 0 8px; display: grid; gap: 4px; font-size: 14px; }
+.yb-chart { width: 100%; height: auto; max-width: 560px; }
+.linkbtn { background: none; border: 0; color: var(--muted); text-decoration: underline; cursor: pointer; padding: 0; font-size: 13px; }
+@media (max-width: 640px) {
+  .tw-card { padding: 16px; border-radius: 18px; }
+  .tw-card.main { padding: 18px 16px; }
+  .tw-hd h2 { font-size: 24px !important; }
+  .tk-dots { padding: 0 12px; }
+}
