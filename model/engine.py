@@ -176,7 +176,9 @@ def baseline(games, season, team, before):
     return sum(pf) / len(pf), sum(pa) / len(pa)
 
 
-LEVEL_N, LEVEL_SHRINK, LEVEL_CAP = 200, 150, 6.0
+# shrink 50 (was 150): a league-wide scoring change is picked up sooner. This season's totals ran 2.4 points
+# high with 150; 50 cuts that to ~1.6 and does not hurt total error in 2023-24 to 2025-26 (Nov 2026 test).
+LEVEL_N, LEVEL_SHRINK, LEVEL_CAP = 200, 50, 6.0
 
 
 def total_level(c, season, before):

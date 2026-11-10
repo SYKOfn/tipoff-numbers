@@ -50,6 +50,9 @@ def winamax_margin(p_fair):
 BETA = {"pts": 1.0, "pra": 0.85, "ast": 0.6, "reb": 0.3, "tpm": 0.8}
 STAT_NAME = {"pts": "points", "reb": "rebounds", "ast": "assists", "tpm": "threes", "pra": "pts+reb+ast"}
 STD_PRICE = 1.91         # a standard -110 line, for spreads and totals without a price
+# No totals legs when the model's total and the market's main total are this many points apart: a gap that big
+# usually means the model is missing something the market knows (injuries, rest). Safety rule, Nov 2026.
+TOTAL_GAP_MAX = 5.0
 
 
 def logit(p):
@@ -158,7 +161,7 @@ def team_legs(game, est, odds, mind_gap):
         legs.append(_leg(game, "spread", f"{A} {lab(-L)}", 1 - p, 1 - pc, sp_a or STD_PRICE, team=A, line=-L, book=src if sp_a else None,
                          note=f"{src} main line, blended halfway with the market", mind=-mind_gap, sim=("cover", A, -L),
                          dist={"mu": round(-m, 2), "sd": round(sdm, 2), "alone": 0.5, "model": 1.0}))
-    if odds and odds.get("total"):
+    if odds and odds.get("total") and abs(t - odds["total"]) <= TOTAL_GAP_MAX:
         T = odds["total"]
         po = 1 - norm_cdf((T - t) / sdt)
         pb = novig(odds.get("over"), odds.get("under"))
@@ -296,7 +299,9 @@ def book_legs(game, est, players, odds, offers, calib, disp, mind_gap):
         add("spread", f"{team} {lab}", pm, pb, price, team=team, line=L, mind=mind_gap if team == H else -mind_gap, sim=("cover", team, L),
             dist={"mu": round(mt, 2), "sd": round(sdm, 2), "alone": 0.5, "model": 1.0})
     totals = []
-    if odds and odds.get("total") is not None and odds.get("over") and odds.get("under"):
+    if odds and odds.get("total") is not None and abs(t - odds["total"]) > TOTAL_GAP_MAX:
+        offers = [o for o in offers if o["kind"] not in ("total", "team_total")]
+    elif odds and odds.get("total") is not None and odds.get("over") and odds.get("under"):
         pbo = novig(odds["over"], odds["under"])
         totals += [("over", odds["total"], odds["over"], pbo), ("under", odds["total"], odds["under"], 1 - pbo)]
     for o in offers:

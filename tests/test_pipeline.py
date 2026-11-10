@@ -515,3 +515,13 @@ def test_threes_split_and_player_spread():
     d = {"pts": 3.0, "reb": 1.5, "ast": 1.3}
     assert P.player_disp(steady, d)["pts"] < 3.0 < P.player_disp(wild, d)["pts"]
     assert P.player_disp(steady, d)["ast"] == 1.3
+
+
+def test_no_totals_legs_when_far_from_market():
+    from model import parlay
+    game = {"id": "1", "home": "UTAH", "away": "MIA"}
+    est = {"margin": -3.0, "sd_margin": 13.0, "total": 236.8, "sd_total": 18.9, "win_home": 0.4}
+    odds = {"ml_home": 2.5, "ml_away": 1.6, "total": 228.5, "over": 1.93, "under": 1.93}
+    assert not [l for l in parlay.team_legs(game, est, odds, 0.0) if l["kind"] == "total"]
+    odds["total"] = 234.5
+    assert [l for l in parlay.team_legs(game, est, odds, 0.0) if l["kind"] == "total"]
