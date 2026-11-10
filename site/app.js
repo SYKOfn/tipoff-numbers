@@ -177,20 +177,25 @@ async function home() {
   // tickets
   let tickets = "";
   if (locked) {
+    const hit = t.parlays.flatMap(pr => pr.legs.filter(l => l.alert).map(l => ({ pr: pr.name, l })));
+    const seenA = new Set(), hitU = hit.filter(x => !seenA.has(x.l.id) && seenA.add(x.l.id));
+    if (hitU.length) tickets += `<section class="late-banner" role="alert"><p class="eyebrow">Late news since the lock</p>
+      <ul>${hitU.map(x => `<li><b>${h(legDesc(x.l))}</b> (${h(t.parlays.filter(pr => pr.legs.some(l => l.id === x.l.id)).map(pr => pr.name).join(", "))}): ${h(x.l.alert)}${x.l.swap ? `<br><span class="swapline">Suggested swap: <b>${h(x.l.swap.desc)}</b> · ${h(x.l.swap.matchup || "")} · ${pct(x.l.swap.p)}</span>` : ""}</li>`).join("")}</ul></section>`;
     const [main, ...rest] = t.parlays;
     const long = rest.filter(pr => pr.name === "The daily 6"), side = rest.filter(pr => pr.name !== "The daily 6");
-    tickets = `<section class="tk-row" aria-label="Tonight's tickets">
+    tickets += `<section class="tk-row" aria-label="Tonight's tickets">
       <article class="tk-main"><span class="tk-tag">Main pick</span> <span class="sub small" style="margin-left:10px">${new Set(main.legs.map(l => l.game)).size} game${main.n_legs > 1 ? "s" : ""}${t.locked_at ? ` · locked ${tipTime(t.locked_at)}` : ""}</span>
         <h2>${h(main.name)}</h2>${main.story ? `<p class="tk-story">${h(main.story)}</p>` : ""}
+        ${tkBox(main, 0)}
         <ul class="tk-legs">${main.legs.map(tnLeg).join("")}</ul>
         <div class="tk-foot"><div><p class="k">All land</p><p class="v num">${pct(main.p)}</p></div><div><p class="k">Fair combined odds</p><p class="v num">${fx(main.fair, 2)}</p></div>
           <div><p class="k">Worth placing at</p><p class="v go num">${fx(main.min_odds, 2)}+</p></div>
           <div class="acts"><button type="button" class="pill-btn" data-copy="${h(ticketText(main))}">Copy ticket</button><a class="pill-btn primary" href="#/parlay">Enter Winamax odds</a></div></div></article>
-      <div class="tk-side">${side.map(pr => `<a class="tk-mini" href="#/parlay"><div class="hd"><h3>${h(pr.name)}</h3><span class="nums num">${pct(pr.p)} · take ${fx(pr.min_odds, 2)}+</span></div>
+      <div class="tk-side">${side.map(pr => `<a class="tk-mini" href="#/parlay"><div class="hd"><h3>${h(pr.name)}${pr.legs.some(l => l.alert) ? ` <span class="chip warn">⚠ late news</span>` : ""}</h3><span class="nums num">${pct(pr.p)} · take ${fx(pr.min_odds, 2)}+</span></div>
           ${pr.story ? `<p>${h(pr.story)}</p>` : ""}<ul>${pr.legs.slice(0, 4).map(l => `<li><span>${h(legDesc(l))}</span><span class="num">${fx(l.min_odds, 2)}+</span></li>`).join("")}</ul></a>`).join("")}
         ${long.map(pr => `<a class="tk-mini tk-long" href="#/parlay"><div><p class="k">Long shot</p><h3>${h(pr.name)}</h3></div><span class="v num">${fx(pr.min_odds, 2)}+</span></a>`).join("")}</div></section>`;
   } else if (t && t.locked === false) {
-    tickets = `<section class="tk-row"><div class="tk-wait"><p class="eyebrow">Tonight's tickets</p><h2>Chosen once, then locked</h2><p class="clock num" id="lockclock">${tipTime(t.lock_at)}</p>
+    tickets = `<section class="tk-row"><div class="tk-wait"><p class="eyebrow">Tonight's tickets</p><h2>Chosen once, then locked</h2><p class="clock num" id="lockclock">${tipTime(t.lock_at)}</p><p class="lockin num" data-at="${h(t.lock_at)}"></p>
       <p class="sub2" style="color:var(--muted);max-width:620px;margin-top:16px">Three hours before the first tip-off, once the main injury reports are in, the full model picks the day's tickets and explains each one in plain words. They never change after that.</p></div></section>`;
   }
 
@@ -230,6 +235,7 @@ async function home() {
   const topHtml = top.length ? `<div><h2 style="font-size:28px;margin:0">Players to watch</h2><div class="listcard" style="margin-top:16px">${top.map(p => `<a class="row" href="#/player/${h(p.id)}">${mono(p.team, "sm")}<span class="grow"><b>${h(p.name)}</b><br><span class="muted">${h(T(p.team).short)}${p.status ? ` · ${h(p.status)}` : ""}</span></span><span class="val num">${fx(p.next_pts, 1)}</span><span class="muted">pts</span></a>`).join("")}</div></div>` : "";
 
   app.innerHTML = `<div class="wrap tn">${demoBanner()}${hero}${tickets}${valueSec}${gamesSec}${lastHtml || topHtml ? `<section class="tn-sec duo2">${lastHtml}${topHtml}</section>` : ""}</div>`;
+  tickClocks();
   const vm = document.getElementById("vbmore");
   if (vm) vm.onclick = () => { document.getElementById("vbrest").hidden = false; vm.remove(); };
   app.oninput = e => {
@@ -1220,7 +1226,7 @@ function legRow(l, i) {
   const clv = l.clv ? ` · CLV ${l.clv.p != null ? sgn(l.clv.p * 100, 1) + " pts of chance" : sgn(l.clv.pts) + " pts of line"}` : "";
   return `<li class="${res.trim()}"><span class="no">${i + 1}</span>
     <span class="d"><span class="kind ${l.kind}">${KIND[l.kind] || l.kind}</span><b data-d="${l.id}">${h(legDesc(l))}</b><span class="mflag ${l.mind_flag}">${l.mind_flag === "with" ? "mind with it" : l.mind_flag === "against" ? "mind against" : "mind neutral"}</span>
-    <span class="sub"><a href="#/game/${h(l.game)}">${h(T(matchTeams(l)[0]).short)} at ${h(T(matchTeams(l)[1]).short)}</a> · ${tip(l.tip)} · ${h(l.note || "")} · market: ${h(mkt)}${clv}${l.result ? ` · <b class="${l.result === "hit" ? "up" : l.result === "miss" ? "down" : ""}">${l.result}</b>` : ""}${l.story ? `<br><span class="story">${h(l.story)}</span>` : ""}${l.alert ? `<br><b class="down">⚠ ${h(l.alert)}</b>` : ""}${l.swap ? `<br>Suggested swap: <b>${h(l.swap.desc)}</b> (${h(l.swap.matchup || "")}, ${pct(l.swap.p)})` : ""}</span></span>
+    <span class="sub"><a href="#/game/${h(l.game)}">${h(T(matchTeams(l)[0]).short)} at ${h(T(matchTeams(l)[1]).short)}</a> · ${tip(l.tip)}<span class="tech"> · ${h(l.note || "")} · market: ${h(mkt)}${clv}</span>${l.result ? ` · <b class="${l.result === "hit" ? "up" : l.result === "miss" ? "down" : ""}">${l.result}</b>` : ""}${l.story ? `<br><span class="story">${h(l.story)}</span>` : ""}${l.alert ? `<br><b class="down">⚠ ${h(l.alert)}</b>` : ""}${l.swap ? `<br>Suggested swap: <b>${h(l.swap.desc)}</b> (${h(l.swap.matchup || "")}, ${pct(l.swap.p)})` : ""}</span></span>
     <span class="c"><b data-p="${l.id}">${pct(effP(l))}</b><span>chance</span></span><span class="c"><b data-f="${l.id}">${fx(1 / effP(l), 2)}</b><span data-m="${l.id}">fair · take ≥ ${fx(1.05 / effP(l), 2)}</span></span>${oddsCell(l)}</li>`;
 }
 function jointOf(legs) {
@@ -1240,6 +1246,21 @@ function ticketValue(legs, p) {
   const prod = odds.reduce((a, b) => a * b, 1), ev = p * prod - 1;
   return `<b class="${ev >= 0 ? "up" : "down"}">${fx(prod, 2)}</b>your combined odds · chance ${pct(p)} · ${ev >= 0 ? "worth it" : "not worth it"}: ${sgn(ev * 100, 0)}% value`;
 }
+function untilText(iso) {
+  const ms = new Date(iso) - Date.now();
+  if (!(ms > 0)) return "any minute now";
+  const m = Math.round(ms / 60000), hh = Math.floor(m / 60);
+  return `in ${hh ? `${hh} h ` : ""}${m % 60} min`;
+}
+function tickClocks() { document.querySelectorAll(".lockin[data-at]").forEach(x => { x.textContent = untilText(x.dataset.at); }); }
+setInterval(tickClocks, 30000);
+document.addEventListener("input", e => {
+  const tk = e.target.closest && e.target.closest(".tkodds[data-tk]");
+  if (!tk || !(PAR && PAR.today && PAR.today.parlays)) return;
+  const pr = PAR.today.parlays[+tk.dataset.tk], v = parseFloat(tk.value);
+  LS.set(tkKey(pr), v > 1 ? v : null);
+  document.querySelectorAll(`[data-tkv="${tk.dataset.tk}"]`).forEach(el => { el.innerHTML = tkVerdict(pr); });
+});
 const tkKey = pr => `tipoff.tk.${(PAR && PAR.today && PAR.today.day) || ""}.${pr.name}`;
 const tkP = pr => pr.p * pr.legs.reduce((a, l) => a * effP(l) / l.p, 1);
 function tkVerdict(pr) {
@@ -1398,13 +1419,7 @@ async function parlayPage() {
       if (cell) { cell.textContent = ed == null ? "–" : sgn(ed * 100, 1) + "%"; cell.className = "n " + (ed == null ? "" : ed > 0 ? "up" : "down"); }
       return;
     }
-    const tk = e.target.closest(".tkodds[data-tk]");
-    if (tk && t) {
-      const pr = t.parlays[+tk.dataset.tk], v = parseFloat(tk.value);
-      LS.set(tkKey(pr), v > 1 ? v : null);
-      const el = app.querySelector(`[data-tkv="${tk.dataset.tk}"]`); if (el) el.innerHTML = tkVerdict(pr);
-      return;
-    }
+    if (e.target.closest(".tkodds")) return;  // handled globally
     const inp = e.target.closest(".oddsin[data-leg], .linein[data-leg]");
     if (!inp) return;
     const id = inp.dataset.leg, v = parseFloat(inp.value);
