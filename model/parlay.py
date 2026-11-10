@@ -39,7 +39,14 @@ def combinable(l):
     return not (l.get("kind") == "prop" and l.get("stat") in SINGLE_ONLY)
 
 
-WINAMAX_PROP_MARGIN = 1.07  # assumed margin on Winamax's one-sided player prices when only another book's line is known
+WINAMAX_PROP_MARGIN = 1.07  # (kept for reference: the favourite end of winamax_margin below)
+
+
+def winamax_margin(p_fair):
+    """Winamax's margin grows as the odds lengthen (favourite-longshot bias). Measured on its winner prices
+    against Pinnacle's no-margin price (Nov 2026): about 7% on strong favourites, 8-9% on favourites and coin
+    flips, 11% on underdogs, 20% on big underdogs. Used when Winamax's own price for a leg is not known."""
+    return 1.07 if p_fair >= 0.75 else 1.085 if p_fair >= 0.55 else 1.095 if p_fair >= 0.45 else 1.12
 BETA = {"pts": 1.0, "pra": 0.85, "ast": 0.6, "reb": 0.3, "tpm": 0.8}
 STAT_NAME = {"pts": "points", "reb": "rebounds", "ast": "assists", "tpm": "threes", "pra": "pts+reb+ast"}
 STD_PRICE = 1.91         # a standard -110 line, for spreads and totals without a price
@@ -206,7 +213,7 @@ def prop_legs(game, players, calib, avg, disp, real=None):
                         if not (0.5 <= pc <= PROP_MAX):
                             continue
                         exact = L == L0
-                        price = float(rl["over"]) if exact else round(1 / (min(mk, 0.97) * WINAMAX_PROP_MARGIN), 2)
+                        price = float(rl["over"]) if exact else round(1 / (min(mk, 0.97) * winamax_margin(mk)), 2)
                         legs.append(_leg(game, "prop", f"{pl['name']} over {L:.1f} {STAT_NAME[st]}", po, pc, price,
                                          team=team, player=pl["id"], player_name=pl["name"], stat=st, line=L, side="over",
                                          proj=proj, avg=None if av is None or av != av else round(av, 1), price_est=not exact,
@@ -229,7 +236,7 @@ def prop_legs(game, players, calib, avg, disp, real=None):
                     # the price a book would ask: fair on the season-average anchor, plus its margin
                     pa_over = min(max(over_prob(st, L, av, disp), 0.03), 0.97)
                     pc = sigmoid(t * logit(po))
-                    price = round(1 / (pa_over * WINAMAX_PROP_MARGIN), 2)
+                    price = round(1 / (pa_over * winamax_margin(pa_over)), 2)
                     if 0.5 <= pc <= PROP_MAX and price >= 1.3:
                         legs.append(_leg(game, "prop", f"{pl['name']} over {L:.1f} {STAT_NAME[st]}", po, pc, price,
                                          dist={"mu": round(center, 2), "sd": round(sd, 2), "d": round(disp.get(st, 1.5), 3), "alone": t, "model": t},
