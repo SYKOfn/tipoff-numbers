@@ -162,7 +162,8 @@ def test_player_projection_basic():
                 "LAL": [{"player_id": "3", "name": "C", "pos": "F", "min": 36, "pts": 20, "reb": 7, "ast": 4, "tpm": 2}]}
         pt.post_game(g, rows)
     proj, x = pt.project("1", "BOS", "LAL", True, 0)
-    assert 28 < proj["min"] < 38 and 15 < proj["pts"] < 30
+    # two-team toy league: the opponent allows well above "league average", and OPP_W["pts"] = 1.0 passes all of it on
+    assert 28 < proj["min"] < 38 and 15 < proj["pts"] < 34
     proj2, _ = pt.project("1", "BOS", "LAL", True, 0, absent={"2"}, missing_share=0.3)
     assert proj2["min"] >= proj["min"] and x["home"] == 1
 
@@ -478,3 +479,15 @@ def test_ticket_mixes_stats():
     finally:
         parlay.joint = orig
     assert sum(l["stat"] == "reb" for l in t) <= 2
+
+
+def test_per_stat_padding_and_opponent_weights():
+    from model import players as P
+    # measured Nov 2026: lighter padding and fuller opponent weight beat the old single values on held-out seasons
+    assert P.K_STAT["pts"] < P.K_PRIOR and P.K_STAT["reb"] < P.K_PRIOR
+    pt = P.PlayerTracker()
+    q = {"pos": "G", "rate": {"pts": (100.0, 0.0), "_min": (200.0, 0.0)}}
+    pr = pt.prior("G", "pts")
+    want = (100.0 + pr * P.K_STAT["pts"]) / (200.0 + P.K_STAT["pts"])
+    assert abs(pt.rate(q, "pts") - want) < 1e-9
+    assert P.OPP_W.get("stl", 0.5) == 0.5

@@ -98,8 +98,17 @@ def walk(c, players_df, notes, cur, use_mm=True, ev=None, opp_mode="team", norm=
                 pid = r["player_id"]
                 if r["min"] <= 0 or pid not in pt.p or pt.p[pid]["gp"] < 3:
                     continue
+                if ev is not None and "pg" in ev:  # research: the inputs each projection saw, recorded before it
+                    q_ = pt.p[pid]
+                    ev.setdefault("pgx", {})[(gid, pid)] = {
+                        "of": {st_: pt.opp_raw(opp, st_) for st_ in ("pts", "reb", "ast", "tpm")},
+                        "back_left": q_["back_left"], "gap": pt.team_games[team] - q_["last_team_game"].get(team, pt.team_games[team]),
+                        "gp": q_["gp"], "exp_tp": (b[0] if side == "home" else b[1]) if b else None,
+                        "exp_op": (b[1] if side == "home" else b[0]) if b else None, "pos": q_["pos"]}
                 proj, x = pt.project(pid, team, opp, side == "home", ctx[side]["b2b"] if ctx else 0, absent,
                                      ctx[side]["missing"] if ctx else 0.0, notes.get(pid), exp_margin=em)
+                if ev is not None and "pgx" in ev:
+                    ev["pgx"][(gid, pid)]["ret"] = x["returning"]
                 team_proj.append((r, pid, proj, x, pt.last_mf))
             if norm:  # scale the team's projected minutes to the 240 available (newcomers counted at 12)
                 k = team_minutes_scale(sum(t[2]["min"] for t in team_proj) + 12.0 * (len(played) - len(team_proj)))

@@ -25,6 +25,12 @@ LABEL = {"pts": "Points", "reb": "Rebounds", "ast": "Assists", "tpm": "Threes", 
 MIN_HL = 8          # games, minutes
 RATE_HL = 30        # games, per-minute rates
 K_PRIOR = 150.0     # minutes of prior on rates
+# per-stat padding (minutes of position-average prior); stats not listed use K_PRIOR.
+# Chosen on 2024-25, confirmed on 2025-26: a lighter prior fits better for every stat (Nov 2026 test).
+K_STAT = {"pts": 25.0, "reb": 50.0, "ast": 50.0, "tpm": 25.0}
+# How much of what an opponent allows per minute goes into a projection (1.0 = all of it).
+# Chosen on 2024-25, confirmed on 2025-26 and 2023-24 (Nov 2026 test); other stats keep 0.5.
+OPP_W = {"pts": 1.0, "reb": 0.75, "ast": 1.0, "tpm": 0.75}
 BACK_GAP = 8        # team games missed = a long absence
 BACK_GAMES = 3      # first games back count as "returning"
 
@@ -142,14 +148,21 @@ class PlayerTracker:
         num, den = q["rate"].get(stat, (0.0, 0.0))
         mins = q["rate"].get("_min_" + stat, q["rate"].get("_min", (0.0, 0.0)))[0]
         pr = self.prior(q["pos"], stat)
-        return (num + pr * K_PRIOR) / (mins + K_PRIOR) if (mins + K_PRIOR) else pr
+        k = K_STAT.get(stat, K_PRIOR)
+        return (num + pr * k) / (mins + k) if (mins + k) else pr
+
+    def opp_raw(self, opp, stat):
+        """What this opponent allows per minute for a stat, against the league (1.0 = average); None if unknown."""
+        lg = ew_get(self.league, stat)
+        al = ew_get(self.allowed[opp], stat)
+        return al / lg if lg and al is not None else None
 
     def opp_factor(self, opp, stat):
         lg = ew_get(self.league, stat)
         al = ew_get(self.allowed[opp], stat)
         if not lg or al is None:
             return 1.0
-        return 1.0 + 0.5 * (al / lg - 1.0)
+        return 1.0 + OPP_W.get(stat, 0.5) * (al / lg - 1.0)
 
     def opp_factor_pos(self, opp, pos, stat):
         """What players at this position have produced per minute against this team, versus the league."""
