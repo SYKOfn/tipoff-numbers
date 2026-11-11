@@ -216,6 +216,12 @@ def summary(game_id):
     except Exception as e:  # play-by-play never breaks a box score
         CALLS["errors"].append(f"stints {game_id}: {e}")
         out["stints"], out["stint_cov"] = [], 0.0
+    try:
+        from .events import build as build_events
+        out["events"] = build_events(data, game_id)
+    except Exception as e:
+        CALLS["errors"].append(f"events {game_id}: {e}")
+        out["events"] = []
     return out
 
 

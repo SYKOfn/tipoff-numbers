@@ -9,12 +9,13 @@ from datetime import date, datetime, timedelta
 import pandas as pd
 
 from . import espn
-from .store import (BOX, STATE, load_games, load_players, load_stints, read_json, save_games, save_players, save_stints,
-                    write_json)
+from .store import (BOX, STATE, load_events, load_games, load_players, load_stints, read_json, save_events, save_games,
+                    save_players, save_stints, write_json)
 
 MAX_SUMMARIES = int(os.environ.get("MAX_SUMMARIES", "1000"))
 AHEAD_DAYS = 14
 STINT_BACKFILL = int(os.environ.get("STINT_BACKFILL", "300"))
+EVENT_BACKFILL = int(os.environ.get("EVENT_BACKFILL", "120"))  # older games of this season per run (play-by-play events)
 REF_BACKFILL = int(os.environ.get("REF_BACKFILL", "900"))
 HIST_SEASONS = int(os.environ.get("HIST_SEASONS", "5"))  # full seasons kept before the current one
 
@@ -95,7 +96,7 @@ def collect(today=None):
     # box scores, newest first
     need = games[(games["box"].fillna(0).astype(int) == 0) & (games["season"].astype(int) >= cur - HIST_SEASONS)]
     need = need.sort_values("date", ascending=False).head(MAX_SUMMARIES)
-    new_players, new_stints = [], []
+    new_players, new_stints, new_events = [], [], []
     games = games.set_index("game_id")
     for gid in need["game_id"]:
         s = espn.summary(gid)
@@ -103,6 +104,8 @@ def collect(today=None):
             continue
         if int(games.loc[gid, "season"]) == cur and s.get("stint_cov", 0) >= 0.9:
             new_stints += s["stints"]
+        if int(games.loc[gid, "season"]) == cur:
+            new_events += s.get("events") or []
         h, a = games.loc[gid, "home"], games.loc[gid, "away"]
         for side, ab in (("h", h), ("a", a)):
             for c in BOX:
@@ -132,9 +135,21 @@ def collect(today=None):
         s = espn.summary(gid)
         if s and s.get("stint_cov", 0) >= 0.9:
             new_stints += s["stints"]
+            new_events += s.get("events") or []
         else:
             tried.add(str(gid))
     write_json(STATE / "stints_tried.json", {"ids": sorted(tried)})
+    # play-by-play events for this season's games stored before events were kept (EVENT_BACKFILL per run)
+    ev_old = load_events(seasons={cur})
+    have_ev = set(ev_old["game_id"].astype(str)) | {x["game_id"] for x in new_events}
+    ev_todo = [gid for gid in games.index[(games["box"].fillna(0).astype(int) == 1) & (games["season"].astype(int) == cur)]
+               if str(gid) not in have_ev][:EVENT_BACKFILL]
+    for gid in ev_todo:
+        s = espn.summary(gid)
+        if s:
+            new_events += s.get("events") or [{"game_id": str(gid), "t": -1, "side": "", "kind": "none", "pid": ""}]
+    if new_events:
+        save_events(pd.concat([ev_old, pd.DataFrame(new_events)], ignore_index=True), cur)
     if new_stints:
         save_stints(pd.concat([st_old, pd.DataFrame(new_stints)], ignore_index=True), cur)
     games = games.reset_index()

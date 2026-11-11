@@ -1,6 +1,7 @@
 """History backfill, one season per job (run on GitHub, several seasons in parallel).
 
   python -m tools.backfill 2024 stints   lineup stints for a stored season (play-by-play)
+  python -m tools.backfill 2025 events   player events (shots, rebounds, turnovers) for a stored season
   python -m tools.backfill 2019 full     an older season from scratch: results, quarters, box scores,
                                          referees, player lines and stints, kept in its own archive files
 
@@ -14,7 +15,8 @@ from datetime import date, timedelta
 import pandas as pd
 
 from pipeline import espn
-from pipeline.store import (BOX, GAME_COLS, HIST, PLAYER_COLS, load_games, load_stints, save_archive, save_stints)
+from pipeline.store import (BOX, GAME_COLS, HIST, PLAYER_COLS, load_events, load_games, load_stints, save_archive,
+                            save_events, save_stints)
 
 BUDGET = 52 * 60  # seconds per job
 
@@ -39,6 +41,28 @@ def stints_for(season, gids, t0):
             print("saved", done)
     if new:
         save_stints(pd.concat([old, pd.DataFrame(new)], ignore_index=True), season)
+    return done
+
+
+def events_for(season, gids, t0):
+    old = load_events(seasons={season})
+    have = set(old["game_id"].astype(str))
+    todo = [g for g in gids if str(g) not in have]
+    print(f"{season}: {len(have)} games already have events, {len(todo)} to fetch")
+    new, done = [], 0
+    for gid in todo:
+        if time.time() - t0 > BUDGET:
+            print("time budget reached; run again to continue")
+            break
+        s = espn.summary(gid)
+        if s:
+            new += s.get("events") or [{"game_id": str(gid), "t": -1, "side": "", "kind": "none", "pid": ""}]
+        done += 1
+        if done % 200 == 0 and new:
+            save_events(pd.concat([old, pd.DataFrame(new)], ignore_index=True), season)
+            print("saved", done)
+    if new:
+        save_events(pd.concat([old, pd.DataFrame(new)], ignore_index=True), season)
     return done
 
 
@@ -113,10 +137,10 @@ def _save(games, season, players, new_p, old_st, new_s):
 def main():
     season, mode = int(sys.argv[1]), sys.argv[2]
     t0 = time.time()
-    if mode == "stints":
+    if mode in ("stints", "events"):
         g = load_games()
         gids = list(g[(g["season"] == season) & (g["box"] == 1)]["game_id"].astype(str))
-        stints_for(season, gids, t0)
+        (stints_for if mode == "stints" else events_for)(season, gids, t0)
     else:
         full(season, t0)
     print("calls", espn.CALLS["n"], "errors", len(espn.CALLS["errors"]), espn.CALLS["errors"][:3])

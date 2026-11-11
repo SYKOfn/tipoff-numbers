@@ -174,3 +174,26 @@ def test_stints_rebuild_real_game():
     box = {a["athlete"]["id"]: float(a["stats"][0]) for t in d["boxscore"]["players"] for b in t["statistics"]
            for a in b["athletes"] if a.get("stats") and str(a["stats"][0]).replace(".", "").isdigit()}
     assert all(abs(mins[p] - m) <= 1.5 for p, m in box.items() if m > 0)
+
+
+def test_play_by_play_events_match_the_box_score():
+    import collections
+    from pipeline import events
+    d = json.load(open(FIX / "summary_finished.json")) if "FIX" in globals() else json.load(open("tests/fixtures/summary_finished.json"))
+    ev = events.build(d, "g")
+    kinds = collections.Counter(e["kind"] for e in ev)
+    assert kinds["fg"] > 150 and kinds["ft"] > 20 and kinds["dreb"] > 40 and kinds["tov"] > 10
+    box = d["boxscore"]["players"]
+    lab = box[0]["statistics"][0]["labels"]
+    ok = 0
+    for t in box:
+        for a in t["statistics"][0]["athletes"]:
+            st = dict(zip(lab, a.get("stats") or []))
+            if not st.get("FG"):
+                continue
+            pid = a["athlete"]["id"]
+            made = sum(e["made"] for e in ev if e["kind"] == "fg" and e["pid"] == pid)
+            ast = sum(1 for e in ev if e["ast"] == pid)
+            ok += made == int(st["FG"].split("-")[0]) and ast == int(st["AST"])
+    assert ok >= 15
+    assert all(e["dist"] is not None for e in ev if e["kind"] == "fg" and e["val"] == 3)

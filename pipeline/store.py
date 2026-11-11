@@ -88,6 +88,26 @@ def save_stints(df, season):
     df[STINT_COLS].to_csv(HIST / f"stints_{season}.csv", index=False)
 
 
+EVENT_COLS = ["game_id", "t", "side", "kind", "pid", "made", "val", "dist", "ast", "shot"]
+
+
+def load_events(min_season=None, seasons=None):
+    """Player events from play-by-play (pipeline/events.py), one gzipped file per season."""
+    parts = []
+    for f in sorted(HIST.glob("events_*.csv.gz")):
+        s_ = int(f.name.split("_")[1].split(".")[0])
+        if (min_season is None or s_ >= min_season) and (seasons is None or s_ in seasons):
+            parts.append(pd.read_csv(f, dtype={"game_id": str, "pid": str, "ast": str}))
+    parts = [x for x in parts if len(x)]
+    return pd.concat(parts, ignore_index=True) if parts else pd.DataFrame(columns=EVENT_COLS)
+
+
+def save_events(df, season):
+    HIST.mkdir(parents=True, exist_ok=True)
+    df = df.drop_duplicates(["game_id", "t", "kind", "pid", "made", "val"], keep="last").sort_values(["game_id", "t"])
+    df[EVENT_COLS].to_csv(HIST / f"events_{season}.csv.gz", index=False, compression="gzip")
+
+
 def load_players():
     """Player lines, one file per season (old seasons never change, so the repository stays small)."""
     parts = [_read(f, PLAYER_COLS) for f in sorted(HIST.glob("players_*.csv"))]
