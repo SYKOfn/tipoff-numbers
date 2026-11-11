@@ -320,10 +320,10 @@ def main(demo=False, now=None, collect_data=True):
             ctx["away"][f"style_{k}"] = 0.0
         for k in TOTAL_F:
             ctx[f"style_{k}"] = round(sf.get(k, 0.0), 3)
-        pt = c.lineup.pace_total(g["home"], g["away"])
-        if pt is not None:
+        pace_est = c.lineup.pace_total(g["home"], g["away"])
+        if pace_est is not None:
             bh, ba = ratings.predict_game(rts["pts"], g["home"], g["away"], bool(g.get("neutral")))
-            ctx["pace_corr"] = round(pt - (bh + ba), 3)
+            ctx["pace_corr"] = round(pace_est - (bh + ba), 3)
         else:
             ctx["pace_corr"] = 0.0
         ctx["refs_total"] = round(c.officials.crew(g.get("refs")), 3)
