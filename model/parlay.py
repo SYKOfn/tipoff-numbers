@@ -25,6 +25,7 @@ PROP_MAX = 0.80          # alternate prop lines beyond this are priced too short
 PROP_SIDES = ("over",)   # Winamax lists player markets as "over" only (X+ points etc.): no player unders
 EDGE_W = 3.0             # how much a measured price edge is worth against chance when ranking tickets
 EST_EDGE_W, EST_EDGE_CAP = 1.0, 0.12   # edges against an estimated line count less, and are capped
+WINAMAX_PAYOUT = 0.5      # Winamax's combined odds pay about half the fair winnings (Pepe's experience, Nov 2026)
 SAFETY = 1.05            # ask 5% more than fair odds before calling a leg worth taking
 # player legs without a posted line: the projection blended with the season average, then a confidence per stat.
 # Fitted on 2024-25 (115,000 Winamax-line legs, projections made before each game), confirmed on 2025-26: the old
@@ -541,6 +542,8 @@ def package(name, why, legs, sims, games):
     return {"name": name, "why": why, "legs": [{k: v for k, v in l.items() if not k.startswith("_") and k != "sim"} for l in legs],
             "p": round(pj, 4), "p_independent": round(pi, 4), "lift": round(pj / pi, 3) if pi else 1.0,
             "fair": round(fair, 2) if fair else None, "min_odds": round(fair * SAFETY, 2) if fair else None,
+            # what Winamax usually pays for a combiné like this: about half the fair winnings (Pepe, Nov 2026)
+            "winamax_est": round(1 + WINAMAX_PAYOUT * (fair - 1), 2) if fair else None,
             "n_legs": len(legs), "games": len({l["game"] for l in legs})}
 
 

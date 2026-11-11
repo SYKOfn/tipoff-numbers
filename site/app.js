@@ -169,7 +169,7 @@ function twLeg(l) {
 }
 function twCard(pr, i, main) {
   const head = `<div class="tw-hd"><div><p class="tw-tag">${main ? "Main pick" : pr.name === "The daily 6" ? "Six safe legs" : /^Long shot/.test(pr.name) ? "Long shot" : pr.name === "Same-game 3" ? "One game" : "Also tonight"}</p><h2>${h(pr.name)}</h2></div>
-    <div class="tw-big"><b class="num">${fx(pr.min_odds, 2)}+</b><span>place at these odds or better</span></div></div>`;
+    <div class="tw-big"><b class="num">${fx(pr.min_odds, 2)}+</b><span>place at these odds or better</span>${pr.winamax_est ? `<span class="small sub">Winamax usually pays about ${fx(pr.winamax_est, 2)}</span>` : ""}</div></div>`;
   const body = `${dots(tkP(pr))}${tkBox(pr, i)}<ul class="tw-legs">${pr.legs.map(twLeg).join("")}</ul>
     ${pr.story ? `<p class="tw-story">${h(pr.story)}</p>` : ""}
     <div class="tw-acts"><button type="button" class="pill-btn" data-copy="${h(ticketText(pr))}">Copy ticket</button><a class="pill-btn" href="#/parlay">Ticket details</a></div>`;
@@ -1337,7 +1337,7 @@ function tkBox(pr, idx) {
 }
 function ticketText(pr) {
   return `${pr.name} — Tip-Off Numbers\n` + (pr.story ? `${pr.story}\n` : "") + pr.legs.map((l, i) => `${i + 1}. ${legDesc(l)} (${T(matchTeams(l)[0]).abbr} @ ${T(matchTeams(l)[1]).abbr}) — ${pct(l.p)}, take at ${fx(l.min_odds, 2)}+${l.story ? `\n   ${l.story}` : ""}`).join("\n")
-    + `\nAll legs: ${pct(pr.p)} · fair combined odds ${fx(pr.fair, 2)} · worth it at ${fx(pr.min_odds, 2)}+`;
+    + `\nAll legs: ${pct(pr.p)} · fair combined odds ${fx(pr.fair, 2)} · worth it at ${fx(pr.min_odds, 2)}+${pr.winamax_est ? ` · Winamax usually about ${fx(pr.winamax_est, 2)}` : ""}`;
 }
 function ticket(pr, main, idx) {
   return `<div class="ticket ${main ? "main" : ""}"><div class="ticket-head"><div><h3>${h(pr.name)}${pr.result ? ` <span class="cat ${pr.result === "hit" ? "Hot" : "Cold"}">${pr.result}</span>` : ""}</h3><p>${h(pr.why || "")}</p>${pr.story ? `<p class="story"><b>Why this ticket:</b> ${h(pr.story)}</p>` : ""}</div>
