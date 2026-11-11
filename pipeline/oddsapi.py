@@ -27,6 +27,7 @@ from .store import DATA, STATE, read_json, write_json
 from .teams import TEAMS
 
 BASE = "https://api.the-odds-api.com/v4/sports/basketball_nba"
+STALE_MIN = 240  # prices refresh every 3h; older than this means a missed pull (credits out, API down)
 PROP_MARKETS = {"player_points": "pts", "player_rebounds": "reb", "player_assists": "ast", "player_threes": "tpm",
                 "player_points_rebounds_assists": "pra"}
 PROPS_CSV = DATA / "props" / "lines.csv"
@@ -293,9 +294,15 @@ def attach(upcoming):
         if g["game_id"] in offers:
             g["offers"] = offers[g["game_id"]]
     pref = [b.strip() for b in env("ODDS_API_BOOKS", "winamax_fr,pinnacle").split(",")]
+    now = datetime.now(timezone.utc)
     for g in upcoming:
         s = snap.get(g["game_id"])
         if not s:
+            continue
+        try:  # a price older than STALE_MIN no longer says anything about value (credits out, feed down)
+            if (now - datetime.fromisoformat(s["at"])).total_seconds() > STALE_MIN * 60:
+                continue
+        except (KeyError, TypeError, ValueError):
             continue
         g["odds_books"] = s["books"]
         for b in pref:

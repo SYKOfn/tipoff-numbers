@@ -74,7 +74,11 @@ def messages(day_file, sent):
     return out
 
 
+DISCLAIMER = "\nStatistical estimate, not advice; most bets lose. 18+ · jugarbien.es"
+
+
 def send(topic, msg):
+    msg = {**msg, "message": (msg.get("message") or "") + DISCLAIMER}
     req = urllib.request.Request("https://ntfy.sh/", data=json.dumps({"topic": topic, **msg}).encode(),
                                  headers={"Content-Type": "application/json"}, method="POST")
     with urllib.request.urlopen(req, timeout=20) as r:

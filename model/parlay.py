@@ -55,9 +55,9 @@ VALUE2_BAND = (0.70, 0.745)
 # Winamax's own winner odds against Pinnacle's no-margin price (Nov 2026 log, 232 prices): Winamax pays 0.81 x the
 # fair odds on long shots, 0.87 around 30-50%, 0.91 around 50-70% and 0.92-0.93 on favourites (a 12% overround).
 WMX_FACTOR = ((0.15, 0.808), (0.40, 0.870), (0.60, 0.909), (0.78, 0.923), (0.90, 0.932))
-# Player legs have no Winamax price in the feed: Winamax's chance is taken halfway between ours and the one from
-# the player's season average. Backtest 2022-27, top 5 a night at that price: stated 77%, landed 76-78%, odds about
-# 1.37, value +4% to +7% a bet. If Winamax prices players as well as we do, the same picks are about -2%.
+# Player legs have no Winamax price in the feed (none has ever been observed), so their "Winamax price" below is an
+# assumption (halfway between our chance and the season average's) and can't show real value: singles require a
+# price actually seen at the book (wmx_real). If Winamax prices players as well as we do, such picks lose ~2-8%.
 SINGLES_N = 5
 SINGLE_P = (0.50, 0.90)
 
@@ -751,7 +751,8 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None)
     seen_p, per_g, team_g = set(), Counter(), set()
     for l in cands:
         l["ev"], l["wmx"], l["wmx_real"] = singles_value(l, books_of.get(l["game"]))
-    for l in sorted([l for l in cands if l["ev"] is not None and l["ev"] > 0 and SINGLE_P[0] <= l["p"] <= SINGLE_P[1]
+    # only a price actually seen at the book can show value; an assumed price would just echo our own chance
+    for l in sorted([l for l in cands if l["ev"] is not None and l["ev"] > 0 and l["wmx_real"] and SINGLE_P[0] <= l["p"] <= SINGLE_P[1]
                      and l["mind_flag"] != "against" and (l["kind"] != "prop" or l.get("agree"))], key=lambda l: -l["ev"]):
         if len(singles) >= SINGLES_N:
             break
@@ -885,7 +886,7 @@ def score_leg(leg, game_row, players_rows):
         v = (m if leg["team"] == home else -m) + leg["line"]
         return "void" if v == 0 else "hit" if v > 0 else "miss"
     if k == "total":
-        return "hit" if (t > leg["line"]) == (leg["side"] == "over") else "miss"
+        return "void" if t == leg["line"] else "hit" if (t > leg["line"]) == (leg["side"] == "over") else "miss"
     if k == "prop":
         r = players_rows.get(leg["player"])
         if not r or (r.get("min") or 0) <= 0:
