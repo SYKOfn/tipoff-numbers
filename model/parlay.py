@@ -47,7 +47,9 @@ AGREE_MIN, AGREE_MAX = 0.70, 0.86
 # Backtest (2024-25, 2025-26), 3 long shots a night with no shared bet: 5 legs stated 14-16% and landed 15-23%
 # (fair odds about x6-7); 6 legs stated ~10% and landed 8-17% (about x9-10).
 LONG_MIN = 0.55
-LONG_SHOTS, LONG_LEGS = 3, 5
+LONG_SIZES = (5, 7, 9)   # the night's three long shots (Pepe, Nov 2026): about x6, x14 and x30 fair odds
+# Value 2 aims at about a coin flip for the whole ticket (fair odds about x2): two agreed legs near 71% each.
+VALUE2_BAND = (0.70, 0.745)
 EST_T = {"pts": 1.05, "reb": 1.1, "ast": 1.1, "tpm": 1.05, "pra": 1.1}
 # markets Winamax lets you bet only on their own, never inside a combiné with other legs
 SINGLE_ONLY = {"pra"}
@@ -609,9 +611,12 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None)
                  and (l["kind"] != "prop" or l.get("agree") == "long" or book_only)]
     out["eligible"] = len(pool) + len(long_pool)
 
-    def pick(k, per_game, src=None):
+    def pick(k, per_game, src=None, band=None):
         chosen = []
-        for l in sorted(free(pool if src is None else src), key=lambda l: (-l["p"], -(l.get("edge") or 0))):
+        cand = free(pool if src is None else src)
+        if band:
+            cand = [l for l in cand if band[0] <= l["p"] <= band[1]]
+        for l in sorted(cand, key=lambda l: (-l["p"], -(l.get("edge") or 0))):
             if len(chosen) == k:
                 break
             if any(_conflict(l, c) or exposure(l) == exposure(c) for c in chosen):
@@ -625,11 +630,11 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None)
             chosen.append(l)
         return chosen if len(chosen) == k else None
 
-    two = pick(2, 1) if n_games >= 2 else pick(2, 2)
+    two = pick(2, 1 if n_games >= 2 else 2, band=VALUE2_BAND)
     if two:
-        out["parlays"].append(package("Value 2", "The main pick: the night's two most likely legs from two different games, "
-                                      "each one backed by the projection, the season average and the last 5 games together. "
-                                      "Two legs keep Winamax's margin small.", take(two), sims, games))
+        out["parlays"].append(package("Value 2", "The main pick: about a coin flip for double the money. Two legs from two "
+                                      "different games, each around 70% and backed by the projection, the season average "
+                                      "and the last 5 games together. Two legs keep Winamax's margin small.", take(two), sims, games))
     core = pick(3, 1) if n_games >= 3 else None
     if core:
         out["parlays"].append(package("Core 3", "The next three most likely legs, three different games, none of them "
@@ -639,14 +644,14 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None)
         out["parlays"].append(package("The daily 6", "The long shot: six more agreed legs, none used in another ticket. "
                                       "It pays the most and lands the least; the bookmaker's margin compounds over six legs.",
                                       take(six), sims, games))
-    for i in range(LONG_SHOTS):
-        ls = pick(LONG_LEGS, 1 if n_games >= LONG_LEGS else 2, long_pool) if n_games >= 3 else None
+    rare = {5: "about 1 night in 6", 7: "about 1 night in 14", 9: "about 1 night in 30"}
+    for i, k in enumerate(LONG_SIZES):
+        ls = pick(k, 1 if n_games >= k else 2, long_pool) if n_games >= 3 else None
         if not ls:
-            break
-        out["parlays"].append(package(f"Long shot {i + 1}", "A long shot: five legs that each land more often than not, "
-                                      "with the projection, the season average and the last 5 games all agreeing. "
-                                      "It lands about 1 night in 6 and pays far more; none of its bets is in another ticket.",
-                                      take(ls), sims, games))
+            continue
+        out["parlays"].append(package(f"Long shot {i + 1}", f"A long shot of {k} legs, each landing more often than not with the "
+                                      f"projection, the season average and the last 5 games all agreeing. It lands {rare.get(k, 'rarely')} "
+                                      f"and pays far more; none of its bets is in another ticket.", take(ls), sims, games))
     order = {"Value 2": 0, "Core 3": 1, "The daily 6": 2, "Long shot 1": 3, "Long shot 2": 4, "Long shot 3": 5, "Same-game 3": 9}
     out["parlays"].sort(key=lambda pr: order.get(pr["name"], 9))
     singles = sorted([l for l in cands if l.get("edge") is not None and l["edge"] > 0.02 and l["mind_flag"] != "against"
