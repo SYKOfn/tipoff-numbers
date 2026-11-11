@@ -50,12 +50,25 @@ LONG_MIN = 0.55
 LONG_SIZES = (5, 7, 9)   # the night's three long shots (Pepe, Nov 2026): about x6, x14 and x30 fair odds
 # Value 2 aims at about a coin flip for the whole ticket (fair odds about x2): two agreed legs near 71% each.
 VALUE2_BAND = (0.70, 0.745)
-# Minutes tilt: agreed legs of heavy-minute players land more often than the consensus says, those of 20-28 minute
-# players less (legs at 32+ projected minutes landed 2-5 points above the consensus in every period 2022-27, under
-# 28 minutes at or below it). Log-odds shift = a + b x (projected minutes - 30), minutes kept within 20-38; fitted
-# 2022-25 (b was 0.018-0.025 in every period taken alone). Held out on 2025-27, ranked with the tilt: Core 3
-# landed 67% (stated 66%) against 61% without it, the daily 6 41% (stated 41%) against 33%.
-MIN_TILT = (0.065, 0.0228)
+# The stated chance of an agreed leg (Nov 2026, fitted on 2022-25 legs, the weights were the same in every period
+# taken alone, 2025-27 included): the projection counts far more than the season average and the last 5 games
+# (0.645 / 0.14 / 0.094 on log-odds); heavy-minute players land more often (+0.018 per projected minute around 30,
+# minutes kept within 20-38); "over 1.5 threes" and higher land less often than the count model says (-0.173).
+# Held out on 2025-27 the stated chances matched what landed in every band (e.g. 77.7% stated, 77.2% landed).
+# Tickets over 2022-27 against the plain consensus + minutes tilt: Core 3 landed 68% (67%), the daily 6 47% (43%),
+# the 5-leg long shot 21% (19%). Safe / long is still decided by the voices agreeing (the consensus).
+LEG_W = {"b0": 0.284, "model": 0.645, "avg": 0.14, "l5": 0.094, "min": 0.018, "tpm_high": -0.173}
+
+
+def agreed_chance(voices, minutes, stat, line):
+    """voices: over chances from [projection, season average, last 5 (, market)]."""
+    lg = lambda v: logit(min(max(v, 1e-4), 1 - 1e-4))
+    z = (LEG_W["b0"] + LEG_W["model"] * lg(voices[0]) + LEG_W["avg"] * lg(voices[1]) + LEG_W["l5"] * lg(voices[2])
+         + LEG_W["min"] * (min(max(minutes or 30.0, 20.0), 38.0) - 30.0)
+         + (LEG_W["tpm_high"] if stat == "tpm" and line >= 1.5 else 0.0))
+    if len(voices) > 3:  # a real market line: half the weight
+        z = 0.5 * z + 0.5 * lg(voices[3])
+    return sigmoid(z)
 EST_T = {"pts": 1.05, "reb": 1.1, "ast": 1.1, "tpm": 1.05, "pra": 1.1}
 # markets Winamax lets you bet only on their own, never inside a combiné with other legs
 SINGLE_ONLY = {"pra"}
@@ -281,8 +294,8 @@ def prop_legs(game, players, calib, avg, disp_all, real=None):
                             continue
                         pa_over = min(max(voices[1], 0.03), 0.97)
                         price = round(1 / (pa_over * winamax_margin(pa_over)), 2)
-                        cons = pc  # the consensus decides safe / long; the stated chance adds the minutes tilt
-                        pc = sigmoid(logit(pc) + MIN_TILT[0] + MIN_TILT[1] * (min(max(pl.get("min") or 30.0, 20.0), 38.0) - 30.0))
+                        cons = pc  # the consensus decides safe / long; the stated chance is agreed_chance (measured weights)
+                        pc = agreed_chance(voices, pl.get("min"), st, L)
                         legs.append(_leg(game, "prop", f"{pl['name']} over {L:.1f} {STAT_NAME[st]}", voices[0], pc, price,
                                          consensus=round(cons, 4),
                                          dist={"mu": round(proj, 2), "sd": round(sd_for(st, proj, dp), 2), "d": round(dp.get(st, 1.5), 3), "alone": 1.0, "model": 1.0},
@@ -618,6 +631,8 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None)
     in_pool = lambda l, lvl, lo, hi: (l.get("agree") == lvl) if l.get("agree") else (lo <= l["p"] <= hi and (l["kind"] != "prop" or book_only))
     pool = [l for l in cands if combinable(l) and l["mind_flag"] != "against" and in_pool(l, "safe", AGREE_MIN, AGREE_MAX)]
     long_pool = [l for l in cands if combinable(l) and l["mind_flag"] != "against" and in_pool(l, "long", LONG_MIN, AGREE_MIN - 1e-9)]
+    v2_extra = [l for l in long_pool if l.get("agree") and l["p"] >= AGREE_MIN]   # agreed legs near 71%: Value 2 only
+    long_pool = [l for l in long_pool if l["p"] < AGREE_MIN]  # long shots keep their odds (about x6, x14, x30)
     out["eligible"] = len(pool) + len(long_pool)
 
     def pick(k, per_game, src=None, band=None):
@@ -641,7 +656,7 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None)
 
     two = None
     for hi in (VALUE2_BAND[1], 0.77, 0.80, 1.0):  # no pair near 71%: the closest above it rather than no main pick
-        two = pick(2, 1 if n_games >= 2 else 2, band=(VALUE2_BAND[0], hi))
+        two = pick(2, 1 if n_games >= 2 else 2, src=pool + v2_extra, band=(VALUE2_BAND[0], hi))
         if two:
             break
     if two:
@@ -659,7 +674,7 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None)
                                       take(six), sims, games))
     rare = {5: "about 1 night in 6", 7: "about 1 night in 14", 9: "about 1 night in 30"}
     for i, k in enumerate(LONG_SIZES):
-        ls = pick(k, 1 if n_games >= k else 2, long_pool) if n_games >= 3 else None
+        ls = (pick(k, 1 if n_games >= k else 2, long_pool) or pick(k, 1 if n_games >= k else 2, long_pool + v2_extra)) if n_games >= 3 else None
         if not ls:
             continue
         out["parlays"].append(package(f"Long shot {i + 1}", f"A long shot of {k} legs, each landing more often than not with the "

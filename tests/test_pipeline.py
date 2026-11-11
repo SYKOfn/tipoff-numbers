@@ -580,9 +580,11 @@ def test_ticket_legs_need_every_voice_to_agree():
     agree = [l for l in legs if l.get("agree") == "safe" and l["stat"] == "pts"]
     assert agree and all(l["player"] == "1" for l in agree)                    # player 2: the model alone says 27
     assert all(parlay.AGREE_MIN <= l["consensus"] <= parlay.AGREE_MAX and min(l["voices"]) >= parlay.AGREE_MIN for l in agree)
-    # minutes tilt: the stated chance sits above the consensus for a 30+ minute player, below it for a 22-minute one
-    tilt = lambda c, m: parlay.sigmoid(parlay.logit(c) + parlay.MIN_TILT[0] + parlay.MIN_TILT[1] * (m - 30))
-    assert tilt(0.8, 34) > 0.8 > tilt(0.8, 22)
+    # stated chance: the projection counts most, heavy minutes help, 1.5+ threes are marked down
+    ac = parlay.agreed_chance
+    assert ac([0.85, 0.75, 0.75], 30, "pts", 9.5) > ac([0.75, 0.85, 0.75], 30, "pts", 9.5) > ac([0.75, 0.75, 0.75], 30, "pts", 9.5)
+    assert ac([0.8, 0.8, 0.8], 36, "pts", 9.5) > ac([0.8, 0.8, 0.8], 22, "pts", 9.5)
+    assert ac([0.8, 0.8, 0.8], 30, "tpm", 1.5) < ac([0.8, 0.8, 0.8], 30, "tpm", 0.5)
     assert [l["line"] for l in agree] == [19.5]                                  # 14.5 is beyond AGREE_MAX
 
 
