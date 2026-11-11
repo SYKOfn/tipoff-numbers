@@ -606,11 +606,13 @@ def test_player_matchup_panel():
     assert any("taller" in e for e in m["slots"][0]["edges"]) and any("younger" in e for e in m["slots"][0]["edges"])
 
 
-def test_singles_rank_by_gap_over_season_average():
+def test_singles_value_at_winamax_odds():
     from model import parlay
-    mk = lambda i, g, p, va: {"id": str(i), "game": g, "kind": "prop", "stat": "pts", "player": str(i), "team": "T" + g,
-                              "p": p, "edge": 0.0, "agree": "safe", "voices": [p, va, p], "mind_flag": "neutral", "price_est": True}
-    cands = [mk(1, "a", 0.80, 0.78), mk(2, "a", 0.75, 0.60), mk(3, "a", 0.70, 0.45), mk(4, "a", 0.72, 0.52), mk(5, "b", 0.90, 0.40)]
-    gap_c = [l for l in cands if parlay.SINGLE_P[0] <= l["p"] <= parlay.SINGLE_P[1]]
-    order = sorted(gap_c, key=lambda l: -(l["p"] - l["voices"][1]))
-    assert [l["id"] for l in order][:3] == ["3", "4", "2"] and all(l["id"] != "5" for l in gap_c)   # 90% is beyond the range
+    assert 0.90 < parlay.wmx_odds(0.6) * 0.6 < 0.92           # Winamax pays about 0.91 of fair odds at 60%
+    assert parlay.wmx_odds(0.2) * 0.2 < parlay.wmx_odds(0.8) * 0.8   # bigger cut on long shots
+    win = {"kind": "ml", "team": "BOS", "home": "BOS", "p": 0.60}
+    ev, o, real = parlay.singles_value(win, {"winamax_fr": {"ml_home": 1.80, "ml_away": 2.0}})
+    assert real and o == 1.8 and abs(ev - 0.08) < 1e-9          # real Winamax odds for winners
+    leg = {"kind": "prop", "p": 0.77, "voices": [0.8, 0.57, 0.7]}
+    ev, o, real = parlay.singles_value(leg, {})
+    assert not real and 1.3 < o < 1.45 and ev > 0                # Winamax's chance taken halfway: 67%

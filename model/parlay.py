@@ -50,11 +50,45 @@ LONG_MIN = 0.55
 LONG_SIZES = (5, 7, 9)   # the night's three long shots (Pepe, Nov 2026): about x6, x14 and x30 fair odds
 # Value 2 aims at about a coin flip for the whole ticket (fair odds about x2): two agreed legs near 71% each.
 VALUE2_BAND = (0.70, 0.745)
-# Singles: the night's 5 agreed legs (55-85%) whose chance is furthest above the chance from the player's season
-# average. Backtest 2022-27 (chances as now stated, out of sample from 2025): stated 75-76%, landed 75-78%; the
-# season-average chance of those legs was about 57%. Bet only at odds of at least "take >=" (fair x 1.05).
+# Singles: the night's 5 best values at the odds Winamax is expected to pay, positive value only.
+# Winamax's own winner odds against Pinnacle's no-margin price (Nov 2026 log, 232 prices): Winamax pays 0.81 x the
+# fair odds on long shots, 0.87 around 30-50%, 0.91 around 50-70% and 0.92-0.93 on favourites (a 12% overround).
+WMX_FACTOR = ((0.15, 0.808), (0.40, 0.870), (0.60, 0.909), (0.78, 0.923), (0.90, 0.932))
+# Player legs have no Winamax price in the feed: Winamax's chance is taken halfway between ours and the one from
+# the player's season average. Backtest 2022-27, top 5 a night at that price: stated 77%, landed 76-78%, odds about
+# 1.37, value +4% to +7% a bet. If Winamax prices players as well as we do, the same picks are about -2%.
 SINGLES_N = 5
-SINGLE_P = (0.55, 0.85)
+SINGLE_P = (0.50, 0.90)
+
+
+def wmx_odds(p_fair):
+    """Odds Winamax is expected to pay for an outcome whose fair (no-margin) chance is p_fair."""
+    xs, ys = zip(*WMX_FACTOR)
+    return float(np.interp(p_fair, xs, ys)) / max(p_fair, 1e-3)
+
+
+def singles_value(l, books):
+    """(value, Winamax odds, real?) for a leg: our chance x Winamax's odds (real for winners, else expected) - 1."""
+    w = (books or {}).get("winamax_fr") or {}
+    k = l["kind"]
+    if k == "ml":
+        side = "home" if l.get("team") == l.get("home") else "away"
+        if w.get(f"ml_{side}"):
+            o = float(w[f"ml_{side}"])
+            return l["p"] * o - 1, round(o, 2), True
+        pf = l.get("market")
+        if pf is None:
+            return None, None, False
+        o = wmx_odds(pf)
+    elif k in ("spread", "total"):
+        if not l.get("price") or not l.get("book"):
+            return None, None, False
+        o = wmx_odds(1 / (float(l["price"]) * 1.025))   # Pinnacle's price, its ~2.5% margin removed
+    elif k == "prop" and l.get("voices"):
+        o = wmx_odds((l["p"] + l["voices"][1]) / 2)
+    else:
+        return None, None, False
+    return l["p"] * o - 1, round(o, 2), False
 # The stated chance of an agreed leg (Nov 2026, fitted on 2022-25 legs, the weights were the same in every period
 # taken alone, 2025-27 included): the projection counts far more than the season average and the last 5 games
 # (0.645 / 0.14 / 0.094 on log-odds); heavy-minute players land more often (+0.018 per projected minute around 30,
@@ -579,7 +613,7 @@ def package(name, why, legs, sims, games):
 def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None):
     """slate: list of (game dict, payload). Returns the day's parlays and the full leg board."""
     rng = np.random.default_rng(seed)
-    games, sims, cands = {}, {}, []
+    games, sims, cands, books_of = {}, {}, [], {}
     out_skip = []
     for g, pay in slate:
         game = {"id": str(pay["id"]), "home": pay["home"]["abbr"], "away": pay["away"]["abbr"], "tip": pay["tip"]}
@@ -595,6 +629,7 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None)
         else:
             legs = team_legs(game, est, g.get("odds"), gap) + prop_legs(game, players, calib, avg or {}, disp, real_props)
         games[game["id"]] = game
+        books_of[game["id"]] = g.get("odds_books") or {}
         sims[game["id"]] = simulate(game, est, players, disp, rng)
         for l in legs:
             l["_o"] = outcome(sims[game["id"]], l, game)
@@ -690,19 +725,22 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None)
     # (the old "value singles", ranked by the gap to a posted price, were never backtested and are dropped:
     # ranking by apparent edge picks the model's mistakes, see AGREE_MIN)
     singles = []
-    # Singles (Nov 2026, Pepe: singles first, parlays set aside): agreed player legs where our chance is furthest
-    # above the chance from his season average, the number a book's line leans on. See SINGLES_N.
-    seen_p, per_g = {l.get("player") for l in singles}, Counter(l["game"] for l in singles)
-    gap_c = [l for l in cands if l.get("agree") and l["mind_flag"] != "against" and SINGLE_P[0] <= l["p"] <= SINGLE_P[1]
-             and l.get("voices")]
-    for l in sorted(gap_c, key=lambda l: -(l["p"] - l["voices"][1])):
+    # Singles (Nov 2026, Pepe): every leg (winners, handicaps, totals, player legs) ranked by its value at the odds
+    # Winamax is expected to pay: chance x Winamax odds - 1. See WMX_FACTOR and singles_value().
+    seen_p, per_g, team_g = set(), Counter(), set()
+    for l in cands:
+        l["ev"], l["wmx"], l["wmx_real"] = singles_value(l, books_of.get(l["game"]))
+    for l in sorted([l for l in cands if l["ev"] is not None and l["ev"] > 0 and SINGLE_P[0] <= l["p"] <= SINGLE_P[1]
+                     and l["mind_flag"] != "against" and (l["kind"] != "prop" or l.get("agree"))], key=lambda l: -l["ev"]):
         if len(singles) >= SINGLES_N:
             break
-        if l.get("player") in seen_p or per_g[l["game"]] >= 2:
+        if (l.get("player") and l["player"] in seen_p) or per_g[l["game"]] >= 2 or (l["kind"] != "prop" and l["game"] in team_g):
             continue
-        l["gap"] = round(l["p"] - l["voices"][1], 3)
         singles.append(l)
-        seen_p.add(l.get("player"))
+        if l.get("player"):
+            seen_p.add(l["player"])
+        else:
+            team_g.add(l["game"])
         per_g[l["game"]] += 1
     out["singles"] = [{k: v for k, v in l.items() if not k.startswith("_") and k != "sim"} for l in singles]
     return out, cands
