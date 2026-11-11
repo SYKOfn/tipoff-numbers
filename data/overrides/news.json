@@ -7,6 +7,20 @@
       "returning": true,
       "quote": "Probable vs. Cavaliers after missing three straight games with illness; expected to return Wednesday.",
       "source": "https://www.rotowire.com/basketball/headlines/josh-hart-injury-expected-to-play-wednesday-538597"
+    },
+    "Myles Turner": {
+      "day": "2026-11-11",
+      "team": "MIL",
+      "rest": true,
+      "quote": "Ruled out against the Lakers on Wednesday for rest.",
+      "source": "https://www.nbcsports.com/fantasy/basketball/player-news/2026-11-11/myles-turner-rest-ruled-out-vs-los-angeles"
+    },
+    "Egor Demin": {
+      "day": "2026-11-11",
+      "team": "BKN",
+      "returning": true,
+      "quote": "Available against the Pelicans on Wednesday after a six-game absence with a leg injury.",
+      "source": "https://www.nbcsports.com/fantasy/basketball/player-news/2026-11-11/egor-demin-leg-available-vs-new-orleans"
     }
   }
 }
