@@ -766,12 +766,11 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None)
     out["singles"] = [{k: v for k, v in l.items() if not k.startswith("_") and k != "sim"} for l in singles]
     # One ticket per game (Pepe, Nov 2026): the game's 5 legs most likely to land together, priced on the game's
     # 20,000 simulated versions (minutes, blowouts, overtime, teammates sharing points), so legs that win and lose
-    # together are counted as such. No bet already in another ticket or in the singles.
-    taken = set(uses) | {exposure(l) for l in singles}
+    # together are counted as such. They may repeat bets from the singles and the other tickets (Pepe, Nov 2026).
     out["game_tickets"] = []
     for gid, game in games.items():
         pool_g = sorted([l for l in cands if l["game"] == gid and combinable(l) and l["mind_flag"] != "against"
-                         and GAME_P <= l["p"] <= AGREE_MAX and exposure(l) not in taken
+                         and GAME_P <= l["p"] <= AGREE_MAX
                          and (l["kind"] != "prop" or l.get("agree"))], key=lambda l: -l["p"])[:GAME_POOL]
         # beam search: grow the ticket one leg at a time, keeping the 40 most likely partial tickets
         states = [((), 1.0)]
