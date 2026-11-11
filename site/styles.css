@@ -442,16 +442,20 @@ details.pl[open] > summary td { background: var(--floor); }
 .ticket.main { border: 2px solid var(--ball); }
 .ticket.main .ticket-head { background: var(--ball-soft); }
 .legs { list-style: none; margin: 0; padding: 0; }
-.legs li { display: grid; grid-template-columns: 26px minmax(0, 1fr) 80px 80px 96px; gap: 12px; align-items: center; padding: 11px 18px; border-bottom: 1px solid var(--line); font-size: .92rem; }
+.legs li { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto auto; gap: 12px; align-items: center; padding: 11px 18px; border-bottom: 1px solid var(--line); font-size: .92rem; }
 .legs li:last-child { border-bottom: 0; }
 .legs .no { font-stretch: var(--narrow); font-weight: 850; color: var(--muted); font-size: 1.1rem; }
 .legs .d b { font-weight: 750; }
 .legs .d .sub { font-size: .8rem; display: block; margin-top: 2px; }
-.legs .c { text-align: right; font-stretch: var(--narrow); }
+/* .cwrap holds however many .c stat blocks this leg has (2 or 3, depending on whether a Winamax
+   price exists) so the grid above always has a fixed column count -- a variable number of direct
+   grid children here was overflowing into the next column's cramped width. */
+.legs .cwrap { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px 18px; }
+.legs .c { text-align: right; font-stretch: var(--narrow); white-space: nowrap; }
 .legs .c b { display: block; font-size: 1.25rem; font-weight: 800; line-height: 1.05; }
-.legs .c span { font-size: .72rem; color: var(--muted); font-stretch: 100%; }
+.legs .c span { font-size: .72rem; color: var(--muted); font-stretch: 100%; white-space: normal; }
 .legs li.hit { background: color-mix(in srgb, var(--pos) 8%, transparent); } .legs li.miss { background: color-mix(in srgb, var(--neg) 8%, transparent); }
-@media (max-width: 680px) { .legs li { grid-template-columns: 22px 1fr 70px; } .legs li > .c:nth-child(4), .legs li > .c:nth-child(5) { grid-column: 2 / -1; text-align: left; } .legs li > .c b { display: inline; margin-right: 6px; } }
+@media (max-width: 680px) { .legs li { grid-template-columns: 22px 1fr auto; } .legs li > .oddsbox { grid-column: 1 / -1; } .legs .cwrap { justify-content: flex-start; } }
 .ticket-foot { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; padding: 14px 18px; background: var(--floor); }
 .ticket-foot div { font-size: .8rem; color: var(--muted); }
 .ticket-foot b { display: block; font-stretch: var(--narrow); font-size: 1.6rem; color: var(--ink); line-height: 1.05; }
@@ -476,15 +480,11 @@ details.pl[open] > summary td { background: var(--floor); }
 .oddsin:focus { outline: none; border-color: var(--ball); box-shadow: 0 0 0 3px var(--ball-soft); }
 .vd { font-size: .72rem; font-weight: 700; color: var(--muted); text-align: right; }
 .vd.up { color: var(--pos); } .vd.down { color: var(--neg); } .vd.flat { color: var(--body); }
-.legs li { grid-template-columns: 26px minmax(0, 1fr) 70px 110px 120px; }
 .ticket-foot .you b { font-size: 1.4rem; }
-@media (max-width: 680px) { .legs li { grid-template-columns: 22px 1fr 70px; } .legs li > .oddsbox { grid-column: 2 / -1; align-items: flex-start; } }
 .kind.team_total { background: var(--body-soft); color: var(--body); }
 .oddsbox .ins { display: flex; gap: 4px; }
 .linein { font: inherit; font-size: .9rem; width: 70px; padding: 5px 6px; border: 1px dashed var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); text-align: right; font-stretch: var(--narrow); font-weight: 700; }
 .linein:focus { outline: none; border-color: var(--ball); border-style: solid; }
-.legs li { grid-template-columns: 26px minmax(0, 1fr) 70px 110px 190px; }
-@media (max-width: 680px) { .legs li { grid-template-columns: 22px 1fr 70px; } }
 
 .story{display:block;font-style:normal;color:var(--ink);opacity:.85;margin-top:4px;line-height:1.45}
 p.story{margin-top:8px}
@@ -951,11 +951,11 @@ table.simt td .num { color: var(--muted); }
   /* tickets page: one clean card per leg */
   .ticket .ticket-head { flex-direction: column; gap: 10px; }
   .ticket .tkbox { margin: 0 12px 12px; }
-  .legs li { grid-template-columns: 22px 1fr auto !important; gap: 4px 10px; padding: 12px 12px !important; }
+  .legs li { grid-template-columns: 22px 1fr !important; gap: 4px 10px; padding: 12px 12px !important; }
   .legs li .tech, .legs li .mflag { display: none; }
   .legs li .d b { font-size: 17px; }
-  .legs li > .c:nth-of-type(2) { grid-column: 2 / -1; text-align: left; }
-  .legs li > .c b { display: inline !important; margin-right: 6px; font-size: 17px !important; }
+  .legs li > .cwrap { grid-column: 1 / -1; justify-content: flex-start; padding-left: 34px; }
+  .legs li > .c b { font-size: 17px !important; }
   .legs li > .oddsbox { display: none; }
   .ticket-foot { grid-template-columns: 1fr 1fr !important; padding: 12px !important; }
   .ticket-foot .you { display: none; }
@@ -1092,7 +1092,7 @@ details.tw-card[open] > summary { margin-bottom: 12px; }
 /* tickets: one clean row per leg; the numbers behind it on request */
 .ticket:not(.show-tech) .legs li .tech, .ticket:not(.show-tech) .legs li .mflag, .ticket:not(.show-tech) .legs li > .oddsbox,
 .ticket:not(.show-tech) .ticket-foot .you { display: none !important; }
-.ticket:not(.show-tech) .legs li { grid-template-columns: 30px 1fr 110px 150px; }
+.ticket:not(.show-tech) .legs li { grid-template-columns: 30px 1fr auto; }
 .techsw { margin: 0; padding: 4px 18px 12px; }
 
 .single-tag { display: inline-block; flex: 0 0 auto; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 3px 8px; border-radius: 999px; background: rgba(255,255,255,.07); color: var(--muted); white-space: nowrap; }
