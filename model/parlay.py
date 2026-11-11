@@ -50,6 +50,12 @@ LONG_MIN = 0.55
 LONG_SIZES = (5, 7, 9)   # the night's three long shots (Pepe, Nov 2026): about x6, x14 and x30 fair odds
 # Value 2 aims at about a coin flip for the whole ticket (fair odds about x2): two agreed legs near 71% each.
 VALUE2_BAND = (0.70, 0.745)
+# Minutes tilt: agreed legs of heavy-minute players land more often than the consensus says, those of 20-28 minute
+# players less (legs at 32+ projected minutes landed 2-5 points above the consensus in every period 2022-27, under
+# 28 minutes at or below it). Log-odds shift = a + b x (projected minutes - 30), minutes kept within 20-38; fitted
+# 2022-25 (b was 0.018-0.025 in every period taken alone). Held out on 2025-27, ranked with the tilt: Core 3
+# landed 67% (stated 66%) against 61% without it, the daily 6 41% (stated 41%) against 33%.
+MIN_TILT = (0.065, 0.0228)
 EST_T = {"pts": 1.05, "reb": 1.1, "ast": 1.1, "tpm": 1.05, "pra": 1.1}
 # markets Winamax lets you bet only on their own, never inside a combiné with other legs
 SINGLE_ONLY = {"pra"}
@@ -275,7 +281,10 @@ def prop_legs(game, players, calib, avg, disp_all, real=None):
                             continue
                         pa_over = min(max(voices[1], 0.03), 0.97)
                         price = round(1 / (pa_over * winamax_margin(pa_over)), 2)
+                        cons = pc  # the consensus decides safe / long; the stated chance adds the minutes tilt
+                        pc = sigmoid(logit(pc) + MIN_TILT[0] + MIN_TILT[1] * (min(max(pl.get("min") or 30.0, 20.0), 38.0) - 30.0))
                         legs.append(_leg(game, "prop", f"{pl['name']} over {L:.1f} {STAT_NAME[st]}", voices[0], pc, price,
+                                         consensus=round(cons, 4),
                                          dist={"mu": round(proj, 2), "sd": round(sd_for(st, proj, dp), 2), "d": round(dp.get(st, 1.5), 3), "alone": 1.0, "model": 1.0},
                                          team=team, player=pl["id"], player_name=pl["name"], stat=st, line=L, side="over",
                                          proj=proj, avg=round(av, 1), last5=round(l5, 1), price_est=True, anchor=round(pa_over, 4), agree=level,
@@ -605,10 +614,10 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None)
 
     # Tickets (Nov 2026 rework, see AGREE_MIN): legs whose every voice agrees, ranked by their honest chance;
     # the best legs go into the shortest ticket, and every bet goes into one ticket only.
-    pool = [l for l in cands if combinable(l) and l["mind_flag"] != "against" and AGREE_MIN <= l["p"] <= AGREE_MAX
-            and (l["kind"] != "prop" or l.get("agree") == "safe" or book_only)]
-    long_pool = [l for l in cands if combinable(l) and l["mind_flag"] != "against" and LONG_MIN <= l["p"] < AGREE_MIN
-                 and (l["kind"] != "prop" or l.get("agree") == "long" or book_only)]
+    # agreed player legs are safe or long by their consensus; the minutes tilt only moves the stated chance
+    in_pool = lambda l, lvl, lo, hi: (l.get("agree") == lvl) if l.get("agree") else (lo <= l["p"] <= hi and (l["kind"] != "prop" or book_only))
+    pool = [l for l in cands if combinable(l) and l["mind_flag"] != "against" and in_pool(l, "safe", AGREE_MIN, AGREE_MAX)]
+    long_pool = [l for l in cands if combinable(l) and l["mind_flag"] != "against" and in_pool(l, "long", LONG_MIN, AGREE_MIN - 1e-9)]
     out["eligible"] = len(pool) + len(long_pool)
 
     def pick(k, per_game, src=None, band=None):
@@ -630,7 +639,11 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None)
             chosen.append(l)
         return chosen if len(chosen) == k else None
 
-    two = pick(2, 1 if n_games >= 2 else 2, band=VALUE2_BAND)
+    two = None
+    for hi in (VALUE2_BAND[1], 0.77, 0.80, 1.0):  # no pair near 71%: the closest above it rather than no main pick
+        two = pick(2, 1 if n_games >= 2 else 2, band=(VALUE2_BAND[0], hi))
+        if two:
+            break
     if two:
         out["parlays"].append(package("Value 2", "The main pick: about a coin flip for double the money. Two legs from two "
                                       "different games, each around 70% and backed by the projection, the season average "
