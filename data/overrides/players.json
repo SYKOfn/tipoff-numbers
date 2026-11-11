@@ -3,7 +3,7 @@
  "players": {
   "Tyler Herro": {
    "contract_year": true,
-   "note": "Ex-Heat player leading Milwaukee after the Giannis trade; contract year."
+   "note": "Leading Milwaukee after the Giannis trade; out with a knee bruise; contract year."
   },
   "Jaime Jaquez Jr.": {
    "contract_year": true
@@ -40,13 +40,10 @@
    "note": "Public spat with former Bucks coach Doc Rivers over how his trade to Miami happened."
   },
   "Jaylen Brown": {
-   "note": "First regular-season game vs Boston since the summer trade; says he hasn't spoken to Tatum."
-  },
-  "Jayson Tatum": {
-   "note": "Says there's \"no beef\" with Jaylen Brown ahead of the reunion."
+   "note": "Gave Tatum a frosty reception in his first game vs Boston; held to 13 points in a 22-point loss."
   },
   "Kyle Kuzma": {
-   "note": "Called for more urgency during Milwaukee's 1-9 start; faces his former team, the Lakers."
+   "note": "Called for more urgency as Milwaukee sit 1-10; faces his first NBA team, the Lakers."
   },
   "Brandon Ingram": {
    "note": "Close to his Clippers debut after heel surgery; practicing five-on-five."
@@ -55,10 +52,10 @@
    "note": "No. 2 pick coming off a career-high 26 points."
   },
   "Ja Morant": {
-   "note": "Out at least four weeks (hamstring), hurt against his former team Memphis."
+   "note": "Out with a hamstring strain he picked up against former team Memphis; coach says he may return sooner than four weeks."
   },
   "Anthony Davis": {
-   "note": "Publicly criticised Wizards' effort after a 44-point game; extension undecided, trade rumours."
+   "note": "Ripped Wizards' defense after a 44-point return; team reportedly wants 20-30 games before deciding on an extension."
   },
   "Domantas Sabonis": {
    "note": "Shrinking role next to rookie Darius Acuff Jr.; deadline-trade talk."
@@ -70,16 +67,44 @@
    "note": "Frustration since losing his starting role; fouled out and shoved an opponent in Dallas."
   },
   "Kevin Durant": {
-   "note": "Taking fewer shots by design under Ime Udoka; touchy with media about it."
+   "note": "Faces former team Golden State; within about 900 points of passing Kobe for 4th all-time; taking a career-low 12.3 shots a game."
   },
   "Kristaps Porzingis": {
-   "note": "Stepped away for an undisclosed health issue; Warriors trying to trade him."
+   "note": "Stepped away for his health; Warriors withholding salary and trying to trade him."
   },
   "Victor Wembanyama": {
-   "note": "40 points and 9 blocks at Phoenix; Spurs on a nine-game winning streak."
+   "note": "40 points and 9 blocks at Phoenix; Spurs carry the league's longest winning streak (nine)."
   },
   "Trae Young": {
    "note": "Faced former team Atlanta for the first time on Nov 6."
+  },
+  "Paul George": {
+   "note": "Scored 36 against his former team, Philadelphia, in a 22-point win."
+  },
+  "Karl-Anthony Towns": {
+   "note": "Extension talks stalled after he reportedly turned down about $200M; Knicks have reportedly raised a possible trade."
+  },
+  "Kyrie Irving": {
+   "note": "At the centre of deadline trade talk; reportedly \"not on the Mavericks' timeline\"."
+  },
+  "Anthony Edwards": {
+   "note": "Out until late December after knee surgery; targeting Christmas vs OKC."
+  },
+  "Jordan Poole": {
+   "note": "Says he hopes to return to Golden State when his contract runs out after this season.",
+   "contract_year": true
+  },
+  "Grayson Allen": {
+   "note": "Faces Phoenix for the first time since the June trade that sent Miles Bridges to the Suns."
+  },
+  "Royce O'Neale": {
+   "note": "Faces Phoenix for the first time since the June trade that sent Miles Bridges to the Suns."
+  },
+  "Miles Bridges": {
+   "note": "Faces Charlotte, his longtime team, for the first time since the June trade."
+  },
+  "Kawhi Leonard": {
+   "note": "Out at least another week with a knee issue; has played only two games since re-signing."
   }
  }
 }
