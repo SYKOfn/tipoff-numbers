@@ -177,6 +177,17 @@ def walk(c, players_df, notes, cur, use_mm=True, ev=None, opp_mode="team", norm=
     return pt, pe, disp, logs, track, byg
 
 
+# Minutes when his starting role changes, from his projection before the change (fitted on player-games whose
+# role flipped, 2022-25; held out on 2025-26 and 2026-27: minutes error on those games fell 30-50%)
+ROLE_START = (16.7, 0.53)   # moved into the starting five
+ROLE_BENCH = (-3.3, 0.96)   # moved to the bench
+
+
+def role_minutes(proj_min, starts):
+    a, b = ROLE_START if starts else ROLE_BENCH
+    return min(MAX_MIN, a + b * proj_min)
+
+
 def match_injury(pt, team, injured):
     """{pid: injury dict} for a team's injury list, matched by id, then by name."""
     out = {}
@@ -192,7 +203,7 @@ def match_injury(pt, team, injured):
 
 def project_game(pt, pe, disp, g, ctx, injuries, notes, news=True, exp_margin=None, signals=None):
     """signals: news facts for tonight by normalized player name (pipeline/news.py). Applied: "rest" (he sits) and
-    "min_cap" (minutes limit; teammates absorb the rest). Others ("start", "bench", "returning") are shown and
+    "min_cap" (minutes limit; teammates absorb the rest). "start"/"bench" set the measured minutes for a role change. Others ("returning") are shown and
     logged, and only change projections once their effect has been measured."""
     from pipeline.oddsapi import norm_name
     sig_of = lambda name: (signals or {}).get(norm_name(name or ""))
@@ -226,6 +237,12 @@ def project_game(pt, pe, disp, g, ctx, injuries, notes, news=True, exp_margin=No
                 proj = {k: v * ratio for k, v in proj.items()}
             if sg.get("min_cap") and proj["min"] > float(sg["min_cap"]):  # minutes limit from the news
                 r_ = float(sg["min_cap"]) / proj["min"]
+                proj = {k: v * r_ for k, v in proj.items()}
+            # starting role changed (posted five, or a start/bench report): measured minutes for a role change
+            role = (pid in five) if five else (True if sg.get("start") else False if sg.get("bench") else None)
+            late_scratch = bool(five) and pid not in five and q.get("started") and not status
+            if role is not None and role != bool(q.get("started")) and not late_scratch and proj["min"] > 0:
+                r_ = max(0.3, role_minutes(proj["min"], role)) / proj["min"]
                 proj = {k: v * r_ for k, v in proj.items()}
             if proj["min"] < 6:
                 continue

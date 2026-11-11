@@ -466,6 +466,10 @@ def test_news_signals(tmp_path, monkeypatch):
     from model.player_engine import capped_factors
     f_ = capped_factors([36, 20, 28], 1.1, caps={1: 20})
     assert abs(20 * f_[1] - 20) < 1e-9 and f_[0] > 1 and f_[2] > 1   # the capped player stays at his limit
+    from model.player_engine import role_minutes
+    assert 26 < role_minutes(18, True) < 28        # bench player moved into the five: about 26-27 minutes
+    assert 25 < role_minutes(30, False) < 26       # starter moved to the bench loses about 4-5 minutes
+    assert role_minutes(40, True) <= 40
 
 
 def test_ticket_mixes_stats():
