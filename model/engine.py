@@ -90,13 +90,13 @@ def build_context(games, players, upcoming, tuned=None, effects_until=None, stin
             sh = lt.strength([(r["player_id"], None) for r in rows_[g["home"]] if r["min"] > 0])
             sa = lt.strength([(r["player_id"], None) for r in rows_[g["away"]] if r["min"] > 0])
             rp.maybe_refit(g["day"])
-            rh = rp.strength([(r["player_id"], r["min"]) for r in rows_[g["home"]] if r["min"] > 0])
-            ra = rp.strength([(r["player_id"], r["min"]) for r in rows_[g["away"]] if r["min"] > 0])
+            rh = rp.strength([(r["player_id"], lt.exp_minutes(r["player_id"])) for r in rows_[g["home"]] if r["min"] > 0])
+            ra = rp.strength([(r["player_id"], lt.exp_minutes(r["player_id"])) for r in rows_[g["away"]] if r["min"] > 0])
             srh = sra = None
             if sr is not None:
                 sr.maybe_refit(g["day"])
-                srh = sr.strength([(r["player_id"], r["min"]) for r in rows_[g["home"]] if r["min"] > 0])
-                sra = sr.strength([(r["player_id"], r["min"]) for r in rows_[g["away"]] if r["min"] > 0])
+                srh = sr.strength([(r["player_id"], lt.exp_minutes(r["player_id"])) for r in rows_[g["home"]] if r["min"] > 0])
+                sra = sr.strength([(r["player_id"], lt.exp_minutes(r["player_id"])) for r in rows_[g["away"]] if r["min"] > 0])
             if sh and sa and rh is not None and ra is not None:
                 f = player_features((sh[0] - sa[0], sh[1] - sa[1], rh - ra),
                                     None if sr is None or srh is None or sra is None else srh - sra)

@@ -16,7 +16,7 @@ import pandas as pd
 
 from model import effects, engine
 from model.parlay import novig
-from pipeline.store import ROOT, load_games, load_players, write_json
+from pipeline.store import ROOT, load_games, load_players, load_stints, write_json
 
 PINNACLE = Path("data/odds/pinnacle_history.csv")
 BLEND_GRID = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
@@ -67,16 +67,21 @@ def evaluate(c, season, lam_eff, stype=None, pinnacle=None):
     first = date.fromisoformat(rows[0][5])
     out = {k: [] for k in ("win", "win_nomind", "win_base", "win_bl", "m", "m_nomind", "m_base", "m_bl", "t", "t_base", "t_bl", "hw", "am", "at")}
     week = None
-    eff = None
+    eff = stack = None
     mkt = []
     for ctx, am, bm, at, bt, day, gid in rows:
         wk = (date.fromisoformat(day) - first).days // 7
         if wk != week:
             week = wk
-            eff = effects.estimate([r[:5] for r in c.rows if r[5] < day], lam_eff)
+            # the shipped model: player-strength stack and factor sizes both refitted on games before this week only
+            prev = [r for r in c.rows_raw if r[5] < day]
+            stack = engine.fit_stack(prev, c.lfeat)
+            if stack is not None:
+                prev = [(r[0], r[1], engine.stacked(stack, r[2], c.lfeat.get(r[6])), r[3], r[4]) for r in prev]
+            eff = effects.estimate([r[:5] for r in prev], lam_eff)
         g = c.meta[gid]
         b = c.base[gid]
-        p = engine.predict(c, g, ctx, {}, eff=eff, base_override=b)
+        p = engine.predict(c, g, ctx, {}, eff=eff, base_override=b, lineup_feat=c.lfeat.get(gid), stack=stack)
         if pinnacle and gid in pinnacle:
             mkt.append((p["win_home"], pinnacle[gid], 1.0 if am > 0 else 0.0))
         out["win"].append(p["win_home"])
@@ -131,7 +136,11 @@ def main():
         print(log[-1])
         if best is None or score < best[0]:
             best = (score, tuned, c)
-    tuned, c = best[1], best[2]
+    tuned = best[1]
+    # score the model production ships: the grid above only tunes the base ratings, so rebuild once with
+    # stint ratings, without which player_features() returns None and the player stack never runs
+    c = engine.build_context(games, players, [], tuned, stints=load_stints())
+    print('player-stack games:', len(c.lfeat))
     lam_log = []
     for le in (40.0, 150.0, 500.0):
         r = evaluate(c, tune_s, le)

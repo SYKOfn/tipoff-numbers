@@ -138,49 +138,49 @@
  "lam_grid": [
   {
    "lam_effects": 40.0,
-   "brier": 0.2047,
-   "mae_margin": 10.856
+   "brier": 0.2021,
+   "mae_margin": 10.78
   },
   {
    "lam_effects": 150.0,
-   "brier": 0.2047,
-   "mae_margin": 10.858
+   "brier": 0.2021,
+   "mae_margin": 10.781
   },
   {
    "lam_effects": 500.0,
-   "brier": 0.2048,
-   "mae_margin": 10.864
+   "brier": 0.2021,
+   "mae_margin": 10.783
   }
  ],
  "test": {
   "n": 1322,
   "market": {
    "n": 1236,
-   "brier_model": 0.1999,
+   "brier_model": 0.1977,
    "brier_market": 0.1976,
-   "best_blend_w": 0.3,
-   "brier_best_blend": 0.1968,
-   "brier_blend_040": 0.1968
+   "best_blend_w": 0.5,
+   "brier_best_blend": 0.1965,
+   "brier_blend_040": 0.1965
   },
   "full": {
-   "brier": 0.2006242071720209,
-   "hit": 0.6875945537065052,
-   "mae_margin": 11.211872547263319,
+   "brier": 0.19836106642312115,
+   "hit": 0.6883509833585476,
+   "mae_margin": 11.090535131460276,
    "mae_total": 14.889463540931573
   },
   "no_mind": {
-   "brier": 0.2026014840498545,
-   "hit": 0.6898638426626323,
-   "mae_margin": 11.284432425617284
+   "brier": 0.19928646412523024,
+   "hit": 0.6822995461422088,
+   "mae_margin": 11.122934359000443
   },
   "base_only": {
-   "brier": 0.20696931315142358,
-   "hit": 0.6838124054462935,
-   "mae_margin": 11.512888401930532,
+   "brier": 0.20062151250961902,
+   "hit": 0.6913767019667171,
+   "mae_margin": 11.18214486790288,
    "mae_total": 15.128057190961963
   },
   "plain_average": {
-   "brier": 0.2074863125138359,
+   "brier": 0.2072018102917714,
    "hit": 0.6860816944024206,
    "mae_margin": 11.690797784104241,
    "mae_total": 15.612494731115106
@@ -190,31 +190,31 @@
   "n": 1231,
   "market": {
    "n": 1147,
-   "brier_model": 0.1979,
+   "brier_model": 0.1955,
    "brier_market": 0.1945,
-   "best_blend_w": 0.3,
-   "brier_best_blend": 0.1941,
-   "brier_blend_040": 0.1942
+   "best_blend_w": 0.4,
+   "brier_best_blend": 0.1938,
+   "brier_blend_040": 0.1938
   },
   "full": {
-   "brier": 0.19878281717963514,
-   "hit": 0.6921202274573518,
-   "mae_margin": 11.103511980295101,
+   "brier": 0.1964155216209467,
+   "hit": 0.6929325751421609,
+   "mae_margin": 10.983847851502922,
    "mae_total": 14.96739471030699
   },
   "no_mind": {
-   "brier": 0.20088655662779456,
-   "hit": 0.6961819658813972,
-   "mae_margin": 11.185109509336083
+   "brier": 0.19746777393705078,
+   "hit": 0.6872461413484972,
+   "mae_margin": 11.020364324945731
   },
   "base_only": {
-   "brier": 0.20564075159583836,
-   "hit": 0.6872461413484972,
-   "mae_margin": 11.434131566131228,
+   "brier": 0.1990002529956416,
+   "hit": 0.6978066612510154,
+   "mae_margin": 11.090255708186204,
    "mae_total": 15.090706610362547
   },
   "plain_average": {
-   "brier": 0.2057370798690051,
+   "brier": 0.2054463938095425,
    "hit": 0.6904955320877335,
    "mae_margin": 11.622424611724663,
    "mae_total": 15.462719787199706
@@ -224,24 +224,24 @@
   "n": 91,
   "market": null,
   "full": {
-   "brier": 0.22553355970638245,
+   "brier": 0.22467937028550233,
    "hit": 0.6263736263736264,
-   "mae_margin": 12.677717139987193,
+   "mae_margin": 12.533744380114156,
    "mae_total": 13.83525178817175
   },
   "no_mind": {
-   "brier": 0.22580011763837984,
-   "hit": 0.6043956043956044,
-   "mae_margin": 12.628020446959686
+   "brier": 0.22388874568181225,
+   "hit": 0.6153846153846154,
+   "mae_margin": 12.510447676817456
   },
   "base_only": {
-   "brier": 0.22494139309565883,
-   "hit": 0.6373626373626373,
-   "mae_margin": 12.578269334556273,
+   "brier": 0.2225530560448518,
+   "hit": 0.6043956043956044,
+   "mae_margin": 12.425172951542725,
    "mae_total": 15.633316143905736
   },
   "plain_average": {
-   "brier": 0.23114900906094252,
+   "brier": 0.23094815852939513,
    "hit": 0.6263736263736264,
    "mae_margin": 12.61571399508514,
    "mae_total": 17.638571170234414
@@ -251,31 +251,31 @@
   "n": 160,
   "market": {
    "n": 136,
-   "brier_model": 0.2109,
+   "brier_model": 0.1958,
    "brier_market": 0.1849,
    "best_blend_w": 0.0,
    "brier_best_blend": 0.1849,
-   "brier_blend_040": 0.1932
+   "brier_blend_040": 0.1877
   },
   "full": {
-   "brier": 0.20506646615956575,
-   "hit": 0.66875,
-   "mae_margin": 11.922797488543935,
+   "brier": 0.19010469267295482,
+   "hit": 0.7125,
+   "mae_margin": 11.551801963376898,
    "mae_total": 14.719805128701916
   },
   "no_mind": {
-   "brier": 0.20503674358408785,
-   "hit": 0.66875,
-   "mae_margin": 11.959500696646618
+   "brier": 0.1901366315872567,
+   "hit": 0.7,
+   "mae_margin": 11.556355950909682
   },
   "base_only": {
-   "brier": 0.2015436256537119,
-   "hit": 0.66875,
-   "mae_margin": 11.759955158071893,
+   "brier": 0.18775272033058638,
+   "hit": 0.71875,
+   "mae_margin": 11.387430079624087,
    "mae_total": 14.808664779948902
   },
   "plain_average": {
-   "brier": 0.20422084333237214,
+   "brier": 0.2038635249168288,
    "hit": 0.66875,
    "mae_margin": 12.04161277534115,
    "mae_total": 14.745144111414243
@@ -288,7 +288,7 @@
    "layer": "physical",
    "label": "Back-to-back",
    "means": "played the night before",
-   "pts": -1.7,
+   "pts": -1.5,
    "se": 0.39,
    "n": 2684,
    "evidence": "strong"
@@ -299,7 +299,7 @@
    "layer": "physical",
    "label": "3 games in 4 nights",
    "means": "third game in four nights",
-   "pts": -0.5,
+   "pts": -0.47,
    "se": 0.26,
    "n": 3572,
    "evidence": "weak"
@@ -310,7 +310,7 @@
    "layer": "physical",
    "label": "Rest days",
    "means": "per day off since the last game (0-3)",
-   "pts": 0.03,
+   "pts": 0.01,
    "se": 0.21,
    "n": 4962,
    "evidence": "none"
@@ -321,7 +321,7 @@
    "layer": "physical",
    "label": "Body clock",
    "means": "per hour of time zones crossed heading east",
-   "pts": -0.45,
+   "pts": -0.52,
    "se": 0.21,
    "n": 3040,
    "evidence": "moderate"
@@ -332,7 +332,7 @@
    "layer": "physical",
    "label": "Travel",
    "means": "per 1,000 km travelled since the last game",
-   "pts": 0.15,
+   "pts": 0.17,
    "se": 0.13,
    "n": 10096,
    "evidence": "weak"
@@ -343,7 +343,7 @@
    "layer": "physical",
    "label": "Shooting luck",
    "means": "per point a game the team (and its opponents) shot threes above or below league average lately; luck does not last",
-   "pts": -0.22,
+   "pts": -0.21,
    "se": 0.04,
    "n": 11207,
    "evidence": "strong"
@@ -354,8 +354,8 @@
    "layer": "physical",
    "label": "Missing players",
    "means": "if the whole regular rotation's production were missing (scaled by the share out)",
-   "pts": -7.46,
-   "se": 0.55,
+   "pts": -3.51,
+   "se": 0.54,
    "n": 9946,
    "evidence": "strong"
   },
@@ -365,7 +365,7 @@
    "layer": "mind",
    "label": "Streak",
    "means": "per 5 straight wins (losing streaks count negative)",
-   "pts": -0.07,
+   "pts": -0.17,
    "se": 0.19,
    "n": 9649,
    "evidence": "none"
@@ -376,10 +376,10 @@
    "layer": "mind",
    "label": "Confidence",
    "means": "per 10 points the last 5 games beat expectations",
-   "pts": 0.85,
+   "pts": 0.27,
    "se": 0.17,
    "n": 10838,
-   "evidence": "strong"
+   "evidence": "weak"
   },
   {
    "key": "bounce",
@@ -387,7 +387,7 @@
    "layer": "mind",
    "label": "Bounce-back",
    "means": "lost the previous game by 20 or more",
-   "pts": 0.06,
+   "pts": 0.14,
    "se": 0.33,
    "n": 1859,
    "evidence": "none"
@@ -398,8 +398,8 @@
    "layer": "mind",
    "label": "Letdown",
    "means": "beat a top team last time out, now face a weak one",
-   "pts": -0.17,
-   "se": 0.56,
+   "pts": 0.0,
+   "se": 0.55,
    "n": 637,
    "evidence": "none"
   },
@@ -409,8 +409,8 @@
    "layer": "mind",
    "label": "Revenge",
    "means": "lost the last meeting between these teams this season",
-   "pts": 0.42,
-   "se": 0.17,
+   "pts": 0.37,
+   "se": 0.16,
    "n": 7449,
    "evidence": "moderate"
   },
@@ -420,10 +420,10 @@
    "layer": "mind",
    "label": "Look-ahead",
    "means": "weak opponent now, a top team within two days",
-   "pts": 0.77,
+   "pts": 0.86,
    "se": 0.41,
    "n": 1119,
-   "evidence": "weak"
+   "evidence": "moderate"
   },
   {
    "key": "homecoming",
@@ -431,7 +431,7 @@
    "layer": "mind",
    "label": "Homecoming",
    "means": "first home game after a road trip of 4+",
-   "pts": -1.26,
+   "pts": -1.18,
    "se": 0.47,
    "n": 884,
    "evidence": "moderate"
@@ -442,7 +442,7 @@
    "layer": "mind",
    "label": "Long road trip",
    "means": "4th or later straight road game",
-   "pts": -0.21,
+   "pts": -0.17,
    "se": 0.36,
    "n": 1480,
    "evidence": "none"
@@ -453,7 +453,7 @@
    "layer": "mind",
    "label": "Stakes",
    "means": "late season: in a race for a seed (+1) or nothing left to play for (-1)",
-   "pts": 1.37,
+   "pts": 1.19,
    "se": 0.23,
    "n": 2075,
    "evidence": "strong"
@@ -464,8 +464,8 @@
    "layer": "mind",
    "label": "Facing elimination",
    "means": "playoffs: one more loss ends the season",
-   "pts": -1.19,
-   "se": 1.11,
+   "pts": -1.25,
+   "se": 1.1,
    "n": 152,
    "evidence": "weak"
   },
@@ -475,7 +475,7 @@
    "layer": "physical",
    "label": "Rebounding matchup",
    "means": "offensive rebounding strength against the opponent's defensive rebounding weakness, net of the reverse",
-   "pts": 0.27,
+   "pts": 0.26,
    "se": 0.25,
    "n": 11008,
    "evidence": "weak"
@@ -486,8 +486,8 @@
    "layer": "physical",
    "label": "Turnover matchup",
    "means": "ball security against the opponent's ability to force turnovers, net of the reverse",
-   "pts": 0.24,
-   "se": 0.73,
+   "pts": 0.44,
+   "se": 0.72,
    "n": 10862,
    "evidence": "none"
   },
@@ -497,7 +497,7 @@
    "layer": "physical",
    "label": "Three-point volume matchup",
    "means": "three-point attempt rate against the opponent's rate allowed, net of the reverse",
-   "pts": 0.04,
+   "pts": 0.03,
    "se": 0.1,
    "n": 11022,
    "evidence": "none"
@@ -508,8 +508,8 @@
    "layer": "physical",
    "label": "Free-throw matchup",
    "means": "free-throw rate against the opponent's rate allowed, net of the reverse",
-   "pts": 0.02,
-   "se": 0.17,
+   "pts": 0.0,
+   "se": 0.16,
    "n": 11020,
    "evidence": "none"
   },
@@ -530,8 +530,8 @@
    "layer": "physical",
    "label": "Rim protection matchup",
    "means": "block rate against the opponent's rate allowed, net of the reverse",
-   "pts": -1.61,
-   "se": 0.62,
+   "pts": -1.36,
+   "se": 0.61,
    "n": 10947,
    "evidence": "moderate"
   },
