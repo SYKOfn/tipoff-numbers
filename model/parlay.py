@@ -769,25 +769,29 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None)
     # together are counted as such. They may repeat bets from the singles and the other tickets (Pepe, Nov 2026).
     out["game_tickets"] = []
     for gid, game in games.items():
-        pool_g = sorted([l for l in cands if l["game"] == gid and combinable(l) and l["mind_flag"] != "against"
-                         and GAME_P <= l["p"] <= AGREE_MAX
-                         and (l["kind"] != "prop" or l.get("agree"))], key=lambda l: -l["p"])[:GAME_POOL]
-        # beam search: grow the ticket one leg at a time, keeping the 40 most likely partial tickets
-        states = [((), 1.0)]
-        for _ in range(GAME_LEGS):
-            nxt = {}
-            for legs, _p in states:
-                for c in pool_g:
-                    if any(c is l or _conflict(c, l) or exposure(c) == exposure(l) for l in legs):
-                        continue
-                    new = tuple(sorted(legs + (c,), key=lambda x: x["id"]))
-                    key = tuple(x["id"] for x in new)
-                    if key not in nxt:
-                        nxt[key] = (new, joint(new, sims, games)[0])
-            states = sorted(nxt.values(), key=lambda s_: -s_[1])[:40]
-            if not states:
-                break
-        best = (states[0][1], states[0][0]) if states and len(states[0][0]) == GAME_LEGS else None
+        def best_ticket(pool_g):
+            # beam search: grow the ticket one leg at a time, keeping the 40 most likely partial tickets
+            states = [((), 1.0)]
+            for _ in range(GAME_LEGS):
+                nxt = {}
+                for legs, _p in states:
+                    for c in pool_g:
+                        if any(c is l or _conflict(c, l) or exposure(c) == exposure(l) for l in legs):
+                            continue
+                        new = tuple(sorted(legs + (c,), key=lambda x: x["id"]))
+                        key = tuple(x["id"] for x in new)
+                        if key not in nxt:
+                            nxt[key] = (new, joint(new, sims, games)[0])
+                states = sorted(nxt.values(), key=lambda s_: -s_[1])[:40]
+                if not states:
+                    return None
+            return (states[0][1], states[0][0]) if len(states[0][0]) == GAME_LEGS else None
+        mine = [l for l in cands if l["game"] == gid and combinable(l) and l["mind_flag"] != "against"]
+        strict = sorted([l for l in mine if GAME_P <= l["p"] <= AGREE_MAX and (l["kind"] != "prop" or l.get("agree"))],
+                        key=lambda l: -l["p"])[:GAME_POOL]
+        best = best_ticket(strict)
+        if not best:  # not enough agreed legs: every rated leg of the game from 50% up, so each game gets its ticket
+            best = best_ticket(sorted([l for l in mine if 0.50 <= l["p"] <= 0.92], key=lambda l: -l["p"])[:GAME_POOL])
         if not best:
             continue
         pk = package(f"{game['away']} at {game['home']}", "This game's five legs most likely to land together, "
