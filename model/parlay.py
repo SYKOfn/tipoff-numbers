@@ -50,6 +50,11 @@ LONG_MIN = 0.55
 LONG_SIZES = (5, 7, 9)   # the night's three long shots (Pepe, Nov 2026): about x6, x14 and x30 fair odds
 # Value 2 aims at about a coin flip for the whole ticket (fair odds about x2): two agreed legs near 71% each.
 VALUE2_BAND = (0.70, 0.745)
+# Singles: the night's 5 agreed legs (55-85%) whose chance is furthest above the chance from the player's season
+# average. Backtest 2022-27 (chances as now stated, out of sample from 2025): stated 75-76%, landed 75-78%; the
+# season-average chance of those legs was about 57%. Bet only at odds of at least "take >=" (fair x 1.05).
+SINGLES_N = 5
+SINGLE_P = (0.55, 0.85)
 # The stated chance of an agreed leg (Nov 2026, fitted on 2022-25 legs, the weights were the same in every period
 # taken alone, 2025-27 included): the projection counts far more than the season average and the last 5 games
 # (0.645 / 0.14 / 0.094 on log-odds); heavy-minute players land more often (+0.018 per projected minute around 30,
@@ -682,9 +687,23 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None)
                                       f"and pays far more; none of its bets is in another ticket.", take(ls), sims, games))
     order = {"Value 2": 0, "Core 3": 1, "The daily 6": 2, "Long shot 1": 3, "Long shot 2": 4, "Long shot 3": 5, "Same-game 3": 9}
     out["parlays"].sort(key=lambda pr: order.get(pr["name"], 9))
-    singles = sorted([l for l in cands if l.get("edge") is not None and l["edge"] > 0.02 and l["mind_flag"] != "against"
-                      and not l.get("price_est") and P_MIN <= l["p"] <= P_MAX],
-                     key=lambda l: -l["edge"])[:6]
+    # (the old "value singles", ranked by the gap to a posted price, were never backtested and are dropped:
+    # ranking by apparent edge picks the model's mistakes, see AGREE_MIN)
+    singles = []
+    # Singles (Nov 2026, Pepe: singles first, parlays set aside): agreed player legs where our chance is furthest
+    # above the chance from his season average, the number a book's line leans on. See SINGLES_N.
+    seen_p, per_g = {l.get("player") for l in singles}, Counter(l["game"] for l in singles)
+    gap_c = [l for l in cands if l.get("agree") and l["mind_flag"] != "against" and SINGLE_P[0] <= l["p"] <= SINGLE_P[1]
+             and l.get("voices")]
+    for l in sorted(gap_c, key=lambda l: -(l["p"] - l["voices"][1])):
+        if len(singles) >= SINGLES_N:
+            break
+        if l.get("player") in seen_p or per_g[l["game"]] >= 2:
+            continue
+        l["gap"] = round(l["p"] - l["voices"][1], 3)
+        singles.append(l)
+        seen_p.add(l.get("player"))
+        per_g[l["game"]] += 1
     out["singles"] = [{k: v for k, v in l.items() if not k.startswith("_") and k != "sim"} for l in singles]
     return out, cands
 

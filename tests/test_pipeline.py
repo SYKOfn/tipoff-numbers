@@ -604,3 +604,13 @@ def test_player_matchup_panel():
     m = MU.compare({"home": mk(range(5)), "away": mk(range(5, 10))}, prof)
     assert len(m["slots"]) == 5 and m["slots"][0]["home"]["height"] == "6'3\""
     assert any("taller" in e for e in m["slots"][0]["edges"]) and any("younger" in e for e in m["slots"][0]["edges"])
+
+
+def test_singles_rank_by_gap_over_season_average():
+    from model import parlay
+    mk = lambda i, g, p, va: {"id": str(i), "game": g, "kind": "prop", "stat": "pts", "player": str(i), "team": "T" + g,
+                              "p": p, "edge": 0.0, "agree": "safe", "voices": [p, va, p], "mind_flag": "neutral", "price_est": True}
+    cands = [mk(1, "a", 0.80, 0.78), mk(2, "a", 0.75, 0.60), mk(3, "a", 0.70, 0.45), mk(4, "a", 0.72, 0.52), mk(5, "b", 0.90, 0.40)]
+    gap_c = [l for l in cands if parlay.SINGLE_P[0] <= l["p"] <= parlay.SINGLE_P[1]]
+    order = sorted(gap_c, key=lambda l: -(l["p"] - l["voices"][1]))
+    assert [l["id"] for l in order][:3] == ["3", "4", "2"] and all(l["id"] != "5" for l in gap_c)   # 90% is beyond the range

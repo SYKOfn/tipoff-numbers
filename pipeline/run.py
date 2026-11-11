@@ -742,6 +742,10 @@ def main(demo=False, now=None, collect_data=True):
                             "expected": round(sum(pr["p"] for pr in items), 2),
                             "legs": len(legs), "leg_hits": sum(l["result"] == "hit" for l in legs),
                             "leg_expected": round(sum(l["p"] for l in legs), 1)}
+    sg = [l for h_ in history for l in h_.get("singles", []) if l.get("result") in ("hit", "miss")]
+    if sg:
+        rec["Singles"] = {"n": len(sg), "hits": sum(l["result"] == "hit" for l in sg), "expected": round(sum(l["p"] for l in sg), 1),
+                          "legs": len(sg), "leg_hits": sum(l["result"] == "hit" for l in sg), "leg_expected": round(sum(l["p"] for l in sg), 1)}
     # legs that went into tickets against every leg the model rated: if ticket legs land less often than their
     # chances say while the full list does not, the ticket selection itself is biased
     t_ids, t_legs, b_legs = set(), [], []
