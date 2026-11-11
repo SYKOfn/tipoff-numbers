@@ -18,6 +18,7 @@ from model import effects, engine, explain, extras, parlay, prop_test, ratings
 from model import player_engine as PE
 from model import players as PM
 from model.features import Tracker
+from model.style import MARGIN_F, TOTAL_F
 from . import player_pages
 from . import espn
 from .store import (OVR, PRED, ROOT, SITE, STATE, archived_seasons, load_games, load_players, load_stints, read_json, write_json)
@@ -311,6 +312,20 @@ def main(demo=False, now=None, collect_data=True):
         ctx = trc.pre_game(g, injuries=injuries if news else None)
         for side in ("home", "away"):
             ctx[side]["luck"] = round(c.style.team_luck(g[side]), 3)
+        sf = c.style.features(g) or {}
+        for k in MARGIN_F:
+            if k == "luck":
+                continue
+            ctx["home"][f"style_{k}"] = round(sf.get(k, 0.0), 3)
+            ctx["away"][f"style_{k}"] = 0.0
+        for k in TOTAL_F:
+            ctx[f"style_{k}"] = round(sf.get(k, 0.0), 3)
+        pt = c.lineup.pace_total(g["home"], g["away"])
+        if pt is not None:
+            bh, ba = ratings.predict_game(rts["pts"], g["home"], g["away"], bool(g.get("neutral")))
+            ctx["pace_corr"] = round(pt - (bh + ba), 3)
+        else:
+            ctx["pace_corr"] = 0.0
         ctx["refs_total"] = round(c.officials.crew(g.get("refs")), 3)
         for side in ("home", "away"):  # last-result spots only apply to a team's next game
             if g[side] in seen:

@@ -35,6 +35,19 @@ MARGIN = {
     "stakes": ("mind", "Stakes", "late season: in a race for a seed (+1) or nothing left to play for (-1)",
                lambda f: f["stakes"]),
     "elimination": ("mind", "Facing elimination", "playoffs: one more loss ends the season", lambda f: f["elimination"]),
+    # ---- style matchups (second-order: does this team's style exploit the opponent's weakness?)
+    "orb_match": ("physical", "Rebounding matchup", "offensive rebounding strength against the opponent's defensive rebounding weakness, net of the reverse",
+                  lambda f: f.get("style_orb_match", 0.0)),
+    "tov_match": ("physical", "Turnover matchup", "ball security against the opponent's ability to force turnovers, net of the reverse",
+                  lambda f: f.get("style_tov_match", 0.0)),
+    "three_match": ("physical", "Three-point volume matchup", "three-point attempt rate against the opponent's rate allowed, net of the reverse",
+                    lambda f: f.get("style_three_match", 0.0)),
+    "ft_match": ("physical", "Free-throw matchup", "free-throw rate against the opponent's rate allowed, net of the reverse",
+                 lambda f: f.get("style_ft_match", 0.0)),
+    "pass_match": ("physical", "Ball movement matchup", "assist rate against the opponent's rate allowed, net of the reverse",
+                   lambda f: f.get("style_pass_match", 0.0)),
+    "rim_match": ("physical", "Rim protection matchup", "block rate against the opponent's rate allowed, net of the reverse",
+                  lambda f: f.get("style_rim_match", 0.0)),
 }
 TOTAL = {
     "b2b_sum": ("physical", "Tired legs", "teams on a back-to-back", lambda h, a, g: h["b2b"] + a["b2b"]),
@@ -44,6 +57,11 @@ TOTAL = {
     "playoff": ("mind", "Playoff intensity", "playoff game", lambda h, a, g: g["playoff"]),
     "no_stakes": ("mind", "Nothing to play for", "teams with nothing left to play for",
                   lambda h, a, g: int(h["stakes"] < 0) + int(a["stakes"] < 0)),
+    "pace_match": ("physical", "Pace matchup", "two fast (or two slow) teams meeting", lambda h, a, g: g.get("style_pace_match", 0.0)),
+    "three_volume": ("physical", "Three-point volume", "both teams' combined three-point attempt rate above league average",
+                      lambda h, a, g: g.get("style_three_volume", 0.0)),
+    "luck_total": ("physical", "Shooting luck (total)", "both teams' recent three-point luck, own and allowed, combined",
+                   lambda h, a, g: g.get("style_luck_total", 0.0)),
 }
 
 
@@ -51,6 +69,11 @@ from . import officials as _officials
 if _officials.ON:
     TOTAL["refs"] = ("physical", "Referee crew", "points a game this crew's games have finished above (or below) the expected total",
                      lambda h, a, g: g.get("refs_total", 0.0))
+
+from . import lineup as _lineup
+if _lineup.PACE_TOTAL_ON:
+    TOTAL["pace_corr"] = ("physical", "Possession-based total check", "a pace x efficiency total estimate, against the per-stat rating's total, when the two disagree",
+                          lambda h, a, g: g.get("pace_corr", 0.0))
 
 
 def own(ctx_side):

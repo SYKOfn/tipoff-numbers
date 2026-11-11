@@ -12,11 +12,13 @@ the moment they happen - the results-based ratings only notice weeks later.
 Pace and efficiency per team (possessions per game, points per 100 possessions for and against) give a
 second, possession-based estimate of the total.
 """
+import os
 from collections import defaultdict
 
 GS_HL, PM_HL, MIN_HL, TEAM_HL = 25, 40, 8, 25
 K_GS, K_PM = 80.0, 600.0        # minutes of evidence before a player's own number counts as much as average
 SEASON_KEEP = 0.5               # last season's per-minute numbers count half once a new season starts
+PACE_TOTAL_ON = os.environ.get("PACE_TOTAL_ON", "0") == "1"   # off: walk-forward test (2026) made total MAE worse (14.89 -> 14.96), kept for re-test later
 
 
 def gamescore(r):

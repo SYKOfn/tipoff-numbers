@@ -46,6 +46,8 @@ def fit(games, stat="pts", asof=None, half_life=90.0, lam=6.0, carry=0.6):
     w = w * carry ** (s_now - g["season"].astype(int).to_numpy())
     keep = w > 0.01
     g, w = g[keep], w[keep]
+    if len(g) < 30:  # a short half-life + heavy season discount can decay every row below `keep` (e.g. the COVID-delayed 2020-21 start)
+        return None
     m = len(g)
     hi = g["home"].map(IDX).to_numpy()
     ai = g["away"].map(IDX).to_numpy()

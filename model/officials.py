@@ -5,11 +5,12 @@ model's pre-game total, shrunk towards 0 until he has enough games. A crew's val
 three referees. Measured as a total-points factor like every other, and switched on only if it improves
 out-of-sample totals (see ON).
 """
+import os
 from collections import defaultdict
 
 HL = 120.0   # games
 K = 40.0     # games of evidence for half weight
-ON = False   # set after the out-of-sample test
+ON = os.environ.get("OFFICIALS_ON", "0") == "1"   # off: walk-forward test (2026) moved total MAE by <0.01, no real signal yet; kept for re-test later
 
 
 class OfficialsTracker:

@@ -14,7 +14,7 @@ import numpy as np
 from . import effects, ratings
 from .features import Tracker
 from .lineup import LineupTracker
-from .style import StyleTracker
+from .style import StyleTracker, MARGIN_F, TOTAL_F
 from .rapm import RAPM, StintRAPM
 from .officials import OfficialsTracker
 
@@ -74,6 +74,14 @@ def build_context(games, players, upcoming, tuned=None, effects_until=None, stin
         ctx = tr.pre_game(g, played=played)
         for side in ("home", "away"):
             ctx[side]["luck"] = round(sty.team_luck(g[side]), 3)
+        sf = sty.features(g) or {}
+        for k in MARGIN_F:  # already a single home-vs-away value; park it on "home", 0 on "away" so own(h)-own(a) passes it through
+            if k == "luck":
+                continue
+            ctx["home"][f"style_{k}"] = round(sf.get(k, 0.0), 3)
+            ctx["away"][f"style_{k}"] = 0.0
+        for k in TOTAL_F:
+            ctx[f"style_{k}"] = round(sf.get(k, 0.0), 3)
         sty.post_game(g)
         ctxs[gid] = ctx
         b = base.get(gid)
@@ -97,6 +105,8 @@ def build_context(games, players, upcoming, tuned=None, effects_until=None, stin
             rp.add(g, rows_[g["home"]], rows_[g["away"]])
         if sr is not None and gid in byst:
             sr.add_stints(g, byst[gid])
+        pt = lt.pace_total(g["home"], g["away"])  # pre-game: a second, possession-based total estimate
+        ctx["pace_corr"] = round(pt - (b[0] + b[1]), 3) if (pt is not None and b) else 0.0
         lt.post_game(g, rows_)
         margin = g["home_pts"] - g["away_pts"]
         total = g["home_pts"] + g["away_pts"]
