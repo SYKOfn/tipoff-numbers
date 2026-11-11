@@ -42,6 +42,11 @@ EST_K = 0.3
 # the model and an estimated price) landed 49%/56%/43%. Ranking by apparent edge picks the model's mistakes
 # (the winner's curse); without a real Winamax price an "edge" is not knowable, so tickets rank by honest chance.
 AGREE_MIN, AGREE_MAX = 0.70, 0.86
+# Long shots: the same agreement rule one step riskier (every voice at least LONG_MIN, consensus below AGREE_MIN).
+# Backtest (2024-25, 2025-26), 3 long shots a night with no shared bet: 5 legs stated 14-16% and landed 15-23%
+# (fair odds about x6-7); 6 legs stated ~10% and landed 8-17% (about x9-10).
+LONG_MIN = 0.55
+LONG_SHOTS, LONG_LEGS = 3, 5
 EST_T = {"pts": 1.05, "reb": 1.1, "ast": 1.1, "tpm": 1.05, "pra": 1.1}
 # markets Winamax lets you bet only on their own, never inside a combiné with other legs
 SINGLE_ONLY = {"pra"}
@@ -258,21 +263,23 @@ def prop_legs(game, players, calib, avg, disp_all, real=None):
                         voices = [over_prob(st, L, proj, dp), over_prob(st, L, av, dp), over_prob(st, L, l5, dp)]
                         if mk_at:
                             voices.append(mk_at(L))
-                        if min(voices) < AGREE_MIN:
+                        if min(voices) < LONG_MIN:
                             continue
                         pc = sigmoid(sum(logit(min(max(v, 1e-4), 1 - 1e-4)) for v in voices) / len(voices))
-                        if not AGREE_MIN <= pc <= AGREE_MAX:
+                        level = "safe" if min(voices) >= AGREE_MIN and AGREE_MIN <= pc <= AGREE_MAX else \
+                            "long" if pc < AGREE_MIN else None
+                        if not level:
                             continue
                         pa_over = min(max(voices[1], 0.03), 0.97)
                         price = round(1 / (pa_over * winamax_margin(pa_over)), 2)
                         legs.append(_leg(game, "prop", f"{pl['name']} over {L:.1f} {STAT_NAME[st]}", voices[0], pc, price,
                                          dist={"mu": round(proj, 2), "sd": round(sd_for(st, proj, dp), 2), "d": round(dp.get(st, 1.5), 3), "alone": 1.0, "model": 1.0},
                                          team=team, player=pl["id"], player_name=pl["name"], stat=st, line=L, side="over",
-                                         proj=proj, avg=round(av, 1), last5=round(l5, 1), price_est=True, anchor=round(pa_over, 4), agree=True,
+                                         proj=proj, avg=round(av, 1), last5=round(l5, 1), price_est=True, anchor=round(pa_over, 4), agree=level,
                                          voices=[round(v, 3) for v in voices],
                                          note=(f"all agree: projection {proj:.1f}, season average {av:.1f}, last 5 games {l5:.1f}"
                                                + (f", {rl['book']} line {float(rl['line']):.1f}" if rl else "")
-                                               + f" (each at least {round(AGREE_MIN * 100)}% over {L:.1f}); Winamax line, price estimated"),
+                                               + f" (each at least {round((AGREE_MIN if level == 'safe' else LONG_MIN) * 100)}% over {L:.1f}); Winamax line, price estimated"),
                                          mind=mind, spots=[x["label"] for x in spots],
                                          sim=("prop", side, pl["id"], st, "over", L)))
                 if rl:
@@ -594,12 +601,14 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None)
     # Tickets (Nov 2026 rework, see AGREE_MIN): legs whose every voice agrees, ranked by their honest chance;
     # the best legs go into the shortest ticket, and every bet goes into one ticket only.
     pool = [l for l in cands if combinable(l) and l["mind_flag"] != "against" and AGREE_MIN <= l["p"] <= AGREE_MAX
-            and (l["kind"] != "prop" or l.get("agree") or book_only)]
-    out["eligible"] = len(pool)
+            and (l["kind"] != "prop" or l.get("agree") == "safe" or book_only)]
+    long_pool = [l for l in cands if combinable(l) and l["mind_flag"] != "against" and LONG_MIN <= l["p"] < AGREE_MIN
+                 and (l["kind"] != "prop" or l.get("agree") == "long" or book_only)]
+    out["eligible"] = len(pool) + len(long_pool)
 
-    def pick(k, per_game):
+    def pick(k, per_game, src=None):
         chosen = []
-        for l in sorted(free(pool), key=lambda l: (-l["p"], -(l.get("edge") or 0))):
+        for l in sorted(free(pool if src is None else src), key=lambda l: (-l["p"], -(l.get("edge") or 0))):
             if len(chosen) == k:
                 break
             if any(_conflict(l, c) or exposure(l) == exposure(c) for c in chosen):
@@ -627,7 +636,15 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None)
         out["parlays"].append(package("The daily 6", "The long shot: six more agreed legs, none used in another ticket. "
                                       "It pays the most and lands the least; the bookmaker's margin compounds over six legs.",
                                       take(six), sims, games))
-    order = {"Value 2": 0, "Core 3": 1, "The daily 6": 2, "Same-game 3": 3}
+    for i in range(LONG_SHOTS):
+        ls = pick(LONG_LEGS, 1 if n_games >= LONG_LEGS else 2, long_pool) if n_games >= 3 else None
+        if not ls:
+            break
+        out["parlays"].append(package(f"Long shot {i + 1}", "A long shot: five legs that each land more often than not, "
+                                      "with the projection, the season average and the last 5 games all agreeing. "
+                                      "It lands about 1 night in 6 and pays far more; none of its bets is in another ticket.",
+                                      take(ls), sims, games))
+    order = {"Value 2": 0, "Core 3": 1, "The daily 6": 2, "Long shot 1": 3, "Long shot 2": 4, "Long shot 3": 5, "Same-game 3": 9}
     out["parlays"].sort(key=lambda pr: order.get(pr["name"], 9))
     singles = sorted([l for l in cands if l.get("edge") is not None and l["edge"] > 0.02 and l["mind_flag"] != "against"
                       and not l.get("price_est") and P_MIN <= l["p"] <= P_MAX],

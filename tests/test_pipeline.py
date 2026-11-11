@@ -573,7 +573,7 @@ def test_ticket_legs_need_every_voice_to_agree():
     avg = {"1": {"gp": 10, "pts": 26.0, "l5_pts": 27.0, "reb": 4, "l5_reb": 4, "ast": 3, "l5_ast": 3, "tpm": 1, "l5_tpm": 1, "pra": 31, "l5_pra": 33},
            "2": {"gp": 10, "pts": 15.0, "l5_pts": 14.0, "reb": 4, "l5_reb": 4, "ast": 3, "l5_ast": 3, "tpm": 1, "l5_tpm": 1, "pra": 22, "l5_pra": 21}}
     legs = parlay.prop_legs(game, players, {}, avg, {"pts": 2.8})
-    agree = [l for l in legs if l.get("agree") and l["stat"] == "pts"]
+    agree = [l for l in legs if l.get("agree") == "safe" and l["stat"] == "pts"]
     assert agree and all(l["player"] == "1" for l in agree)                    # player 2: the model alone says 27
     assert all(parlay.AGREE_MIN <= l["p"] <= parlay.AGREE_MAX and min(l["voices"]) >= parlay.AGREE_MIN for l in agree)
     assert [l["line"] for l in agree] == [19.5]                                  # 14.5 is beyond AGREE_MAX

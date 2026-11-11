@@ -734,7 +734,7 @@ def main(demo=False, now=None, collect_data=True):
                     "clv_beat": sum(1 for v in vb if (v.get("clv") or 0) > 0),
                     "clv_avg": round(sum(v["clv"] for v in vb if v.get("clv") is not None) / max(1, sum(1 for v in vb if v.get("clv") is not None)), 4)} if vb else None
     rec = {}
-    for pr_name in ("Value 2", "Core 3", "Same-game 3", "The daily 6"):
+    for pr_name in ("Value 2", "Core 3", "Same-game 3", "The daily 6", "Long shot 1", "Long shot 2", "Long shot 3"):
         items = [pr for h_ in history for pr in h_["parlays"] if pr["name"] == pr_name]
         if items:
             legs = [l for pr in items for l in pr["legs"] if l.get("result") in ("hit", "miss")]

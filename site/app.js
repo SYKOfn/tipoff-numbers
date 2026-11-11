@@ -168,7 +168,7 @@ function twLeg(l) {
     <p class="m">Worth taking alone at ${fx(1.05 / p, 2)}+ · <a href="#/game/${h(l.game)}">game page</a></p></details></li>`;
 }
 function twCard(pr, i, main) {
-  const head = `<div class="tw-hd"><div><p class="tw-tag">${main ? "Main pick" : pr.name === "The daily 6" ? "Long shot" : pr.name === "Same-game 3" ? "One game" : "Also tonight"}</p><h2>${h(pr.name)}</h2></div>
+  const head = `<div class="tw-hd"><div><p class="tw-tag">${main ? "Main pick" : pr.name === "The daily 6" ? "Six safe legs" : /^Long shot/.test(pr.name) ? "Long shot" : pr.name === "Same-game 3" ? "One game" : "Also tonight"}</p><h2>${h(pr.name)}</h2></div>
     <div class="tw-big"><b class="num">${fx(pr.min_odds, 2)}+</b><span>place at these odds or better</span></div></div>`;
   const body = `${dots(tkP(pr))}${tkBox(pr, i)}<ul class="tw-legs">${pr.legs.map(twLeg).join("")}</ul>
     ${pr.story ? `<p class="tw-story">${h(pr.story)}</p>` : ""}
@@ -802,7 +802,7 @@ async function about() {
     <p><b>Margins and totals</b> are treated as normally distributed around the estimate with the spread of past misses (${a.sd_margin ?? "–"} points for margins, ${a.sd_total ?? "–"} for totals); the win chance is the share of that distribution on each side of zero.</p>
     <p><b>Factor sizes</b>: the ratings make an out-of-sample prediction for every past game (refit weekly on earlier games only); what they missed is regressed on all factors at once, with a penalty that pulls each towards zero unless the evidence is there. Each gets its size, its uncertainty and a label: strong, moderate, weak or no clear evidence. Current sizes are on the <a href="#/accuracy">Record</a> page.</p>
     <p><b>Players</b>: expected minutes (a minutes model fitted on earlier games, scaled so each team's minutes add up to 240) × per-minute production × the opponent, then the measured player effects (hot hand, matchup history, minutes and points without a key teammate, returns, back-to-backs). Over/under chances use a count distribution fitted to each stat.</p>
-    <p><b>Tickets</b>: every winner, handicap, total and player leg is checked; each game is simulated 20,000 times so legs from the same game are priced together; the Value 2 (main pick), Core 3, Same-game 3 and the daily 6 (long shot) are chosen once, three hours before the first tip-off.</p>
+    <p><b>Tickets</b>: every winner, handicap, total and player leg is checked; each game is simulated 20,000 times so legs from the same game are priced together; the Value 2 (main pick), Core 3, the daily 6 and three long shots are chosen once, three hours before the first tip-off. A leg only goes into a ticket when the projection, the season average and the last 5 games all agree it is likely, and no bet appears in two tickets.</p>
     <p><b>Quarters, playoff chances, mind ranking</b>: the estimate split by each team's usual share per quarter; the rest of the season simulated 4,000 times with the play-in; and a description of each team's state next to its measured psychological edge.</p>
   </div></details>
   </div>`;
@@ -1530,7 +1530,7 @@ async function parlayPage() {
     <section class="section"><details class="howto"><summary>How tickets are chosen</summary>
     <div class="principles">
       <div><span class="n">1</span><b>Every leg must stand alone</b>A leg goes in only if its chance beats its price. A parlay of bad bets is a worse bet, not a better one.</div>
-      <div><span class="n">2</span><b>Fewer legs, less margin</b>The margin compounds with every leg: about 9% with two legs and around 24% with six at standard prices. The Value 2 is the main pick; the daily 6 is the optional long shot.</div>
+      <div><span class="n">2</span><b>Fewer legs, less margin</b>The margin compounds with every leg: about 9% with two legs and around 24% with six at standard prices. The Value 2 is the main pick; the three long shots pay far more and land far less.</div>
       <div><span class="n">3</span><b>Beat the closing price</b>The quickest proof of an edge is getting better odds than the final price before tip-off, long before wins and losses can tell.</div>
       <div><span class="n">4</span><b>Psychology both ways</b>Team and player spots are inside the chances, and no leg is picked with a psychological spot working against it.</div>
     </div>
