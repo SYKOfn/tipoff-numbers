@@ -154,6 +154,14 @@
  ],
  "test": {
   "n": 1322,
+  "market": {
+   "n": 1236,
+   "brier_model": 0.1999,
+   "brier_market": 0.1976,
+   "best_blend_w": 0.3,
+   "brier_best_blend": 0.1968,
+   "brier_blend_040": 0.1968
+  },
   "full": {
    "brier": 0.2006242071720209,
    "hit": 0.6875945537065052,
@@ -180,6 +188,14 @@
  },
  "test_regular": {
   "n": 1231,
+  "market": {
+   "n": 1147,
+   "brier_model": 0.1979,
+   "brier_market": 0.1945,
+   "best_blend_w": 0.3,
+   "brier_best_blend": 0.1941,
+   "brier_blend_040": 0.1942
+  },
   "full": {
    "brier": 0.19878281717963514,
    "hit": 0.6921202274573518,
@@ -206,6 +222,7 @@
  },
  "test_playoffs": {
   "n": 91,
+  "market": null,
   "full": {
    "brier": 0.22553355970638245,
    "hit": 0.6263736263736264,
@@ -232,6 +249,14 @@
  },
  "current_season": {
   "n": 160,
+  "market": {
+   "n": 136,
+   "brier_model": 0.2109,
+   "brier_market": 0.1849,
+   "best_blend_w": 0.0,
+   "brier_best_blend": 0.1849,
+   "brier_blend_040": 0.1932
+  },
   "full": {
    "brier": 0.20506646615956575,
    "hit": 0.66875,
