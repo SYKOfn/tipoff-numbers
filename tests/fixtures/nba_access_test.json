@@ -1,0 +1,17 @@
+{
+  "utc_time": "2026-11-11T11:43:00Z",
+  "step1_curl": {
+    "url": "https://stats.nba.com/stats/boxscorematchupsv3?GameID=0022500001&LeagueID=00",
+    "http_code": "000",
+    "curl_exit": 28,
+    "error": "curl: (28) Operation timed out after 30001 milliseconds with 0 bytes received",
+    "body_first_1500": "",
+    "notes": "Agent proxy allowed the CONNECT to stats.nba.com:443 (200 Connection Established); TLS/request then hung with no response from upstream (consistent with NBA blocking datacenter IPs). No agent-proxy refusal for stats.nba.com. For comparison, www.nba.com was refused by the agent proxy: CONNECT 403 Forbidden: request blocked: no rule or allowlist entry allows host \"www.nba.com\""
+  },
+  "step2_probe": {
+    "command": "python -m tools.nba_matchups probe",
+    "succeeded": false,
+    "detail": "exit 0 but both checks ok=false: RemoteDisconnected: Remote end closed connection without response"
+  },
+  "reachable": false
+}
