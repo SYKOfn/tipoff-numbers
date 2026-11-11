@@ -90,6 +90,13 @@ def run(compare=True):
             legs += t.get("legs") or []
             if t.get("p") is not None and not 0 < t["p"] < 1:
                 fails.append(f"ticket {t.get('name')}: chance {t['p']}")
+        # every bet goes into one ticket only (MAX_TICKETS_PER_BET = 1)
+        from model.parlay import exposure, MAX_TICKETS_PER_BET
+        from collections import Counter
+        used = Counter(exposure(lg) for t in td.get("parlays") or [] for lg in t.get("legs") or [])
+        rep = [str(k[1]) for k, n in used.items() if n > MAX_TICKETS_PER_BET]
+        if rep:
+            (warns if td.get("locked") else fails).append(f"tickets repeat a bet: {', '.join(rep[:5])}")
         for lg in legs:
             p = lg.get("p")
             if p is not None and not 0 < p < 1:

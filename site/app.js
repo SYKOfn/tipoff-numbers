@@ -507,6 +507,7 @@ async function game(id) {
     <section class="section"><h2 class="mind">The mental game <span class="sub">each team's psychological spots, sized by what they have been worth in past games</span></h2>
       <div class="panel mind grid2">${mindCol("away", A)}${mindCol("home", H)}</div></section>
     <section class="section"><h2 class="body">Body: rest, travel, availability</h2>${news}<div class="panel body grid2">${bodyCol("away", A)}${bodyCol("home", H)}</div></section>
+    ${matchupSection(g)}
     ${playersSection(g)}
     ${quartersSection(g, res)}
     ${box ? `<section class="section"><h2>Box score</h2>${box}</section>` : ""}
@@ -555,6 +556,30 @@ function simSection(g) {
       <p class="sub small">Final margins across the runs (left: ${h(T(A).short)} win, right: ${h(T(H).short)} win).</p>
       <div class="sim-players">${tbl("away", A)}${tbl("home", H)}</div>
       <p class="sub small">Bold: the typical run; after it, the middle 80% of runs. Minutes move with blowouts, overtime and night-to-night swings; teammates share the team's points. "Clears the line": share of runs above the Winamax line just under his projection (Winamax lists fixed lines: points 5+, 10+, 15+…; rebounds and assists 3+, 5+, 7+, 10+, 13+, 15+; pts+reb+ast 10+, 15+, 20+…; threes 1+, 2+, 3+…), counting only runs where he plays (Winamax voids the leg if he does not).</p>
+    </div></section>`;
+}
+
+function matchupSection(g) {
+  const M = g.matchup;
+  if (!M || !(M.slots || []).length) return "";
+  const H = g.home.abbr, A = g.away.abbr;
+  const v = (x, d = 1) => x === null || x === undefined ? "–" : fx(x, d);
+  const p3 = x => x ? `${Math.round(x * 100)}%` : "–";
+  const body = (pl) => {
+    const s = pl.per36 || {};
+    return `<div class="mu-p"><p class="mu-n">${plink(pl.id, pl.name)} <span class="sub">${h(pl.pos || "")}</span></p>
+      <p class="mu-phys small">${[pl.height, pl.weight_lb ? `${Math.round(pl.weight_lb)} lb` : "", pl.age ? `${pl.age} yrs` : "", pl.exp !== null && pl.exp !== undefined ? `${pl.exp} seasons` : ""].filter(Boolean).map(h).join(" · ") || '<span class="sub">size not in yet</span>'}</p>
+      <p class="mu-load small">Last 7 days: <b>${v(pl.min7, 0)}</b> min in ${v(pl.g7, 0)} games${pl.rest_days === 0 ? ' · <span class="chip warn">played yesterday</span>' : pl.rest_days !== null && pl.rest_days !== undefined ? ` · ${pl.rest_days} days rest` : ""}</p>
+      <table class="mu-t"><tr><td>PTS</td><td>REB</td><td>AST</td><td>3P%</td><td>TS%</td><td>TOV</td><td>STL+BLK</td></tr>
+        <tr><td class="num">${v(s.pts)}</td><td class="num">${v(s.reb)}</td><td class="num">${v(s.ast)}</td><td class="num">${p3(pl.p3)}</td><td class="num">${p3(pl.ts)}</td><td class="num">${v(s.tov)}</td><td class="num">${v(pl.stocks36)}</td></tr></table></div>`;
+  };
+  const tm = (t, ab) => t ? `${disc(ab, "xs")} ${h(T(ab).short)}: ${[t.height ? `avg ${t.height}` : "", t.weight_lb ? `${Math.round(t.weight_lb)} lb` : "", t.age ? `${fx(t.age, 1)} yrs` : "", `${fx(t.min7, 0)} min last 7 days`, t.p3 ? `3P ${p3(t.p3)}` : ""].filter(Boolean).map(h).join(" · ")}` : "";
+  return `<section class="section reveal"><h2>Player matchups <span class="sub">likely starters paired by role: size, age, workload and skills</span></h2>
+    <div class="panel">
+      <p class="small">${tm(M.teams.away, A)}<br>${tm(M.teams.home, H)}</p>
+      ${M.slots.map(sl => `<div class="mu-row"><div>${body(sl.away)}</div><div class="mu-vs">vs</div><div>${body(sl.home)}</div>
+        ${(sl.edges || []).length ? `<ul class="mu-e small">${sl.edges.map(e => `<li>${h(e)}</li>`).join("")}</ul>` : ""}</div>`).join("")}
+      <p class="sub small">Per 36 minutes, this season. TS%: points per shot attempt, free throws included. Size and age from ESPN rosters. Pairing is by role (guards, forwards, centers), not a promise of who guards whom.</p>
     </div></section>`;
 }
 

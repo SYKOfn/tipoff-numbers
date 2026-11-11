@@ -164,6 +164,16 @@ def collect(today=None):
                 meta.setdefault(g[side], {})["logo"] = g[f"{side}_logo"]
     write_json(STATE / "teams_meta.json", meta)
 
+    # player size, age and experience (ESPN team rosters), refreshed once a day; never breaks a run
+    try:
+        ro = read_json(STATE / "rosters.json", {}) or {}
+        fresh = ro.get("as_of") and (espn.now_utc() - datetime.fromisoformat(ro["as_of"])).total_seconds() < 20 * 3600
+        if not fresh:
+            pl_ = espn.rosters()
+            if len(pl_) > 300:
+                write_json(STATE / "rosters.json", {"as_of": espn.now_utc().isoformat(), "players": pl_})
+    except Exception as e:
+        espn.CALLS["errors"].append(f"rosters: {e}")
     from . import oddsapi
     ups = sorted(upcoming.values(), key=lambda g: g["date"])
     # games in the next 36 hours: the game's own injury report (player ids, report time); in the last

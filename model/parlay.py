@@ -35,6 +35,13 @@ PROP_CENTER_W = 0.7
 # projection beat the average were stated 67% and landed 55% (the book said 57%); with EST_K 0.3 the picked
 # legs were stated 63% and landed 63%. The model's edge over a posted line is small: it must not be overstated.
 EST_K = 0.3
+# Ticket legs (Nov 2026 backtest, 2024-25 / 2025-26 / this season, ~20,000 player legs a season): a leg goes into a
+# ticket only when every voice agrees it lands at least AGREE_MIN: the model's projection, the season average and
+# the last 5 games (plus a real market line when there is one). Its chance is their consensus (mean log-odds).
+# Picked that way, the best 2 legs of a night landed 75%/75%/79% (stated 74%); the old pick (biggest gap between
+# the model and an estimated price) landed 49%/56%/43%. Ranking by apparent edge picks the model's mistakes
+# (the winner's curse); without a real Winamax price an "edge" is not knowable, so tickets rank by honest chance.
+AGREE_MIN, AGREE_MAX = 0.70, 0.86
 EST_T = {"pts": 1.05, "reb": 1.1, "ast": 1.1, "tpm": 1.05, "pra": 1.1}
 # markets Winamax lets you bet only on their own, never inside a combiné with other legs
 SINGLE_ONLY = {"pra"}
@@ -236,6 +243,39 @@ def prop_legs(game, players, calib, avg, disp_all, real=None):
                                               + (" (weight measured on settled lines)" if MARKET_W.get("measured") else ""),
                                          mind=mind, spots=[x["label"] for x in spots],
                                          sim=("prop", side, pl["id"], st, "over", L)))
+                # (no `continue` here: agreement legs below go on the other ladder lines)
+                l5 = a.get("l5_" + st)
+                if (st != "pra" and proj is not None and av is not None and av == av and l5 is not None
+                        and a.get("gp", 0) >= 5):
+                    done = {l["line"] for l in legs if l.get("player") == pl["id"] and l.get("stat") == st}
+                    mk_at = None
+                    if rl:
+                        mu_m = mu_for_over(st, float(rl["line"]), novig(rl["over"], rl["under"]), dp)
+                        mk_at = lambda L, mu_m=mu_m: over_prob(st, L, mu_m, dp)
+                    for L in ladder(st):
+                        if L in done:
+                            continue
+                        voices = [over_prob(st, L, proj, dp), over_prob(st, L, av, dp), over_prob(st, L, l5, dp)]
+                        if mk_at:
+                            voices.append(mk_at(L))
+                        if min(voices) < AGREE_MIN:
+                            continue
+                        pc = sigmoid(sum(logit(min(max(v, 1e-4), 1 - 1e-4)) for v in voices) / len(voices))
+                        if not AGREE_MIN <= pc <= AGREE_MAX:
+                            continue
+                        pa_over = min(max(voices[1], 0.03), 0.97)
+                        price = round(1 / (pa_over * winamax_margin(pa_over)), 2)
+                        legs.append(_leg(game, "prop", f"{pl['name']} over {L:.1f} {STAT_NAME[st]}", voices[0], pc, price,
+                                         dist={"mu": round(proj, 2), "sd": round(sd_for(st, proj, dp), 2), "d": round(dp.get(st, 1.5), 3), "alone": 1.0, "model": 1.0},
+                                         team=team, player=pl["id"], player_name=pl["name"], stat=st, line=L, side="over",
+                                         proj=proj, avg=round(av, 1), last5=round(l5, 1), price_est=True, anchor=round(pa_over, 4), agree=True,
+                                         voices=[round(v, 3) for v in voices],
+                                         note=(f"all agree: projection {proj:.1f}, season average {av:.1f}, last 5 games {l5:.1f}"
+                                               + (f", {rl['book']} line {float(rl['line']):.1f}" if rl else "")
+                                               + f" (each at least {round(AGREE_MIN * 100)}% over {L:.1f}); Winamax line, price estimated"),
+                                         mind=mind, spots=[x["label"] for x in spots],
+                                         sim=("prop", side, pl["id"], st, "over", L)))
+                if rl:
                     continue
                 if proj is None or av is None or av != av or av < (2.0 if st in ("tpm", "ast", "reb") else 3):
                     continue  # one-a-game stats: books post 0.5 or 1.5 with very uneven prices, too unreliable to estimate
@@ -244,6 +284,8 @@ def prop_legs(game, players, calib, avg, disp_all, real=None):
                 sd = sd_for(st, center, dp)
                 t = EST_T.get(st, 1.0)
                 for L in near_lines(st, center, 2, 1):  # Winamax's own lines around the player
+                    if any(l.get("player") == pl["id"] and l.get("stat") == st and l.get("line") == L for l in legs):
+                        continue
                     po = over_prob(st, L, center, dp)
                     # the price a book would ask: fair on the season-average anchor, plus its margin
                     pa_over = min(max(over_prob(st, L, av, dp), 0.03), 0.97)
@@ -435,7 +477,7 @@ def joint(legs, sims, games):
     return p_joint, p_ind
 
 
-MAX_TICKETS_PER_BET = 2   # one player, or one team's result, appears in at most two of the day's tickets
+MAX_TICKETS_PER_BET = 1   # every bet goes into one ticket only: no player and no team result is repeated across the day's tickets (Pepe, Nov 2026)
 MAX_PER_TEAM = 2          # at most two legs on the same team within a ticket
 MAX_PER_STAT = 2          # at most two player legs on the same stat within a ticket (no all-rebounds tickets)
 
@@ -531,7 +573,7 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None)
     n_games = len(games)
     out = {"games": n_games, "candidates": len(cands), "eligible": len(elig), "parlays": [], "book": book_only,
            "not_on_book": out_skip}
-    if not elig or n_games == 0:
+    if n_games == 0:
         return out, cands
     # Main picks are short: the bookmaker's margin multiplies with every leg, so two or three legs from
     # different games (where Winamax simply multiplies the odds) keep the most of any edge.
@@ -549,40 +591,42 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None)
         tickets.append({exposure(l) for l in legs})
         return list(legs)
 
-    priced = [l for l in elig if l.get("edge") is not None and not l.get("price_est") and l["edge"] >= 0.02]
-    two = search(priced, 2, sims, games, max_per_game=1) if len(priced) >= 2 else None
-    if not two and len(elig) >= 2:
-        two = search(elig, 2, sims, games, max_per_game=1, min_games=2 if n_games >= 2 else None)
+    # Tickets (Nov 2026 rework, see AGREE_MIN): legs whose every voice agrees, ranked by their honest chance;
+    # the best legs go into the shortest ticket, and every bet goes into one ticket only.
+    pool = [l for l in cands if combinable(l) and l["mind_flag"] != "against" and AGREE_MIN <= l["p"] <= AGREE_MAX
+            and (l["kind"] != "prop" or l.get("agree") or book_only)]
+    out["eligible"] = len(pool)
+
+    def pick(k, per_game):
+        chosen = []
+        for l in sorted(free(pool), key=lambda l: (-l["p"], -(l.get("edge") or 0))):
+            if len(chosen) == k:
+                break
+            if any(_conflict(l, c) or exposure(l) == exposure(c) for c in chosen):
+                continue
+            if sum(c["game"] == l["game"] for c in chosen) >= per_game:
+                continue
+            if l.get("team") and sum(c.get("team") == l["team"] for c in chosen) >= MAX_PER_TEAM:
+                continue
+            if l.get("stat") and sum(c.get("stat") == l["stat"] for c in chosen) >= max(MAX_PER_STAT, k // 2):
+                continue
+            chosen.append(l)
+        return chosen if len(chosen) == k else None
+
+    two = pick(2, 1) if n_games >= 2 else pick(2, 2)
     if two:
-        out["parlays"].append(package("Value 2", "The main pick: two legs from different games, each worth its price on its "
-                                      "own where a real price is known. Two legs keep the bookmaker's margin small (about "
-                                      "9% at standard prices against about 24% for six).", take(two), sims, games))
-    if n_games >= 3:
-        core = search(free(elig), 3, sims, games, max_per_game=1, min_games=3, others=tickets)
-        if core:
-            out["parlays"].append(package("Core 3", "Three legs from three different games: the strongest combination of "
-                                          "chance and value without stacking one game.", take(core), sims, games))
-    best_sg = None
-    for gid in games:
-        gl = [l for l in free(elig) if l["game"] == gid]
-        if len(gl) < 3:
-            continue
-        sg = search(gl, 3, sims, games, max_per_game=3, others=tickets)
-        if sg:
-            pj, pi = joint(sg, sims, games)
-            score = pj * (pj / pi)
-            if best_sg is None or score > best_sg[0]:
-                best_sg = (score, sg)
-    if best_sg:
-        out["parlays"].append(package("Same-game 3", "Three legs from one game that tend to land together (positive correlation). "
-                                      "Winamax's same-game builder already prices in that the legs move together, so the "
-                                      "extra chance is mostly paid away: only worth it if Winamax's price beats the minimum odds.", take(best_sg[1]), sims, games))
-    pool6 = free(elig)
-    six = search(pool6, min(6, len(pool6)), sims, games, max_per_game=2 if n_games >= 3 else 3, min_games=min(4, n_games), others=tickets)
+        out["parlays"].append(package("Value 2", "The main pick: the night's two most likely legs from two different games, "
+                                      "each one backed by the projection, the season average and the last 5 games together. "
+                                      "Two legs keep Winamax's margin small.", take(two), sims, games))
+    core = pick(3, 1) if n_games >= 3 else None
+    if core:
+        out["parlays"].append(package("Core 3", "The next three most likely legs, three different games, none of them "
+                                      "used in another ticket.", take(core), sims, games))
+    six = pick(6, 1 if n_games >= 6 else 2) if n_games >= 3 else None
     if six:
-        out["parlays"].append(package("The daily 6", "The long shot: six legs, at most two per game. It pays big but lands "
-                                      "rarely, and the bookmaker's margin compounds over six legs, so it needs every leg to "
-                                      "carry real value. Treat it as the optional extra, not the main bet.", take(six), sims, games))
+        out["parlays"].append(package("The daily 6", "The long shot: six more agreed legs, none used in another ticket. "
+                                      "It pays the most and lands the least; the bookmaker's margin compounds over six legs.",
+                                      take(six), sims, games))
     order = {"Value 2": 0, "Core 3": 1, "The daily 6": 2, "Same-game 3": 3}
     out["parlays"].sort(key=lambda pr: order.get(pr["name"], 9))
     singles = sorted([l for l in cands if l.get("edge") is not None and l["edge"] > 0.02 and l["mind_flag"] != "against"

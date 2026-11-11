@@ -294,6 +294,16 @@ def main(demo=False, now=None, collect_data=True):
     trc = tr.clone()
     upcoming_payloads = {}
     seen = set()
+    # physical + technical profiles of this season's players (box scores + ESPN rosters) for the matchup panel
+    from model import matchup as MU
+    try:
+        _ro = (read_json(STATE / "rosters.json", {}) or {}).get("players") or {}
+        _cur_games = set(c.games.loc[c.games["season"] == cur, "game_id"].astype(str))
+        _day_of = dict(zip(c.games["game_id"].astype(str), c.games["day"].astype(str)))
+        mu_prof = MU.profiles(players, _day_of, _cur_games, _ro, today)
+    except Exception as e:  # the panel is optional; never let it break a run
+        print("matchup profiles skipped:", e)
+        mu_prof = {}
     for g in sorted(upcoming, key=lambda x: (x["date"], x["game_id"])):
         gid = str(g["game_id"])
         ahead = (date.fromisoformat(g["day"]) - today).days
@@ -366,6 +376,10 @@ def main(demo=False, now=None, collect_data=True):
         payload["style"] = {side: {"pace": c.style.pace_word(g[side])} for side in ("home", "away")}
         payload["made_at"] = now.isoformat()
         payload["players"] = proj_players
+        try:
+            payload["matchup"] = MU.compare(proj_players, mu_prof)
+        except Exception as e:
+            print("matchup skipped:", gid, e)
         if gid in analyst:
             payload["analyst"] = analyst[gid]
         payload["odds"] = g.get("odds")
@@ -599,8 +613,13 @@ def main(demo=False, now=None, collect_data=True):
             avg = {}
             if len(pc_):
                 pc_["pra"] = pc_["pts"] + pc_["reb"] + pc_["ast"]
+                day_of = dict(zip(c.games["game_id"].astype(str), c.games["day"].astype(str)))
+                pc_["_day"] = pc_["game_id"].astype(str).map(day_of).fillna("")
+                pc_ = pc_.sort_values("_day")
                 for pid, d_ in pc_.groupby(pc_["player_id"].astype(str)):
-                    avg[pid] = {"gp": len(d_), **{k: float(d_[k].mean()) for k in ("pts", "reb", "ast", "tpm", "pra")}}
+                    l5 = d_.tail(5)  # the last 5 games he played (ticket legs need these to agree too)
+                    avg[pid] = {"gp": len(d_), **{k: float(d_[k].mean()) for k in ("pts", "reb", "ast", "tpm", "pra")},
+                                **{"l5_" + k: float(l5[k].mean()) for k in ("pts", "reb", "ast", "tpm", "pra")}}
             from . import oddsapi
             real = oddsapi.latest_props()
             # winners at the betting book's price (Winamax); handicap and total at the sharp book's main line and price

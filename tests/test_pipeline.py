@@ -562,3 +562,36 @@ def test_gate_skips_a_second_run_in_the_same_slot(tmp_path):
     assert S.decide(t1, ups=ups, par_dir=tmp_path, last=upd(12 + 30))[0]       # 60 min out: lineups window
     code = f"{int(now.timestamp()) - 60} Player model change"
     assert S.decide(now, ups=[], par_dir=tmp_path, last=code)[0]
+
+
+def test_ticket_legs_need_every_voice_to_agree():
+    from model import parlay
+    game = {"id": "9", "home": "BOS", "away": "NY"}
+    pl = lambda pid, pts: {"id": pid, "name": f"P{pid}", "min": 34, "pts": pts, "reb": 4.0, "ast": 3.0, "tpm": 1.0, "pra": pts + 7,
+                           "spots": [], "disp": {"pts": 2.8, "reb": 1.4, "ast": 1.3, "tpm": 1.2, "pra": 3.0}}
+    players = {"home": [pl("1", 27.0), pl("2", 27.0)], "away": []}
+    avg = {"1": {"gp": 10, "pts": 26.0, "l5_pts": 27.0, "reb": 4, "l5_reb": 4, "ast": 3, "l5_ast": 3, "tpm": 1, "l5_tpm": 1, "pra": 31, "l5_pra": 33},
+           "2": {"gp": 10, "pts": 15.0, "l5_pts": 14.0, "reb": 4, "l5_reb": 4, "ast": 3, "l5_ast": 3, "tpm": 1, "l5_tpm": 1, "pra": 22, "l5_pra": 21}}
+    legs = parlay.prop_legs(game, players, {}, avg, {"pts": 2.8})
+    agree = [l for l in legs if l.get("agree") and l["stat"] == "pts"]
+    assert agree and all(l["player"] == "1" for l in agree)                    # player 2: the model alone says 27
+    assert all(parlay.AGREE_MIN <= l["p"] <= parlay.AGREE_MAX and min(l["voices"]) >= parlay.AGREE_MIN for l in agree)
+    assert [l["line"] for l in agree] == [19.5]                                  # 14.5 is beyond AGREE_MAX
+
+
+def test_player_matchup_panel():
+    import pandas as pd
+    from model import matchup as MU
+    rows = []
+    for g, day in (("g1", "2026-11-05"), ("g2", "2026-11-09")):
+        for i in range(10):
+            rows.append({"game_id": g, "player_id": str(i), "team": "BOS" if i < 5 else "NY", "min": 30, "pts": 10 + i, "reb": 4 + (i % 5),
+                         "ast": 3, "tpm": 2, "tpa": 6, "fga": 12, "fta": 3, "tov": 2, "stl": 1, "blk": 0, "oreb": 1})
+    prof = MU.profiles(pd.DataFrame(rows), {"g1": "2026-11-05", "g2": "2026-11-09"}, {"g1", "g2"},
+                       {"0": {"height_in": 75, "weight_lb": 190, "age": 24}, "5": {"height_in": 79, "weight_lb": 215, "age": 31}}, "2026-11-10")
+    assert prof["0"]["rest_days"] == 0 and prof["0"]["g7"] == 2 and prof["0"]["per36"]["pts"] == 12.0
+    pos = "GGFFC"
+    mk = lambda ids: [{"id": str(i), "name": f"P {i}", "pos": pos[i % 5], "min": 30 - (i % 5)} for i in ids]
+    m = MU.compare({"home": mk(range(5)), "away": mk(range(5, 10))}, prof)
+    assert len(m["slots"]) == 5 and m["slots"][0]["home"]["height"] == "6'3\""
+    assert any("taller" in e for e in m["slots"][0]["edges"]) and any("younger" in e for e in m["slots"][0]["edges"])

@@ -71,7 +71,7 @@ BIAS_STATS = {"pts"}
 
 
 MIN_FEATS = ["const", "m8", "m3", "season", "last", "started", "gain_same", "gain_other", "blowout", "b2b",
-             "returning", "new", "crowd", "early_m8", "early_season"]
+             "returning", "new", "crowd", "early_m8", "early_season", "short_absence"]
 MIN_LAM = 50.0
 MIN_REFIT = 150     # refit after this many new player-games
 
@@ -214,7 +214,7 @@ class PlayerTracker:
         return out
 
     # ------------------------------------------------------------ projection
-    def min_features(self, pid, team, rot, absent, avail_of, exp_margin, b2b, returning):
+    def min_features(self, pid, team, rot, absent, avail_of, exp_margin, b2b, returning, short_abs=0.0):
         q = self.p[pid]
         m8 = ew_get(q["ew_min"], "m") or 0.0
         m3 = ew_get(q["ew3"], "m") or m8
@@ -232,7 +232,7 @@ class PlayerTracker:
         heavy = m8 / 30.0
         return [1.0, m8, m3, sm, last, float(q["started"]), gain["same"], gain["other"],
                 abs(exp_margin or 0.0) / 10.0 * heavy, float(b2b) * heavy, float(returning),
-                float(q["gp"] < 10), (here_all / 240.0 - 1.0) * m8, early * m8, early * sm]
+                float(q["gp"] < 10), (here_all / 240.0 - 1.0) * m8, early * m8, early * sm, short_abs * heavy]
 
     def project(self, pid, team, opp, is_home, b2b, absent=(), missing_share=0.0, notes=None, eff=None, extra_min=None,
                 exp_margin=None):
@@ -253,7 +253,10 @@ class PlayerTracker:
         mins = min(42.0, m + extra_min)
         gap0 = self.team_games[team] - q["last_team_game"].get(team, self.team_games[team])
         returning = int(q["back_left"] > 0 or (gap0 >= BACK_GAP and q["gp"] > 5))
-        self.last_mf = self.min_features(pid, team, rot, set(absent), avail_of, exp_margin, b2b, returning)
+        # missed the last 2+ team games but fewer than BACK_GAP (no game in about a week): Nov 2026 test found
+        # these players play 1.1-1.6 minutes under projection in every season
+        short_abs = float(2 <= gap0 < BACK_GAP and q["gp"] > 5 and not returning)
+        self.last_mf = self.min_features(pid, team, rot, set(absent), avail_of, exp_margin, b2b, returning, short_abs)
         pm = self.mm.predict(self.last_mf) if self.use_mm else None
         if pm is not None:
             mins = max(0.0, min(44.0, pm))

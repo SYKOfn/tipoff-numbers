@@ -338,6 +338,54 @@ def teams_meta():
     return out
 
 
+def _inches(v):
+    """ESPN gives height in inches (number) and as text like 6' 7\"."""
+    if isinstance(v, (int, float)):
+        return float(v)
+    try:
+        ft, inch = str(v).replace('"', "").split("'")
+        return int(ft) * 12 + int(inch.strip() or 0)
+    except (ValueError, AttributeError):
+        return None
+
+
+def _lbs(v):
+    if isinstance(v, (int, float)):
+        return float(v)
+    try:
+        return float(str(v).split()[0])
+    except (ValueError, IndexError):
+        return None
+
+
+def rosters():
+    """{player_id: {name, team, height_in, weight_lb, age, exp, pos}} for every team (ESPN team roster pages)."""
+    data = fetch(f"{BASE}/teams")
+    out = {}
+    try:
+        teams = [t["team"] for t in data["sports"][0]["leagues"][0]["teams"]]
+    except (TypeError, KeyError, IndexError):
+        return out
+    for t in teams:
+        ab = canon(t.get("abbreviation"), t.get("id"))
+        r = fetch(f"{BASE}/teams/{t.get('id')}/roster") or {}
+        aths = r.get("athletes") or []
+        if aths and isinstance(aths[0], dict) and "items" in aths[0]:  # grouped by position on some pages
+            aths = [a for grp in aths for a in grp.get("items") or []]
+        for a in aths:
+            if not isinstance(a, dict) or not a.get("id"):
+                continue
+            exp = a.get("experience")
+            out[str(a["id"])] = {
+                "name": a.get("displayName") or a.get("fullName"), "team": ab,
+                "height_in": _inches(a.get("height") if a.get("height") is not None else a.get("displayHeight")),
+                "weight_lb": _lbs(a.get("weight") if a.get("weight") is not None else a.get("displayWeight")),
+                "age": a.get("age"), "exp": (exp or {}).get("years") if isinstance(exp, dict) else exp,
+                "pos": ((a.get("position") or {}).get("abbreviation") if isinstance(a.get("position"), dict) else a.get("position")),
+            }
+    return out
+
+
 def now_utc():
     return datetime.now(timezone.utc)
 
