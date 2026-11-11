@@ -1109,3 +1109,7 @@ details.tw-card[open] > summary { margin-bottom: 12px; }
 .mu-t tr:first-child td{opacity:.6;font-size:.7rem}
 .mu-e{grid-column:1/-1;margin:4px 0 0;padding-left:18px}
 @media (max-width:640px){.mu-row{grid-template-columns:1fr}.mu-vs{display:none}}
+
+/* game page projections: unlikely players dimmed, a team row that sums correctly */
+.ptable tr.unlikely td { opacity: .45; }
+.ptable tr.ttot td { border-top: 1px solid var(--line); font-weight: 700; }
