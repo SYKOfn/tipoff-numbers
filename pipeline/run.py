@@ -130,9 +130,6 @@ def main(demo=False, now=None, collect_data=True):
     rest_table = rest.measure(games, players, c.ctxs)
     rts = engine.fit_all(games, today.isoformat(), c.tuned)
     season_start = games[games["season"] == cur]["day"].min() if (games["season"] == cur).any() else today.isoformat()
-    prev_rows = [r[:5] for r in c.rows if r[5] < season_start]
-    eff_prev = effects.estimate(prev_rows, c.tuned["lam_effects"]) if len(prev_rows) >= 200 else c.eff
-    stack_prev = engine.fit_stack([r for r in c.rows_raw if r[5] < season_start], c.lfeat)
     eff_table = c.eff.table()
     tr = c.tracker
 
@@ -428,6 +425,8 @@ def main(demo=False, now=None, collect_data=True):
     pg, _ = engine.players_by_game(players)
     result_payloads = {}
     checks = []
+    season_start_day = date.fromisoformat(season_start[:10])
+    wk_cache = {}  # week number -> (eff, stack), refit weekly like backtest.run's own walk-forward
     for g in c.games.to_dict("records"):
         gid = str(g["game_id"])
         if int(g["season"]) != cur or gid not in c.base:
@@ -436,6 +435,13 @@ def main(demo=False, now=None, collect_data=True):
             payload = frozen_ids[gid]["payload"]
             payload["kind"] = "frozen"
         else:
+            wk = max(0, (date.fromisoformat(g["day"]) - season_start_day).days // 7)
+            if wk not in wk_cache:
+                prev_rows = [r[:5] for r in c.rows if r[5] < g["day"]]
+                eff_wk = effects.estimate(prev_rows, c.tuned["lam_effects"]) if len(prev_rows) >= 200 else c.eff
+                stack_wk = engine.fit_stack([r for r in c.rows_raw if r[5] < g["day"]], c.lfeat)
+                wk_cache[wk] = (eff_wk, stack_wk)
+            eff_prev, stack_prev = wk_cache[wk]
             est = engine.predict(c, g, c.ctxs[gid], {}, eff=eff_prev, base_override=c.base[gid],
                                  lineup_feat=c.lfeat.get(gid), stack=stack_prev)
             payload = game_payload(g, c.ctxs[gid], est, "check")
