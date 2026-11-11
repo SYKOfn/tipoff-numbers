@@ -12,6 +12,7 @@ The mathematics, in short:
 4. Psychology enters twice: the team and player spots are already inside the chances, and every leg
    is checked for a psychological spot working against it.
 """
+import itertools
 import math
 
 import numpy as np
@@ -599,6 +600,26 @@ def search(cands, k, sims, games, max_per_game=2, min_games=None, beam=60, max_p
     return states[0][0] if states else None
 
 
+GAME_LEGS, GAME_POOL, GAME_P = 5, 24, 0.60
+
+
+def scenarios(legs, sim, p_cal):
+    """How the ticket fares in different versions of the game: share of simulated games where all legs land,
+    scaled to the ticket's calibrated chance. Close = final margin within 6, blowout = 15 or more."""
+    mask = np.ones(len(sim["m"]), bool)
+    for l in legs:
+        mask &= l["_o"]
+    raw = mask.mean()
+    k = p_cal / raw if raw > 0 else 1.0
+    am = np.abs(sim["m"])
+    out = {}
+    for name, sel in (("close", am <= 6), ("normal", (am > 6) & (am < 15)), ("blowout", am >= 15),
+                      ("home_wins", sim["m"] > 0), ("away_wins", sim["m"] < 0), ("overtime", sim["ot"])):
+        if sel.mean() >= 0.01:
+            out[name] = {"share": round(float(sel.mean()), 3), "lands": round(min(1.0, float(mask[sel].mean()) * k), 3)}
+    return out
+
+
 def package(name, why, legs, sims, games):
     pj, pi = joint(legs, sims, games)
     fair = 1 / pj if pj > 0 else None
@@ -743,6 +764,39 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None)
             team_g.add(l["game"])
         per_g[l["game"]] += 1
     out["singles"] = [{k: v for k, v in l.items() if not k.startswith("_") and k != "sim"} for l in singles]
+    # One ticket per game (Pepe, Nov 2026): the game's 5 legs most likely to land together, priced on the game's
+    # 20,000 simulated versions (minutes, blowouts, overtime, teammates sharing points), so legs that win and lose
+    # together are counted as such. No bet already in another ticket or in the singles.
+    taken = set(uses) | {exposure(l) for l in singles}
+    out["game_tickets"] = []
+    for gid, game in games.items():
+        pool_g = sorted([l for l in cands if l["game"] == gid and combinable(l) and l["mind_flag"] != "against"
+                         and GAME_P <= l["p"] <= AGREE_MAX and exposure(l) not in taken
+                         and (l["kind"] != "prop" or l.get("agree"))], key=lambda l: -l["p"])[:GAME_POOL]
+        # beam search: grow the ticket one leg at a time, keeping the 40 most likely partial tickets
+        states = [((), 1.0)]
+        for _ in range(GAME_LEGS):
+            nxt = {}
+            for legs, _p in states:
+                for c in pool_g:
+                    if any(c is l or _conflict(c, l) or exposure(c) == exposure(l) for l in legs):
+                        continue
+                    new = tuple(sorted(legs + (c,), key=lambda x: x["id"]))
+                    key = tuple(x["id"] for x in new)
+                    if key not in nxt:
+                        nxt[key] = (new, joint(new, sims, games)[0])
+            states = sorted(nxt.values(), key=lambda s_: -s_[1])[:40]
+            if not states:
+                break
+        best = (states[0][1], states[0][0]) if states and len(states[0][0]) == GAME_LEGS else None
+        if not best:
+            continue
+        pk = package(f"{game['away']} at {game['home']}", "This game's five legs most likely to land together, "
+                     "priced on 20,000 simulated versions of the game.", list(best[1]), sims, games)
+        pk["game"] = gid
+        pk["scenarios"] = scenarios(best[1], sims[gid], pk["p"])
+        out["game_tickets"].append(pk)
+    out["game_tickets"].sort(key=lambda t: -t["p"])
     return out, cands
 
 

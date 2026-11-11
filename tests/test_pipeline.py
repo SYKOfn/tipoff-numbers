@@ -616,3 +616,13 @@ def test_singles_value_at_winamax_odds():
     leg = {"kind": "prop", "p": 0.77, "voices": [0.8, 0.57, 0.7]}
     ev, o, real = parlay.singles_value(leg, {})
     assert not real and 1.3 < o < 1.45 and ev > 0                # Winamax's chance taken halfway: 67%
+
+
+def test_game_ticket_scenarios_scale_to_calibrated_chance():
+    import numpy as np
+    from model import parlay
+    m = np.array([2.0, -3.0, 20.0, -18.0, 8.0, 1.0, -9.0, 25.0])
+    sim = {"m": m, "ot": np.zeros(8, bool)}
+    legs = [{"_o": np.array([1, 1, 0, 0, 1, 1, 1, 0], bool)}, {"_o": np.array([1, 1, 0, 1, 1, 1, 0, 0], bool)}]
+    sc = parlay.scenarios(legs, sim, 0.5)
+    assert sc["blowout"]["lands"] == 0.0 and sc["close"]["lands"] > 0.5   # these legs need a close game

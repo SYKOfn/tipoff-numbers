@@ -1341,6 +1341,17 @@ function ticketText(pr) {
   return `${pr.name} — Tip-Off Numbers\n` + (pr.story ? `${pr.story}\n` : "") + pr.legs.map((l, i) => `${i + 1}. ${legDesc(l)} (${T(matchTeams(l)[0]).abbr} @ ${T(matchTeams(l)[1]).abbr}) — ${pct(l.p)}, take at ${fx(l.min_odds, 2)}+${l.story ? `\n   ${l.story}` : ""}`).join("\n")
     + `\nAll legs: ${pct(pr.p)} · fair combined odds ${fx(pr.fair, 2)} · worth it at ${fx(pr.min_odds, 2)}+${pr.winamax_est ? ` · Winamax usually about ${fx(pr.winamax_est, 2)}` : ""}`;
 }
+function gameTicket(pr) {
+  const sc = pr.scenarios || {}, lab = { close: "close game (6 pts or less)", normal: "normal margin", blowout: "blowout (15+)", home_wins: "home team wins", away_wins: "away team wins", overtime: "overtime" };
+  const rows = Object.entries(lab).filter(([k]) => sc[k]).map(([k, t]) => `<li>${t}: <b>${pct(sc[k].lands)}</b> <span class="sub">(${pct(sc[k].share)} of the simulated games)</span></li>`).join("");
+  return `<div class="ticket"><div class="ticket-head"><div><h3>${h(pr.name)}${pr.result ? ` <span class="cat ${pr.result === "hit" ? "Hot" : "Cold"}">${pr.result}</span>` : ""}</h3><p>${h(pr.why || "")}</p></div>
+    <span><button class="copybtn" data-copy="${h(ticketText(pr))}">Copy ticket</button></span></div>
+    <ul class="legs">${pr.legs.map(legRow).join("")}</ul>
+    ${rows ? `<p class="sub small" style="margin-top:8px"><b>How it lands in each kind of game</b></p><ul class="sub small">${rows}</ul>` : ""}
+    <div class="ticket-foot"><div><b>${pct(pr.p)}</b>chance all ${pr.n_legs} land</div><div><b>${fx(pr.fair, 2)}</b>fair combined odds</div>
+      <div class="go"><b>${fx(pr.min_odds, 2)}+</b>worth placing at these combined odds or better</div>
+      <div><b>${pr.lift >= 1 ? "+" : ""}${Math.round((pr.lift - 1) * 100)}%</b>correlation lift</div></div></div>`;
+}
 function ticket(pr, main, idx) {
   return `<div class="ticket ${main ? "main" : ""}"><div class="ticket-head"><div><h3>${h(pr.name)}${pr.result ? ` <span class="cat ${pr.result === "hit" ? "Hot" : "Cold"}">${pr.result}</span>` : ""}</h3><p>${h(pr.why || "")}</p>${pr.story ? `<p class="story"><b>Why this ticket:</b> ${h(pr.story)}</p>` : ""}</div>
     <span><button class="copybtn" data-copy="${h(ticketText(pr))}">Copy ticket</button> <button class="copybtn" data-record="${idx}">Record as my bet</button></span></div>
@@ -1509,6 +1520,9 @@ async function parlayPage() {
     <p class="note small">Every player line is one Winamax lists (5+, 10+, 15+ …). Type the combined odds Winamax shows in each ticket to see Place or Skip. Statistical estimates, not advice; 18+.</p>
     <section class="section"><h2>Tonight's singles <span class="sub">the main picks: each bet on its own, Winamax's margin paid once</span></h2>
       <p class="sub small">The night's best values among winners, handicaps, totals and player legs: our chance times the odds Winamax is expected to pay (its real odds for winners; for the rest, its usual discount, about 0.87 to 0.93 of the fair odds). Only positive values are listed. Bet one only if Winamax shows at least the "take ≥" odds.</p>${singles}</section>
+    <section class="section"><h2>One ticket per game <span class="sub">trial: each game's five legs most likely to land together</span></h2>
+      <p class="sub small">Every game is simulated 20,000 times (minutes, blowouts, overtime, teammates sharing the points), so legs that win and lose together are priced together. Below each ticket: how often it lands in close games, normal games and blowouts. It is still a combiné: Winamax pays about half its fair winnings, so on average it loses more than a single.</p>
+      ${t && t.game_tickets && t.game_tickets.length ? t.game_tickets.map(gameTicket).join("") : t && t.locked === false ? `<p class="sub">Chosen at ${tip(t.lock_at)}, with the singles.</p>` : `<p class="sub">No game ticket today.</p>`}</section>
     <details class="section"><summary><h2 style="display:inline">Parlays <span class="sub">set aside: a combiné pays about half its fair winnings, so it loses more on average</span></h2></summary>
     ${t && t.locked === false ? `<section class="section"><div class="panel"><h3>Today's tickets are chosen at ${tip(t.lock_at)}</h3><p class="sub">Three hours before the first tip-off, once the main injury reports are in, the full model picks the day's tickets once. From then on they never change: no reshuffling on reload. If a player in a locked ticket is ruled out later, his leg is flagged (Winamax voids a leg whose player does not play).</p></div></section>`
       : t && t.parlays && t.parlays.length ? `${t.parlays.map((pr, i) => ticket(pr, i === 0, i)).join("")}` : `<p class="empty">No ticket today: not enough legs pass the filters. That is an answer too.</p>`}

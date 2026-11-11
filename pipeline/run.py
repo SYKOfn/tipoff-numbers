@@ -665,7 +665,7 @@ def main(demo=False, now=None, collect_data=True):
             lock_at = first_tip - timedelta(hours=LOCK_HOURS)
             today_parlay["lock_at"] = lock_at.isoformat()
             if old and old.get("locked"):
-                for k in ("parlays", "singles", "locked_at", "games", "candidates", "eligible", "book", "not_on_book"):
+                for k in ("parlays", "singles", "game_tickets", "locked_at", "games", "candidates", "eligible", "book", "not_on_book"):
                     if k in old:
                         today_parlay[k] = old[k]
                 today_parlay["locked"] = True
@@ -692,7 +692,7 @@ def main(demo=False, now=None, collect_data=True):
         if not pj or not pj.get("parlays"):
             continue
         if not pj.get("scored"):
-            gids = {l["game"] for pr in pj["parlays"] for l in pr["legs"]} | {l["game"] for l in pj.get("singles", [])}
+            gids = {l["game"] for pr in pj["parlays"] + pj.get("game_tickets", []) for l in pr["legs"]} | {l["game"] for l in pj.get("singles", [])}
             if gids and all(gid in fin_rows for gid in gids):
                 for pr in pj["parlays"]:
                     for l in pr["legs"] + ([] if pr is not pj["parlays"][0] else []):
@@ -700,7 +700,7 @@ def main(demo=False, now=None, collect_data=True):
                 def sc(l):
                     rows = {r["player_id"]: r for team in byg.get(l["game"], {}).values() for r in team}
                     l["result"] = parlay.score_leg(l, fin_rows.get(l["game"]), rows)
-                for pr in pj["parlays"]:
+                for pr in pj["parlays"] + pj.get("game_tickets", []):
                     for l in pr["legs"]:
                         sc(l)
                     live_legs = [l for l in pr["legs"] if l["result"] != "void"]
@@ -742,6 +742,11 @@ def main(demo=False, now=None, collect_data=True):
                             "expected": round(sum(pr["p"] for pr in items), 2),
                             "legs": len(legs), "leg_hits": sum(l["result"] == "hit" for l in legs),
                             "leg_expected": round(sum(l["p"] for l in legs), 1)}
+    gt = [pr for h_ in history for pr in h_.get("game_tickets", []) if pr.get("result") in ("hit", "miss")]
+    if gt:
+        gl = [l for pr in gt for l in pr["legs"] if l.get("result") in ("hit", "miss")]
+        rec["One per game"] = {"n": len(gt), "hits": sum(pr["result"] == "hit" for pr in gt), "expected": round(sum(pr["p"] for pr in gt), 2),
+                               "legs": len(gl), "leg_hits": sum(l["result"] == "hit" for l in gl), "leg_expected": round(sum(l["p"] for l in gl), 1)}
     sg = [l for h_ in history for l in h_.get("singles", []) if l.get("result") in ("hit", "miss")]
     if sg:
         rec["Singles"] = {"n": len(sg), "hits": sum(l["result"] == "hit" for l in sg), "expected": round(sum(l["p"] for l in sg), 1),
