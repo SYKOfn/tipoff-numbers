@@ -5,9 +5,10 @@ ODDS_API_BOOKS      bookmakers for game odds, default "winamax_fr,pinnacle"
                     (Winamax = the prices you bet at; Pinnacle = the sharpest closing line, for CLV)
 ODDS_API_DAILY      credits the site may spend per day, default 15 (fits the free plan)
 ODDS_API_PROPS      "1" to also record player-prop lines (5 credits per game per snapshot)
-ODDS_API_PROPS_BOOKS  books for player props, default "pinnacle": the only European book in the feed with NBA
-                    player lines (checked 9 Nov 2026: Pinnacle and BetOnline; no French book). Its no-margin
-                    price is the sharpest yardstick for Winamax's player prices.
+ODDS_API_PROPS_BOOKS  books for player props, default Pinnacle plus eight US books. Pinnacle is the sharpest
+                    yardstick and is always preferred; the US books only fill in players Pinnacle has no line
+                    for (9 Nov 2026: Pinnacle 70 player lines, all books together 399). Up to 10 books count as
+                    one region, so the extra books cost no extra credits.
 
 Game odds cost 3 credits per call for every NBA game at once. They are fetched when the last snapshot
 is 3+ hours old, and again in the 75 minutes before each slate's first tip-off (the closing price).
@@ -27,6 +28,7 @@ from .store import DATA, STATE, read_json, write_json
 from .teams import TEAMS
 
 BASE = "https://api.the-odds-api.com/v4/sports/basketball_nba"
+PROPS_BOOKS = "pinnacle,betonlineag,draftkings,fanduel,bovada,betmgm,williamhill_us,betrivers,fanatics"
 STALE_MIN = 240  # prices refresh every 3h; older than this means a missed pull (credits out, API down)
 PROP_MARKETS = {"player_points": "pts", "player_rebounds": "reb", "player_assists": "ast", "player_threes": "tpm",
                 "player_points_rebounds_assists": "pra"}
@@ -175,7 +177,7 @@ def collect(upcoming, now=None):
             if not phase or phase in done.get(g["game_id"], []) or st["spent"] + 5 > daily:
                 continue
             data, used, _ = _get(f"/events/{snap[g['game_id']]['event_id']}/odds",
-                                 {"bookmakers": env("ODDS_API_PROPS_BOOKS", "pinnacle"), "markets": ",".join(PROP_MARKETS),
+                                 {"bookmakers": env("ODDS_API_PROPS_BOOKS", PROPS_BOOKS), "markets": ",".join(PROP_MARKETS),
                                   "oddsFormat": "decimal"})
             st["spent"] += used or 5
             if isinstance(data, dict) and data.get("bookmakers"):
@@ -312,6 +314,19 @@ def attach(upcoming):
                 break
 
 
+def _one_book(rows):
+    """A player's line comes from one book only: Pinnacle when it has one, else the book with the most snapshots
+    (mixing books would turn a difference between books into a fake line move)."""
+    pin = [r for r in rows if r.get("book") == "pinnacle"]
+    if pin:
+        return pin
+    books = {}
+    for r in rows:
+        books[r.get("book")] = books.get(r.get("book"), 0) + 1
+    best = max(books, key=books.get)
+    return [r for r in rows if r.get("book") == best]
+
+
 def latest_props():
     """{(game_id, normalised player, stat): {line, over, under, book, phase}} - latest snapshot, median line."""
     if not PROPS_CSV.exists():
@@ -322,6 +337,7 @@ def latest_props():
             groups.setdefault((r["game_id"], norm_name(r["player"]), r["stat"]), []).append(r)
     out = {}
     for k, rows in groups.items():
+        rows = _one_book(rows)
         last = max(r["fetched_at"] for r in rows)
         cur = [r for r in rows if r["fetched_at"] == last]
         # the main line: the one priced closest to even money
@@ -339,6 +355,7 @@ def first_last_props():
             groups.setdefault((r["game_id"], norm_name(r["player"]), r["stat"]), []).append(r)
     out = {}
     for k, rows in groups.items():
+        rows = _one_book(rows)
         def main(ph):
             c = [r for r in rows if r["phase"] == ph]
             if not c:
