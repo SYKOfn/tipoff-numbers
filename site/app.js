@@ -1389,7 +1389,7 @@ function gameTicket(pr, i) {
     <footer class="slip-foot">
       <div class="slip-figs"><div><span>Fair odds</span><b>${fx(pr.fair, 2)}</b></div><div class="go"><span>Place at</span><b>${fx(pr.min_odds, 2)}+</b></div>${pr.winamax_est ? `<div><span>Winamax usually</span><b>≈ ${fx(pr.winamax_est, 2)}</b></div>` : ""}</div>
     </footer>
-    <div class="slip-bar">${tkBox(pr, "g" + i)}
+    <div class="slip-bar"><span class="slip-bar-name">${aw && hm ? `${h(T(aw).short)} at ${h(T(hm).short)}` : h(pr.name)}</span>${tkBox(pr, "g" + i)}
       <div class="slip-acts"><button class="copybtn" data-copy="${h(ticketText(pr))}">Copy</button><button class="copybtn primary" data-record="g${i}">Record as my bet</button></div></div>
   </article>`;
 }
@@ -1558,27 +1558,28 @@ async function parlayPage() {
   app.innerHTML = `<section class="hero court"><div class="wrap"><h1>Tonight's tickets</h1>
     <p class="lede" style="margin-top:10px">${lockLine}</p></div></section>
   <div class="wrap">${demoBanner()}
-    <p class="note small">Every player line is one Winamax lists (5+, 10+, 15+ …). Type the combined odds Winamax shows in each ticket to see Place or Skip. Statistical estimates, not advice; 18+.</p>
-    <section class="section"><h2>One ticket per game <span class="sub">the main picks: each game's five legs most likely to land together</span></h2>
-      <p class="sub small">Every game is simulated 20,000 times (minutes, blowouts, overtime, teammates sharing the points), so legs that win and lose together are priced together. Below each ticket: how often it lands in close games, normal games and blowouts. It is still a combiné: Winamax pays about half its fair winnings, so on average it loses more than a single.</p>
+    <nav class="segs" aria-label="Tickets page sections">${[["tickets", "Game tickets"], ["singles", "Singles"], ["value", "Value"], ["build", "Build your own"], ["record", "Record & method"]].map(([k, v]) => `<button type="button" data-seg="${k}">${v}</button>`).join("")}</nav>
+    <p class="note small" data-pane="tickets">Every player line is one Winamax lists (5+, 10+, 15+ …). Type the combined odds Winamax shows in each ticket to see Place or Skip. Statistical estimates, not advice; 18+.</p>
+    <section class="section" data-pane="tickets"><h2>One ticket per game <span class="sub">the main picks: each game's five legs most likely to land together</span></h2>
+      <p class="sub small">Each game is simulated 20,000 times, so legs that win and lose together are priced together. A combined bet still loses more on average than a single: Winamax pays about half its fair winnings.</p>
       ${t && t.game_tickets && t.game_tickets.length ? `<div class="slips">${t.game_tickets.map(gameTicket).join("")}</div>` : t && t.locked === false ? `<p class="sub">Chosen at ${tip(t.lock_at)}, with the singles.</p>` : `<p class="sub">No game ticket today.</p>`}</section>
-    <section class="section"><h2>Tonight's singles <span class="sub">each bet on its own, Winamax's margin paid once</span></h2>
+    <section class="section" data-pane="singles"><h2>Tonight's singles <span class="sub">each bet on its own, Winamax's margin paid once</span></h2>
       <p class="sub small">The night's best values among winners, handicaps, totals and player legs: our chance times the odds Winamax is expected to pay (its real odds for winners; for the rest, its usual discount, about 0.87 to 0.93 of the fair odds). Only positive values are listed. Bet one only if Winamax shows at least the "take ≥" odds.</p>${singles}</section>
 
-    <details class="section"><summary><h2 style="display:inline">Parlays <span class="sub">set aside: a combiné pays about half its fair winnings, so it loses more on average</span></h2></summary>
+    <details class="section" data-pane="build"><summary><h2 style="display:inline">Parlays <span class="sub">set aside: a combiné pays about half its fair winnings, so it loses more on average</span></h2></summary>
     ${t && t.locked === false ? `<section class="section"><div class="panel"><h3>Today's tickets are chosen at ${tip(t.lock_at)}</h3><p class="sub">Three hours before the first tip-off, once the main injury reports are in, the full model picks the day's tickets once. From then on they never change: no reshuffling on reload. If a player in a locked ticket is ruled out later, his leg is flagged (Winamax voids a leg whose player does not play).</p></div></section>`
       : t && t.parlays && t.parlays.length ? `${t.parlays.map((pr, i) => ticket(pr, i === 0, i)).join("")}` : `<p class="empty">No ticket today: not enough legs pass the filters. That is an answer too.</p>`}
     </details>
-    <section class="section"><h2>Build your own ticket</h2><div class="panel"><div id="custom">${custom()}</div><p class="sub small" style="margin-top:10px">Optional stake to record with your bets (for your own log; the site never suggests stakes): <input id="stake" type="number" min="0" step="0.5" class="oddsin" style="width:90px"></p></div></section>
-    <section class="section"><h2>My bets <span class="sub">kept in this browser only</span></h2><div id="mybets">${myBets()}</div>
+    <section class="section" data-pane="build"><h2>Build your own ticket</h2><div class="panel"><div id="custom">${custom()}</div><p class="sub small" style="margin-top:10px">Optional stake to record with your bets (for your own log; the site never suggests stakes): <input id="stake" type="number" min="0" step="0.5" class="oddsin" style="width:90px"></p></div></section>
+    <section class="section" data-pane="record"><h2>My bets <span class="sub">kept in this browser only</span></h2><div id="mybets">${myBets()}</div>
       <p style="margin-top:10px"><button class="copybtn" id="exp">Export my bets</button> <label class="copybtn" style="display:inline-block">Import<input id="imp" type="file" accept="application/json" hidden></label></p></section>
-    <section class="section"><h2>Winamax vs Pinnacle <span class="sub">winners where Winamax pays more than the sharpest price</span></h2>
+    <section class="section" data-pane="value"><h2>Winamax vs Pinnacle <span class="sub">winners where Winamax pays more than the sharpest price</span></h2>
       <p class="sub small">Pinnacle's odds with its margin removed are the best available estimate of the true chance. When Winamax pays more than that, the bet profits in the long run whatever any model says. "Value" = an edge of 2% or more and our model not rating the side clearly lower. Got a boost (<i>cote boostée</i>)? Type the boosted odds: the edge recalculates against Pinnacle's fair price.</p>
       ${valueHtml}${valueRec}</section>
-    <section class="section"><h2>Closing-line value <span class="sub">did the market move our way after we published?</span></h2>
+    <section class="section" data-pane="record"><h2>Closing-line value <span class="sub">did the market move our way after we published?</span></h2>
       <div class="grid">${clvBox("Ticket legs", clv.tickets, "Measured from the first frozen slate on.")}${clvBox("Every published leg", clv.all_legs, "Measured from the first frozen slate on.")}
       <div class="panel"><h3>Model vs market</h3>${mc.n ? `<div class="adv"><div><b>${mc.with}/${mc.n}</b>games where the closing price moved towards the model<br>${pct(mc.with / mc.n)}</div><div><b>${sgn((mc.avg_move_our_way || 0) * 100, 2)}</b>avg chance points our way</div></div>` : `<p class="sub small">Every game where the model disagreed with the opening price: did the closing price move towards the model? Fills in as games are played.</p>`}</div></div></section>
-    <section class="section"><h2 class="mind">The bettor's mind <span class="sub">what research on bettors says goes wrong</span></h2><div class="grid2"><div class="panel mind"><ul class="checklist">
+    <section class="section" data-pane="record"><h2 class="mind">The bettor's mind <span class="sub">what research on bettors says goes wrong</span></h2><div class="grid2"><div class="panel mind"><ul class="checklist">
       <li><b>Decide the stake before you look at the payout.</b> Prospect theory: people overweight small chances of big wins, which is exactly what long tickets sell.</li>
       <li><b>Don't add a leg to make the odds look better.</b> Every extra leg adds margin; if a leg wasn't worth taking alone, it isn't worth taking in a ticket.</li>
       <li><b>No chasing.</b> After a loss, bettors take riskier bets to win it back; after a win, they feel skilled. Both change the bet, not the chances.</li>
@@ -1586,9 +1587,9 @@ async function parlayPage() {
       <li><b>Distrust the story you like.</b> Confirmation bias makes the leg you want feel safer. The chance on this page doesn't know which team you support.</li>
       <li><b>Judge yourself on closing prices, not results.</b> A month of wins or losses is mostly luck; beating the closing price is skill.</li></ul></div>
       <div class="panel"><h3>How sure are the player chances?</h3><p class="sub small">Model chances are shrunk towards 50% by a factor fitted on past player-games (1.00 = no change needed), so "80%" should land about 80% of the time.</p>${calHtml}</div></div></section>
-    <section class="section"><h2>Track record</h2>${recHtml}${selHtml}${hist}</section>
-    <section class="section"><h2>All strong legs today <span class="sub">tick to build your own ticket</span></h2>${board}</section>
-    <section class="section"><details class="howto"><summary>How tickets are chosen</summary>
+    <section class="section" data-pane="record"><h2>Track record</h2>${recHtml}${selHtml}${hist}</section>
+    <section class="section" data-pane="build"><h2>All strong legs today <span class="sub">tick to build your own ticket</span></h2>${board}</section>
+    <section class="section" data-pane="record"><details class="howto"><summary>How tickets are chosen</summary>
     <div class="principles">
       <div><span class="n">1</span><b>Every leg must stand alone</b>A leg goes in only if its chance beats its price. A parlay of bad bets is a worse bet, not a better one.</div>
       <div><span class="n">2</span><b>Fewer legs, less margin</b>The margin compounds with every leg: about 9% with two legs and around 24% with six at standard prices. The Value 2 is the main pick; the three long shots pay far more and land far less.</div>
@@ -1597,6 +1598,7 @@ async function parlayPage() {
     </div>
     ${t && t.book ? `<p class="verdict"><b>Every leg below is listed on ${t.book === "winamax_fr" ? "Winamax" : h(t.book)}</b>, at its own line and price (from the last refresh: prices move, so check the slip). ${t.not_on_book && t.not_on_book.length ? `Not on ${t.book === "winamax_fr" ? "Winamax" : h(t.book)} yet, so left out: ${t.not_on_book.map(x => h(x.split(" at ").map(a => T(a).short).join(" at "))).join(", ")}.` : ""}</p>` : ""}
     <p class="note small">${oddsNote}</p></details></section></div>`;
+  showSeg(LS.get("tipoff.seg", "tickets"));
   app.oninput = e => {
     const bi = e.target.closest(".boostin[data-vid]");
     if (bi && t) {
@@ -1657,6 +1659,23 @@ async function parlayPage() {
     }
   };
 }
+
+/* ---------------------------------------------------------------- Tickets page: one section at a time */
+function showSeg(k) {
+  const panes = app.querySelectorAll("[data-pane]");
+  if (!panes.length) return;
+  if (![...panes].some(p => p.dataset.pane === k)) k = "tickets";
+  panes.forEach(p => { p.hidden = p.dataset.pane !== k; });
+  app.querySelectorAll("[data-seg]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.seg === k)));
+  LS.set("tipoff.seg", k);
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest && e.target.closest("[data-seg]");
+  if (!b) return;
+  showSeg(b.dataset.seg);
+  const nav = b.closest(".segs");
+  if (nav && nav.getBoundingClientRect().top < 0) nav.scrollIntoView({ block: "start" });
+});
 
 /* ---------------------------------------------------------------- depth: cards lean toward the pointer and catch the light */
 (function tilt() {
