@@ -402,17 +402,18 @@ details.pl[open] > summary td { background: var(--floor); }
 .plines .lines { margin-top: 2px; }
 .plines .lines li { grid-template-columns: 54px 1fr 40px; padding: 2px 0; font-size: .82rem; }
 .mindrank { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
-.mindrank li { display: grid; grid-template-columns: 34px minmax(160px, 1.2fr) 150px minmax(0, 2fr) 90px; gap: 14px; align-items: center; background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); padding: 12px 14px; border-left: 4px solid var(--cc, var(--line)); }
+.mindrank > li { display: grid; grid-template-columns: 34px minmax(160px, 1.2fr) 150px minmax(0, 2fr) 90px; gap: 14px; align-items: center; background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); padding: 12px 14px; border-left: 4px solid var(--cc, var(--line)); }
 .mindrank .rk { font-stretch: var(--narrow); font-weight: 850; font-size: 1.4rem; color: var(--muted); }
 .mindrank .why { margin: 0; padding: 0; list-style: none; font-size: .84rem; color: var(--muted); }
+.mindrank .why li { margin: 2px 0; }
 .mindrank .edge { text-align: right; font-stretch: var(--narrow); font-weight: 800; font-size: 1.1rem; }
 .mindrank .edge small { display: block; font-size: .7rem; font-weight: 500; color: var(--muted); font-stretch: 100%; }
-@media (max-width: 760px) { .mindrank li { grid-template-columns: 30px 1fr 80px; } .mindrank li > :nth-child(3), .mindrank li > :nth-child(4) { grid-column: 2 / -1; } }
+@media (max-width: 760px) { .mindrank > li { grid-template-columns: 30px 1fr 80px; } .mindrank > li > :nth-child(3), .mindrank > li > :nth-child(4) { grid-column: 2 / -1; } .mindrank > li > .edge { grid-column: 3; grid-row: 1; } }
 .cat { display: inline-block; font-size: .74rem; font-weight: 750; padding: 2px 9px; border-radius: 999px; }
 .cat.Hot { background: var(--pos-soft); color: var(--pos); } .cat.Cold { background: #e3ecf8; color: var(--base); }
 .cat.Under { background: var(--body-soft); color: var(--body); } .cat.Coasting { background: var(--bar-bg); color: var(--muted); }
 .cat.Steady { background: var(--mind-soft); color: var(--mind); }
-.mtrack { position: relative; height: 10px; background: var(--bar-bg); border-radius: 5px; }
+.mtrack { display: block; margin-bottom: 6px; position: relative; height: 10px; background: var(--bar-bg); border-radius: 5px; }
 .mtrack::after { content: ""; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 2px; background: var(--muted); opacity: .45; }
 .mtrack span { position: absolute; top: 0; bottom: 0; border-radius: 5px; }
 .catsum { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 18px; }
