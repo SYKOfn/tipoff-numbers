@@ -862,6 +862,7 @@ async function route() {
   if (!app.firstElementChild || app.querySelector(".loading")) app.innerHTML = skeleton();
   try {
     await leaveDone;
+    stopLive();
     if (!page) await home();
     else if (page === "games") await games(arg);
     else if (page === "game") await game(arg);
@@ -876,6 +877,7 @@ async function route() {
     else if (page === "you") await yourBets();
     else if (page === "about") await about();
     else await home();
+    startLive();
   } catch (err) {
     app.innerHTML = `<div class="wrap" style="padding-top:40px"><p class="empty">Couldn't load this page (${h(err.message)}).</p><p><a href="#/">Back home</a></p></div>`;
   }
@@ -1360,9 +1362,9 @@ function slipLeg(l, i) {
   const odds = l.wmx ? `<b>${fx(l.wmx, 2)}</b><span>${l.wmx_real ? "Winamax" : "Winamax est."}</span>` : `<b data-f="${l.id}">${fx(1 / p, 2)}</b><span>fair</span>`;
   const team = l.team ? T(l.team).short : "";
   const mind = l.mind_flag === "with" ? `<span class="sl-tag with">mind with it</span>` : l.mind_flag === "against" ? `<span class="sl-tag against">mind against</span>` : "";
-  return `<li class="sl ${l.result || ""}"><details><summary>
+  return `<li class="sl ${l.result || ""}" data-lid="${l.id}"><details><summary>
       <span class="sl-p">${ring(p, 42)}<b data-p="${l.id}">${pct(p)}</b></span>
-      <span class="sl-d"><b data-d="${l.id}">${h(legDesc(l))}</b><span class="sl-m">${KIND[l.kind] || l.kind}${team ? ` · ${h(team)}` : ""}${mind}</span></span>
+      <span class="sl-d"><b data-d="${l.id}">${h(legDesc(l))}</b><span class="sl-m">${KIND[l.kind] || l.kind}${team ? ` · ${h(team)}` : ""}${mind}</span><span class="sl-live" data-live="${l.id}" hidden></span></span>
       <span class="sl-o">${odds}</span>${mark}<span class="sl-chev" aria-hidden="true"></span></summary>
     <div class="sl-x">
       <dl class="sl-nums"><div><dt>Chance</dt><dd data-p="${l.id}">${pct(p)}</dd></div><div><dt>Fair odds</dt><dd data-f="${l.id}">${fx(1 / p, 2)}</dd></div><div><dt>Take at</dt><dd data-m="${l.id}">fair · take ≥ ${fx(1.05 / p, 2)}</dd></div>${l.wmx ? `<div><dt>Value at Winamax</dt><dd class="${l.ev >= 0 ? "up" : "down"}">${sgn(l.ev * 100, 0)}%</dd></div>` : ""}</dl>
@@ -1377,10 +1379,10 @@ function gameTicket(pr, i) {
   const [aw, hm] = String(pr.name || "").split(" at ");
   const tipAt = pr.legs[0] && pr.legs[0].tip;
   const res = pr.result ? `<span class="slip-stamp ${pr.result === "hit" ? "up" : "down"}">${pr.result === "hit" ? "Landed" : "Missed"}</span>` : "";
-  return `<article class="slip" data-tilt>
+  return `<article class="slip" data-tilt${pr.result ? "" : ` data-game="${h(pr.game)}" data-tip="${h(tipAt || "")}"`}>
     <header class="slip-head">
       <div class="slip-teams">${aw && hm ? `${disc(aw, "sm")}<span class="slip-at">at</span>${disc(hm, "sm")}` : ""}<div><h3>${aw && hm ? `${h(T(aw).short)} <i>at</i> ${h(T(hm).short)}` : h(pr.name)}</h3><p>${tipAt ? tip(tipAt) + " · " : ""}${pr.n_legs} legs<span class="long">, priced together on 20,000 simulated games</span></p></div></div>
-      <div class="slip-chance">${ring(tkP(pr), 74, "big")}<div><b>${pct(tkP(pr))}</b><span>chance</span></div></div>${res}
+      <span class="slip-live" role="status" aria-live="polite" hidden></span><div class="slip-chance">${ring(tkP(pr), 74, "big")}<div><b>${pct(tkP(pr))}</b><span>chance</span></div></div>${res}
     </header>
     <div class="perf" aria-hidden="true"></div>
     <ol class="slip-legs">${pr.legs.map(slipLeg).join("")}</ol>
@@ -1658,6 +1660,71 @@ async function parlayPage() {
       const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `tipoff-my-bets-${new Date().toISOString().slice(0, 10)}.json`; a.click();
     }
   };
+}
+
+/* ---------------------------------------------------------------- live tickets: legs follow the game as it is played */
+// Straight from ESPN's public game feed in the browser (it allows it), every 45 s while the page is open and a
+// ticket's game is on. Nothing is stored: the official results still come from the nightly scoring.
+let liveTimer = null;
+const LIVE_NAME = { pts: "pts", reb: "reb", ast: "ast", tpm: "threes", pra: "pts+reb+ast" };
+function stopLive() { clearInterval(liveTimer); liveTimer = null; }
+function startLive() { stopLive(); if (app.querySelector(".slip[data-game]")) { liveTick(); liveTimer = setInterval(liveTick, 45000); } }
+async function liveGame(gid) {
+  const j = await fetch(`https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event=${encodeURIComponent(gid)}`).then(r => r.json());
+  const comp = j.header.competitions[0], st = comp.status.type;
+  const side = k => comp.competitors.find(c => c.homeAway === k) || {};
+  const g = { state: st.state, final: st.completed, clock: st.shortDetail, players: {},
+              home: { abbr: side("home").team.abbreviation, pts: +side("home").score || 0 }, away: { abbr: side("away").team.abbreviation, pts: +side("away").score || 0 } };
+  for (const tm of (j.boxscore && j.boxscore.players) || []) for (const blk of tm.statistics || []) for (const a of blk.athletes || []) {
+    const v = a.stats || [];
+    if (!v.length) continue;
+    const r = { min: +v[0] || 0, pts: +v[1] || 0, reb: +v[5] || 0, ast: +v[6] || 0, tpm: +String(v[3] || "0").split("-")[0] || 0 };
+    r.pra = r.pts + r.reb + r.ast;
+    g.players[String(a.athlete.id)] = r;
+  }
+  return g;
+}
+function liveLeg(l, g) {
+  const fin = g.final, mine = l.team === g.home.abbr ? g.home : g.away, opp = l.team === g.home.abbr ? g.away : g.home;
+  const over = l.side !== "under", L = l.kind === "prop" ? lineOf(l) : l.line;
+  if (l.kind === "prop") {
+    const r = g.players[String(l.player)];
+    if (!r) return { state: fin ? "void" : "live", txt: fin ? "did not play" : "not on the floor yet" };
+    const v = r[l.stat] ?? 0, ok = over ? v > L : v < L;
+    return { state: over ? (ok ? "hit" : fin ? "miss" : "live") : (!ok ? "miss" : fin ? "hit" : "live"), txt: `${v} ${LIVE_NAME[l.stat] || l.stat} · needs ${over ? Math.floor(L) + 1 : "under " + L}`, prog: Math.min(1, v / Math.max(L + 0.5, 1)) };
+  }
+  if (l.kind === "ml") { const d = mine.pts - opp.pts; return { state: fin ? (d > 0 ? "hit" : "miss") : "live", txt: `${mine.abbr} ${mine.pts}-${opp.pts}` }; }
+  if (l.kind === "spread") { const d = mine.pts - opp.pts + L; return { state: fin ? (d > 0 ? "hit" : d < 0 ? "miss" : "void") : "live", txt: `${mine.abbr} ${mine.pts}-${opp.pts}, covering by ${fx(d, 1)}` }; }
+  if (l.kind === "total" || l.kind === "team_total") {
+    const t = l.kind === "total" ? g.home.pts + g.away.pts : mine.pts, ok = over ? t > L : t < L;
+    return { state: over ? (ok ? "hit" : fin ? "miss" : "live") : (!ok ? "miss" : fin ? "hit" : "live"), txt: `${t} points · line ${fx(L, 1)}`, prog: Math.min(1, t / L) };
+  }
+  return { state: "live", txt: "" };
+}
+async function liveTick() {
+  if (document.hidden) return;
+  const slips = [...app.querySelectorAll(".slip[data-game]")];
+  if (!slips.length) return stopLive();
+  const idx = legIndex(), now = Date.now();
+  for (const slip of slips) {
+    const tipAt = Date.parse(slip.dataset.tip || "");
+    if (!(tipAt <= now + 60000) || slip.dataset.done) continue;
+    let g;
+    try { g = await liveGame(slip.dataset.game); } catch (e) { continue; }
+    if (g.state === "pre") continue;
+    let hit = 0, miss = 0, n = 0;
+    slip.querySelectorAll(".sl[data-lid]").forEach(li => {
+      const l = idx[li.dataset.lid]; if (!l) return;
+      const r = liveLeg(l, g), el = li.querySelector("[data-live]");
+      n++; hit += r.state === "hit" || r.state === "void"; miss += r.state === "miss";
+      li.classList.remove("hit", "miss", "inplay"); li.classList.add(r.state === "void" || r.state === "live" ? "inplay" : r.state);
+      if (el) { el.hidden = false; el.innerHTML = `<i style="--prog:${r.prog ?? (r.state === "hit" ? 1 : 0)}"></i>${h(r.txt)}`; }
+    });
+    const head = slip.querySelector(".slip-live");
+    if (head) { head.hidden = false; head.className = `slip-live ${miss ? "down" : hit === n ? "up" : ""}`;
+      head.textContent = miss ? `Lost · ${g.clock}` : hit === n ? (g.final ? "Landed" : `All ${n} in · ${g.clock}`) : `${hit} of ${n} in · ${g.clock}`; }
+    if (g.final) slip.dataset.done = "1";
+  }
 }
 
 /* ---------------------------------------------------------------- Tickets page: one section at a time */
