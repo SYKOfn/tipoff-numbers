@@ -10,6 +10,7 @@ estimate's factor sizes are fitted on the whole history.
 """
 import json
 import sys
+import os
 from collections import defaultdict
 
 import numpy as np
@@ -33,10 +34,12 @@ def rule(name, ests, plogs):
         if "min35" in name and pmin >= 35:
             return False
         return True
-    return None if name in ("base", "nofix") else keep
+    return None if name in ("base", "nofix", "refit") else keep
 
 
 def main(season, d0=None, d1=None, rules=("base",)):
+    import os
+    PE.MIN_CAL = os.environ.get("MIN_CAL") == "1"  # replay with the minutes calibration on
     games, players = load_games(), load_players()
     c = engine.build_context(games, players, [], {"half_life": 90, "lam": 3.0, "carry": 0.6, "lam_effects": 40.0},
                              stints=load_stints())
@@ -89,6 +92,8 @@ def main(season, d0=None, d1=None, rules=("base",)):
             w0 = dict(parlay.LEG_W)
             if rname == "nofix":  # the leg chance before the game-script correction
                 parlay.LEG_W.update(dog=0.0, min_hi=0.0)
+            if rname == "refit":  # game-script weights given in the environment (fitted on another season)
+                parlay.LEG_W.update(dog=float(os.environ["LEG_DOG"]), min_hi=float(os.environ["LEG_MINHI"]))
             out, _ = parlay.build(slate, pdisp, {}, avg)
             for tk in out.get("game_tickets", []):
                 gid = tk["game"]
