@@ -91,6 +91,16 @@ def hist_day(h_):
             "game_tickets": [tk(pr) for pr in h_.get("game_tickets", [])],
             "singles": [{**leg(l), "wmx": l.get("wmx")} for l in h_.get("singles", [])]}
 
+
+def _vs_market(players, season):
+    """Our frozen player projections against Pinnacle's closing player lines (pipeline/vsmarket.py)."""
+    try:
+        from .vsmarket import summary
+        return summary(players, season)
+    except Exception as e:  # never breaks the update
+        print("vs market skipped:", e)
+        return None
+
 def main(demo=False, now=None, collect_data=True):
     now = now or datetime.now(timezone.utc)
     today = now.astimezone(espn.ET).date()
@@ -610,6 +620,7 @@ def main(demo=False, now=None, collect_data=True):
         "live": summarise(live_items), "checks": summarise(check_items), "recent": recent_scored,
         "backtest": read_json(ROOT / "backtest" / "results.json"), "factors": eff_table,
         "upgrade": engine.lineup_test(c, cur), "market_blend": {**(blend_stats or {}), "on": market_blend_on},
+        "vs_market": _vs_market(players, cur),
         "players": {"track": ptrack, "factors": PM.effects_table(pe), "dispersion": {k: round(v, 2) for k, v in pdisp.items()},
                     "lines_test": lines_test, "minutes_model": pt.mm.table(), "injury_status": inj_cal,
                     "rest": rest_table},

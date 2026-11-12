@@ -1281,3 +1281,5 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 /* teams grid: names wrap between words, records never break */
 .teamgrid { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
 .teamgrid .sub { white-space: nowrap; }
+.vm-bar { display: block; height: 6px; margin: 8px 0 4px; border-radius: 4px; background: rgba(255,255,255,.08); overflow: hidden; }
+.vm-bar span { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, rgba(142,197,255,.5), var(--base)); }

@@ -666,6 +666,21 @@ function factorTable(f, target) {
     ${rows.map(r => `<tr><td><span class="mk" style="background:${r.layer === "mind" ? "var(--mind)" : "var(--body)"}"></span>${h(r.label)}</td><td class="sub small">${h(r.means)}</td><td class="n ${effCls(r.pts)}">${sgn(r.pts, 2)}</td><td class="n">${r.se == null ? "–" : fx(r.se, 2)}</td><td class="n">${r.n.toLocaleString("en-GB")}</td><td>${ev(r.evidence)}</td></tr>`).join("")}</table></div>`;
 }
 
+/* our player projections against Pinnacle's closing player lines, scored every night (pipeline/vsmarket.py) */
+function vsMarketHtml(v) {
+  if (!v || !v.n) return "";
+  const wr = v.lean ? v.lean_wins / v.lean : 0, prog = Math.min(1, v.games / v.target_games), good = wr > v.break_even && v.games >= v.target_games;
+  const name = { pts: "Points", reb: "Rebounds", ast: "Assists", tpm: "Threes", pra: "Pts+reb+ast" };
+  return `<section class="section" id="vs-market"><h2>Player projections vs Pinnacle <span class="sub">the sharpest bookmaker, scored every night</span></h2>
+    <div class="rs-sum">
+      <div class="tile"><p class="k">Average miss on the stat</p><p class="v num">${fx(v.mae_ours, 2)} <span class="sub" style="font-size:16px">vs ${fx(v.mae_line, 2)}</span></p><p class="sub small">ours vs Pinnacle's line, lower is better</p></div>
+      <div class="tile"><p class="k">When we disagree with the line</p><p class="v num ${good ? "up" : ""}">${pct(wr)}</p><p class="sub small">our side won ${v.lean_wins} of ${v.lean}; about ${pct(v.break_even)} breaks even</p></div>
+      <div class="tile"><p class="k">Evidence so far</p><p class="v num">${v.games} <span class="sub" style="font-size:16px">of ${v.target_games} games</span></p><span class="vm-bar"><span style="width:${Math.round(prog * 100)}%"></span></span><p class="sub small">since ${h(longDay(v.since))}</p></div>
+    </div>
+    <div class="tscroll"><table><tr><th>Stat</th><th class="n">Lines</th><th class="n">Our miss</th><th class="n">Pinnacle's miss</th><th class="n">Our side won</th></tr>
+      ${Object.entries(v.by_stat).map(([k, r]) => `<tr><td>${name[k] || h(k)}</td><td class="n">${r.n}</td><td class="n ${r.mae_ours < r.mae_line ? "up" : ""}">${fx(r.mae_ours, 2)}</td><td class="n">${fx(r.mae_line, 2)}</td><td class="n">${r.lean ? pct(r.lean_wins / r.lean) : "–"}</td></tr>`).join("")}</table></div>
+    <p class="note small">Our projections are frozen at tip-off and compared with Pinnacle's last player line before the game. Players in the same game rise and fall together, so until about ${v.target_games} games the win rate is mostly noise: read the trend, not the number. Pinnacle is the benchmark here, not where you bet; Winamax lines and prices are usually worse.</p></section>`;
+}
 async function accuracy() {
   const a = await get("accuracy.json");
   setTitle("Track record");
@@ -694,6 +709,7 @@ async function accuracy() {
   <div class="wrap">${demoBanner()}
     ${a.live ? block("Live record: the number that counts", liveO, a.live.n, `Estimates frozen at tip-off with only what was known before the game, never changed afterwards.${a.live.n < 150 ? ` With only ${a.live.n} games, luck dominates: any method, even plain averages, can look better or worse than it really is. Judge it after a few hundred games.` : ""}`, a.live.calibration) : `<section><h2>Live record: the number that counts</h2><p class="note">No frozen estimates have been scored yet. The record starts with the first games after the site went live (9 November 2026); nothing is ever added afterwards. Everything below is research: made after the fact and, for the player-based checks, knowing who actually played, so it runs a little better than live estimates can.</p></section>`}
     ${verdict}
+    ${vsMarketHtml(a.vs_market)}
     <section class="section"><details class="howto"><summary>Research details: how each part of the model is tested</summary>
     ${a.upgrade ? `<section class="section"><h2>Player-based strength <span class="sub">this season, weights fitted on earlier games only (${a.upgrade.games} games)</span></h2><div class="grid">${[["Winners called", "winners", true, v => pct(v)], ["Brier score", "brier", false, v => fx(v, 4)], ["Log loss", "logloss", false, v => fx(v, 4)], ["Margin miss", "mae_margin", false, v => fx(v, 2)]].map(([l, k, up, f]) => `<div class="panel"><h3>${l}</h3><div class="adv"><div><b>${f(a.upgrade.before[k])}</b>results-based only</div><div><b class="${(up ? a.upgrade.after[k] > a.upgrade.before[k] : a.upgrade.after[k] < a.upgrade.before[k]) ? "up" : "down"}">${f(a.upgrade.after[k])}</b>with player strength</div></div></div>`).join("")}</div>${a.market_blend && a.market_blend.n ? `<p class="sub small" style="margin-top:8px">Market blend: ${a.market_blend.on ? "on" : "off"} · model ${fx(a.market_blend.brier_model, 4)} vs Pinnacle ${fx(a.market_blend.brier_market, 4)} vs blend ${fx(a.market_blend.brier_blend, 4)} on ${a.market_blend.n} frozen games</p>` : ""}</section>` : ""}
     ${a.checks ? block("This season's model checks", chkO, a.checks.n, "Research view. Walk-forward: base ratings from games before each week, factor sizes from earlier seasons, and the players who actually played (a live estimate cannot know late scratches). Made after the fact, so not part of the live record.", a.checks.calibration) : ""}
