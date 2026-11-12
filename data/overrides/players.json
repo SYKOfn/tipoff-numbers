@@ -3,7 +3,7 @@
  "players": {
   "Tyler Herro": {
    "contract_year": true,
-   "note": "Leading Milwaukee after the Giannis trade; out with a knee bruise; contract year."
+   "note": "Leading Milwaukee after the Giannis trade; back from a knee bruise with 27 vs the Lakers; contract year."
   },
   "Jaime Jaquez Jr.": {
    "contract_year": true
@@ -37,7 +37,7 @@
    "contract_year": true
   },
   "Giannis Antetokounmpo": {
-   "note": "Public spat with former Bucks coach Doc Rivers over how his trade to Miami happened."
+   "note": "Called Doc Rivers' public criticism of his basketball IQ \"insane\"; playing through a sprained right wrist."
   },
   "Jaylen Brown": {
    "note": "Gave Tatum a frosty reception in his first game vs Boston; held to 13 points in a 22-point loss."
@@ -49,7 +49,7 @@
    "note": "Close to his Clippers debut after heel surgery; practicing five-on-five."
   },
   "Darryn Peterson": {
-   "note": "No. 2 pick coming off a career-high 26 points."
+   "note": "Four straight 20-point games for the 1-11 Jazz."
   },
   "Ja Morant": {
    "note": "Out with a hamstring strain he picked up against former team Memphis; coach says he may return sooner than four weeks."
@@ -61,7 +61,7 @@
    "note": "Shrinking role next to rookie Darius Acuff Jr.; deadline-trade talk."
   },
   "Darius Acuff Jr.": {
-   "note": "Rookie leading the league in scoring with four 30-point games in his first 10."
+   "note": "Rookie scoring about 26 a game; openly frustrated at 1-10: \"I'm not a loser, so it's not fun.\""
   },
   "Noah Clowney": {
    "note": "Frustration since losing his starting role; fouled out and shoved an opponent in Dallas."
@@ -73,7 +73,7 @@
    "note": "Stepped away for his health; Warriors withholding salary and trying to trade him."
   },
   "Victor Wembanyama": {
-   "note": "40 points and 9 blocks at Phoenix; Spurs carry the league's longest winning streak (nine)."
+   "note": "32 points as the Spurs won a 10th straight, rallying from 22 down in Chicago."
   },
   "Trae Young": {
    "note": "Faced former team Atlanta for the first time on Nov 6."
@@ -88,14 +88,14 @@
    "note": "At the centre of deadline trade talk; reportedly \"not on the Mavericks' timeline\"."
   },
   "Anthony Edwards": {
-   "note": "Out until late December after knee surgery; targeting Christmas vs OKC."
+   "note": "Out up to two months after knee surgery; the absence threatens the 65-game mark that matters for his supermax eligibility."
   },
   "Jordan Poole": {
    "note": "Says he hopes to return to Golden State when his contract runs out after this season.",
    "contract_year": true
   },
   "Grayson Allen": {
-   "note": "Faces Phoenix for the first time since the June trade that sent Miles Bridges to the Suns."
+   "note": "Shooting about 47% from three for Charlotte; faces Phoenix for the first time since the June trade."
   },
   "Royce O'Neale": {
    "note": "Faces Phoenix for the first time since the June trade that sent Miles Bridges to the Suns."
@@ -105,6 +105,36 @@
   },
   "Kawhi Leonard": {
    "note": "Out at least another week with a knee issue; has played only two games since re-signing."
+  },
+  "RJ Barrett": {
+   "contract_year": true
+  },
+  "Paul Reed": {
+   "contract_year": true
+  },
+  "Moussa Diabate": {
+   "contract_year": true
+  },
+  "Stephen Curry": {
+   "note": "Left the Houston game with abdominal soreness; MRI pending, and Kerr says concern is high."
+  },
+  "Marcus Smart": {
+   "note": "Ejected with a Flagrant 2 for punching Charles Bassey vs Golden State; possible discipline."
+  },
+  "James Harden": {
+   "note": "Broke a scoring slump with a season-high 32 at the Knicks."
+  },
+  "Franz Wagner": {
+   "note": "Three straight 30-point games with Banchero and Suggs out."
+  },
+  "Ayo Dosunmu": {
+   "note": "Averaging 21.6 points while starting in place of the injured Anthony Edwards."
+  },
+  "Cooper Flagg": {
+   "note": "Scored 43 against Indiana as Dallas won a third straight."
+  },
+  "Caleb Wilson": {
+   "note": "No. 4 pick hurt his right hand vs San Antonio; no timetable."
   }
  }
 }
