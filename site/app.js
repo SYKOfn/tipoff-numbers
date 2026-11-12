@@ -133,7 +133,10 @@ function teamInk(ab) {
   const t = T(ab), lum = c => { const n = parseInt((c || "#555").slice(1), 16); const r = n >> 16 & 255, g = n >> 8 & 255, b = n & 255; return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
   return lum(t.color) >= 60 ? t.color : (lum(t.alt) >= 60 ? t.alt : "#5B6070");
 }
-const mono = (ab, cls = "") => `<span class="mono ${cls}" style="background:${teamInk(ab)}">${h(T(ab).abbr)}</span>`;
+// team badge: dark letters on bright team colours, white on deep ones (always 4.5:1 or better)
+const monoText = bg => { const n = parseInt(bg.slice(1), 16), f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+  const L = 0.2126 * f(n >> 16 & 255) + 0.7152 * f(n >> 8 & 255) + 0.0722 * f(n & 255); return (L + 0.05) / 0.05 > 1.05 / (L + 0.05) ? "#0A0B0F" : "#fff"; };
+const mono = (ab, cls = "") => { const bg = teamInk(ab); return `<span class="mono ${cls}" style="background:${bg};color:${monoText(bg)}">${h(T(ab).abbr)}</span>`; };
 function tnLeg(l) {
   const teams = matchTeams(l), p = effP(l);
   const badge = l.kind === "total" ? `<span class="mono" style="background:#2A2D3A">O/U</span>` : mono(l.team || teams[1]);
@@ -878,6 +881,8 @@ async function route() {
     else if (page === "about") await about();
     else await home();
     startLive();
+    // wide tables scroll sideways: reachable and announced for keyboard and screen-reader users
+    app.querySelectorAll(".tscroll").forEach(e => { e.tabIndex = 0; e.setAttribute("role", "region"); e.setAttribute("aria-label", "Table, scrolls sideways"); });
   } catch (err) {
     app.innerHTML = `<div class="wrap" style="padding-top:40px"><p class="empty">Couldn't load this page (${h(err.message)}).</p><p><a href="#/">Back home</a></p></div>`;
   }
@@ -947,7 +952,8 @@ async function statusLine() {
   const pill = document.getElementById("statuspill");
   if (pill) {
     const bad = blocked || (chk && !chk.ok) || ageMin > 200;
-    pill.innerHTML = `<span class="dot ${bad ? "bad" : ""}"></span>Updated ${hm(META.updated)} · ${blocked ? "showing last good version" : chk ? (chk.ok ? "Safety checks passed" : "Safety checks failed") : "checks pending"}`;
+    pill.innerHTML = `<span class="dot ${bad ? "bad" : ""}"></span>Updated ${hm(META.updated)}<span class="pill-x"> · ${blocked ? "showing last good version" : chk ? (chk.ok ? "Safety checks passed" : "Safety checks failed") : "checks pending"}</span>`;
+    pill.title = pill.textContent;
     pill.hidden = false;
   }
 }
