@@ -1408,10 +1408,12 @@ function gameTicket(pr, i) {
   const [aw, hm] = String(pr.name || "").split(" at ");
   const tipAt = pr.legs[0] && pr.legs[0].tip;
   const res = pr.result ? `<span class="slip-stamp ${pr.result === "hit" ? "up" : "down"}">${pr.result === "hit" ? "Landed" : "Missed"}</span>` : "";
+  const today = PAR && PAR.today, draft = today && today.locked === false && today.game_tickets && today.game_tickets.includes(pr);
+  const draftTag = draft ? `<span class="slip-draft">Draft · final at ${tipTime(today.lock_at)}</span>` : "";
   return `<article class="slip" data-tilt${pr.result ? "" : ` data-game="${h(pr.game)}" data-tip="${h(tipAt || "")}"`}>
     <header class="slip-head">
       <div class="slip-teams">${aw && hm ? `${disc(aw, "sm")}<span class="slip-at">at</span>${disc(hm, "sm")}` : ""}<div><h3>${aw && hm ? `${h(T(aw).short)} <i>at</i> ${h(T(hm).short)}` : h(pr.name)}</h3><p>${tipAt ? tip(tipAt) + " · " : ""}${pr.n_legs} legs<span class="long">, priced together on 20,000 simulated games</span></p></div></div>
-      <span class="slip-live" role="status" aria-live="polite" hidden></span><div class="slip-chance">${ring(tkP(pr), 74, "big")}<div><b>${pct(tkP(pr))}</b><span>chance</span></div></div>${res}
+      ${draftTag}<span class="slip-live" role="status" aria-live="polite" hidden></span><div class="slip-chance">${ring(tkP(pr), 74, "big")}<div><b>${pct(tkP(pr))}</b><span>chance</span></div></div>${res}
     </header>
     <div class="perf" aria-hidden="true"></div>
     <ol class="slip-legs">${pr.legs.map(slipLeg).join("")}</ol>
@@ -1420,8 +1422,8 @@ function gameTicket(pr, i) {
     <footer class="slip-foot">
       <div class="slip-figs"><div><span>Fair odds</span><b>${fx(pr.fair, 2)}</b></div><div class="go"><span>Place at</span><b>${fx(pr.min_odds, 2)}+</b></div>${pr.winamax_est ? `<div><span>Winamax usually</span><b>≈ ${fx(pr.winamax_est, 2)}</b></div>` : ""}</div>
     </footer>
-    <div class="slip-bar"><span class="slip-bar-name">${aw && hm ? `${h(T(aw).short)} at ${h(T(hm).short)}` : h(pr.name)}</span>${tkBox(pr, "g" + i)}
-      <div class="slip-acts"><button class="copybtn" data-copy="${h(ticketText(pr))}">Copy</button>${PAR && PAR.today && PAR.today.day && pr.game ? `<button class="copybtn" data-share="t/${h(PAR.today.day)}-${h(pr.game)}.html" data-title="${h(pr.name)}">Share</button>` : ""}<button class="copybtn primary" data-record="g${i}">Record as my bet</button></div></div>
+    ${draft ? `<div class="slip-bar slip-wait"><p>This ticket can still change until ${tipTime(today.lock_at)}, when the model picks the final legs with the latest injury news. Record and share it once it's locked.</p></div>` : `<div class="slip-bar"><span class="slip-bar-name">${aw && hm ? `${h(T(aw).short)} at ${h(T(hm).short)}` : h(pr.name)}</span>${tkBox(pr, "g" + i)}
+      <div class="slip-acts"><button class="copybtn" data-copy="${h(ticketText(pr))}">Copy</button>${PAR && PAR.today && PAR.today.day && pr.game ? `<button class="copybtn" data-share="t/${h(PAR.today.day)}-${h(pr.game)}.html" data-title="${h(pr.name)}">Share</button>` : ""}<button class="copybtn primary" data-record="g${i}">Record as my bet</button></div></div>`}
   </article>`;
 }
 function ticket(pr, main, idx) {

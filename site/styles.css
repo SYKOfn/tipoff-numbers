@@ -1283,3 +1283,7 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .teamgrid .sub { white-space: nowrap; }
 .vm-bar { display: block; height: 6px; margin: 8px 0 4px; border-radius: 4px; background: rgba(255,255,255,.08); overflow: hidden; }
 .vm-bar span { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, rgba(142,197,255,.5), var(--base)); }
+.slip-draft { position: absolute; top: 14px; left: 22px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--body);
+  padding: 3px 10px; border-radius: 999px; background: rgba(255,184,107,.12); }
+.slip-draft ~ .slip-teams, .slip-head:has(.slip-draft) { padding-top: 40px; }
+.slip-wait p { margin: 0; font-size: 13px; color: var(--muted); }

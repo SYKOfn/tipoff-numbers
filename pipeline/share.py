@@ -120,8 +120,8 @@ def page(t, day, slug):
 
 def write(today, teams=None):
     """today: the day's parlay.json "today" block. Returns the number of tickets written."""
-    if not today or not today.get("game_tickets") or not today.get("day"):
-        return 0
+    if not today or not today.get("game_tickets") or not today.get("day") or today.get("locked") is False:
+        return 0  # drafts change until the lock: only locked tickets get a share page
     for t in (teams or []):
         TEAM[t["abbr"]] = t.get("short") or t["abbr"]
     OUT.mkdir(parents=True, exist_ok=True)
