@@ -1287,3 +1287,22 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
   padding: 3px 10px; border-radius: 999px; background: rgba(255,184,107,.12); }
 .slip-draft ~ .slip-teams, .slip-head:has(.slip-draft) { padding-top: 40px; }
 .slip-wait p { margin: 0; font-size: 13px; color: var(--muted); }
+
+/* ---------------------------------------------------------------- page transitions (View Transitions API) */
+.top { view-transition-name: site-header; }
+@media (max-width: 900px), (hover: none) and (pointer: coarse), (display-mode: standalone) { .nav { view-transition-name: site-tabs; } }
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(root) { animation: vt-out .16s cubic-bezier(.4,0,1,1) both; }
+  ::view-transition-new(root) { animation: vt-in .34s cubic-bezier(.2,.7,.2,1) both .04s; }
+  ::view-transition-group(game-hero) { animation-duration: .42s; animation-timing-function: cubic-bezier(.2,.75,.15,1); }
+  ::view-transition-old(game-hero), ::view-transition-new(game-hero) { height: 100%; object-fit: cover; }
+  ::view-transition-old(game-hero) { animation: vt-fade .14s ease-out both; }
+}
+@keyframes vt-out { to { opacity: 0; transform: translateY(-8px) scale(.996); } }
+@keyframes vt-in { from { opacity: 0; transform: translateY(12px); } }
+@keyframes vt-fade { to { opacity: 0; } }
+/* things you press give a little */
+.gm, .tile, .pc, .hw-card, .slip { transform: perspective(1000px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) scale(var(--press, 1)); }
+:is(.gm, .pc, .hw-card):active { --press: .985; }
+:is(.pill-btn, .segs button, .nav a, .more summary, .daytabs a, .filters button, .sl summary, .rs-list summary):active { transform: scale(.97); }
+@media (prefers-reduced-motion: reduce) { :is(.gm, .pc, .hw-card):active { --press: 1; } }

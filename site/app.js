@@ -866,6 +866,7 @@ function setupSearch() {
 }
 
 let LAST_HASH = null;
+let LAST_GAME = null;  // the game page we came from (its card grows back on the way home)
 const SCROLL = {};
 async function route() {
   if (LAST_HASH !== null) SCROLL[LAST_HASH] = window.scrollY;
@@ -880,42 +881,59 @@ async function route() {
     more.setAttribute("aria-current", document.querySelector(".more-menu [aria-current='page']") ? "page" : "false");
     more.parentElement.open = false;
   }
-  // leave: a quick fade of the old page while the next one loads
-  app.classList.remove("entering");
-  app.classList.add("leaving");
-  const leaveDone = new Promise(r => setTimeout(r, REDUCED ? 0 : 140));
-  if (!app.firstElementChild || app.querySelector(".loading")) app.innerHTML = skeleton();
-  try {
-    await leaveDone;
+  const render = async () => {
     stopLive();
-    if (!page) await home();
-    else if (page === "games") await games(arg);
-    else if (page === "game") await game(arg);
-    else if (page === "standings") await standings();
-    else if (page === "teams") await teams();
-    else if (page === "team") await team(arg);
-    else if (page === "players") await playersPage();
-    else if (page === "player") await player(arg);
-    else if (page === "mind") await mind();
-    else if (page === "parlay") await parlayPage();
-    else if (page === "accuracy") await accuracy();
-    else if (page === "results") await results();
-    else if (page === "you") await yourBets();
-    else if (page === "about") await about();
-    else await home();
-    startLive();
-    // wide tables scroll sideways: reachable and announced for keyboard and screen-reader users
-    app.querySelectorAll(".tscroll").forEach(e => { e.tabIndex = 0; e.setAttribute("role", "region"); e.setAttribute("aria-label", "Table, scrolls sideways"); });
-  } catch (err) {
-    app.innerHTML = `<div class="wrap" style="padding-top:40px"><p class="empty">Couldn't load this page (${h(err.message)}).</p><p><a href="#/">Back home</a></p></div>`;
+    try {
+      if (!page) await home();
+      else if (page === "games") await games(arg);
+      else if (page === "game") await game(arg);
+      else if (page === "standings") await standings();
+      else if (page === "teams") await teams();
+      else if (page === "team") await team(arg);
+      else if (page === "players") await playersPage();
+      else if (page === "player") await player(arg);
+      else if (page === "mind") await mind();
+      else if (page === "parlay") await parlayPage();
+      else if (page === "accuracy") await accuracy();
+      else if (page === "results") await results();
+      else if (page === "you") await yourBets();
+      else if (page === "about") await about();
+      else await home();
+      startLive();
+      // wide tables scroll sideways: reachable and announced for keyboard and screen-reader users
+      app.querySelectorAll(".tscroll").forEach(e => { e.tabIndex = 0; e.setAttribute("role", "region"); e.setAttribute("aria-label", "Table, scrolls sideways"); });
+    } catch (err) {
+      app.innerHTML = `<div class="wrap" style="padding-top:40px"><p class="empty">Couldn't load this page (${h(err.message)}).</p><p><a href="#/">Back home</a></p></div>`;
+    }
+    window.scrollTo(0, SCROLL[HERE] || 0);
+    enhance(app);
+    syncAddButtons();
+    renderSlip();
+    // the game card and the game page's header are the same object: name the one on this page
+    if (page === "game") { const gh = app.querySelector(".gh"); if (gh) gh.style.viewTransitionName = "game-hero"; }
+    else if (LAST_GAME) { const c = app.querySelector(`.gm[href="#/game/${CSS.escape(LAST_GAME)}"], a[href="#/game/${CSS.escape(LAST_GAME)}"] .gm`); if (c) c.style.viewTransitionName = "game-hero"; }
+  };
+  if (document.startViewTransition && !REDUCED && app.firstElementChild && !app.querySelector(".sk")) {
+    // a real transition: the old page lifts away, the new one rises in; header and tab bar stay put
+    if (!(page === "game")) { const gh = app.querySelector(".gh"); if (gh && LAST_GAME) gh.style.viewTransitionName = "game-hero"; }
+    app.classList.remove("entering", "leaving");
+    const tr = document.startViewTransition(render);
+    try { await tr.finished; } catch (e) { /* skipped: the page is still rendered */ }
+    document.querySelectorAll("[style*='view-transition-name']").forEach(e => { e.style.viewTransitionName = ""; });
+  } else {
+    // fallback: a quick fade of the old page while the next one loads
+    app.classList.remove("entering");
+    app.classList.add("leaving");
+    const leaveDone = new Promise(r => setTimeout(r, REDUCED ? 0 : 140));
+    if (!app.firstElementChild || app.querySelector(".loading")) app.innerHTML = skeleton();
+    await leaveDone;
+    await render();
+    app.classList.remove("leaving");
+    void app.offsetWidth;  // restart the entrance animation
+    app.classList.add("entering");
+    document.querySelectorAll("[style*='view-transition-name']").forEach(e => { e.style.viewTransitionName = ""; });
   }
-  window.scrollTo(0, SCROLL[HERE] || 0);
-  app.classList.remove("leaving");
-  void app.offsetWidth;  // restart the entrance animation
-  app.classList.add("entering");
-  enhance(app);
-  syncAddButtons();
-  renderSlip();
+  LAST_GAME = page === "game" ? arg : LAST_GAME;
   app.focus({ preventScroll: true });
 }
 
@@ -1744,6 +1762,11 @@ async function results() {
     ${days || `<p class="empty">The first tickets are scored after tonight's games.</p>`}
   </div>`;
 }
+
+document.addEventListener("click", e => {
+  const card = e.target.closest && e.target.closest("a.gm[href^='#/game/'], a[href^='#/game/'] > .gm");
+  if (card && document.startViewTransition && !REDUCED) { LAST_GAME = null; card.style.viewTransitionName = "game-hero"; }
+}, true);
 
 /* ---------------------------------------------------------------- live tickets: legs follow the game as it is played */
 // Straight from ESPN's public game feed in the browser (it allows it), every 45 s while the page is open and a
