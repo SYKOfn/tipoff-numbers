@@ -309,9 +309,10 @@ async function games(sel) {
 async function standings() {
   const st = await get("standings.json");
   setTitle("Standings");
-  app.innerHTML = `<section class="hero court"><div class="wrap"><h1>Standings</h1><p class="sub" style="margin-top:8px">${h(st.season)} regular season. Net = rating, points better than an average team per game. Conf. = last five games versus what the ratings expected. Playoff chances from 4,000 simulations of the rest of the schedule, play-in included.</p></div></section>
+  app.innerHTML = `<section class="hero court"><div class="wrap"><h1>Standings</h1><p class="sub" style="margin-top:8px">${h(st.season)} regular season, with playoff chances from 4,000 simulations of the rest of the schedule.</p></div></section>
   <div class="wrap">${demoBanner()}${["East", "West"].map(cf => `<section class="section" style="margin-top:0;margin-bottom:34px"><h2>${cf}ern Conference</h2>${standingsTable(st[cf])}</section>`).join("")}
-  <div class="legend"><span><i style="background:var(--pos)"></i>Playoff spots (1-6)</span><span><i style="background:var(--body)"></i>Play-in (7-10)</span></div></div>`;
+  <div class="legend"><span><i style="background:var(--pos)"></i>Playoff spots (1-6)</span><span><i style="background:var(--body)"></i>Play-in (7-10)</span></div>
+  <p class="note small">Net: points better than an average team per game. Conf.: last five games against what the ratings expected.</p></div>`;
 }
 
 /* ---------------------------------------------------------------- teams */
@@ -1231,7 +1232,7 @@ async function mind() {
   const counts = {};
   rows.forEach(r => counts[r.cat] = (counts[r.cat] || 0) + 1);
   const mx = Math.max(4, ...rows.map(r => Math.abs(r.score)));
-  app.innerHTML = `<section class="hero court"><div class="wrap"><h1>Mind ranking</h1><p class="sub" style="margin-top:8px">Every team's state of mind right now: momentum from the current streak, the last ten games and how far recent results beat what the ratings expected; plus who is in a race, who is coasting and who is short-handed. On the right, the measured psychological edge each team carries into its next games.</p></div></section>
+  app.innerHTML = `<section class="hero court"><div class="wrap"><h1>Mind ranking</h1><p class="sub" style="margin-top:8px">Each team's momentum and state of mind right now, and the measured edge it carries into its next games.</p></div></section>
   <div class="wrap">${demoBanner()}
     <div class="catsum">${["Hot", "Steady", "Cold", "Under pressure", "Coasting"].map(c => `<div style="border-left:4px solid ${CATCOL[c]}"><b>${counts[c] || 0}</b>${c}</div>`).join("")}</div>
     <ul class="mindrank">${rows.map(r => {
