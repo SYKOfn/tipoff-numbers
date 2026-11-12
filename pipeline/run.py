@@ -819,13 +819,13 @@ def main(demo=False, now=None, collect_data=True):
     leg_results, leg_close = {}, {}
     for path in sorted(PAR.glob("*.json"))[-45:]:
         pj = read_json(path) or {}
-        for l in [l for pr in pj.get("parlays", []) for l in pr["legs"]] + pj.get("board", []) + pj.get("singles", []):
+        for l in [l for pr in pj.get("parlays", []) + pj.get("game_tickets", []) for l in pr["legs"]] + pj.get("board", []) + pj.get("singles", []):
             if l.get("result"):
                 leg_results[l["id"]] = l["result"]
         if pj.get("frozen"):
             leg_close.update(pj.get("last_seen", {}))
             # winners: Pinnacle's closing fair chance, the sharpest yardstick for any price you took
-            for l in [l for pr in pj.get("parlays", []) for l in pr["legs"]] + pj.get("board", []) + pj.get("singles", []):
+            for l in [l for pr in pj.get("parlays", []) + pj.get("game_tickets", []) for l in pr["legs"]] + pj.get("board", []) + pj.get("singles", []):
                 if l.get("kind") != "ml" or l["id"] not in leg_close:
                     continue
                 gr = c.meta.get(l["game"])
