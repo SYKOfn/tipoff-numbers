@@ -82,6 +82,11 @@ def lines_around(center, sd, step, n=2):
 
 
 
+def locked_tickets(day_parlay):
+    """Every locked ticket the late-news check watches: the game tickets and the multi-game parlays."""
+    return (day_parlay.get("game_tickets") or []) + (day_parlay.get("parlays") or [])
+
+
 def hist_day(h_):
     """One day of the public record: every ticket issued, its stated chance and how it ended (nothing removed)."""
     leg = lambda l: {"desc": l["desc"], "p": l["p"], "result": l.get("result"), "kind": l["kind"], "team": l.get("team"), "clv": l.get("clv")}
@@ -719,7 +724,7 @@ def main(demo=False, now=None, collect_data=True):
                         for x in (pay_.get("players") or {}).get(side_, []):
                             now_pl[str(x["id"])] = x
                 started_ = {str(g_["game_id"]) for g_, _ in slate if g_.get("state") in ("in", "post")}
-                parlay.late_check(today_parlay["parlays"], cands, now_pl, started_)
+                parlay.late_check(locked_tickets(today_parlay), cands, now_pl, started_)
             elif now >= lock_at:
                 today_parlay["locked"] = True
                 today_parlay["locked_at"] = now.isoformat()

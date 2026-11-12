@@ -360,6 +360,18 @@ def test_late_check_flags_and_swaps():
     assert "alert" not in tickets[0]["legs"][0] and "alert" not in tickets[0]["legs"][1]
 
 
+def test_late_check_covers_game_tickets():
+    from model import parlay
+    from pipeline.run import locked_tickets
+    leg = {"id": "g1", "game": "5", "kind": "prop", "player": "88", "stat": "reb", "line": 6.5, "desc": "Y over 6.5 rebounds",
+           "p_model": 0.8, "p": 0.8, "price": 1.25}
+    other = {"id": "g2", "game": "6", "kind": "ml", "team": "LAL", "desc": "LAL to win", "p_model": 0.8, "p": 0.8, "price": 1.25, "edge": 0.0}
+    same = {"id": "g3", "game": "5", "kind": "ml", "team": "DEN", "desc": "DEN to win", "p_model": 0.8, "p": 0.8, "price": 1.25, "edge": 0.0}
+    day = {"game_tickets": [{"name": "G", "games": 1, "game": "5", "legs": [leg]}], "parlays": []}
+    parlay.late_check(locked_tickets(day), [other, same], {"88": {"id": "88", "out": True, "status": "Out"}}, started=set())
+    assert "Out" in leg["alert"] and leg["swap"]["id"] == "g3"     # a game ticket's swap stays in its own game
+
+
 def test_gate_runs_when_lock_due(tmp_path):
     from datetime import datetime, timezone
     from pipeline import should_run
