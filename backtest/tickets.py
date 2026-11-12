@@ -54,6 +54,8 @@ def main(season, d0=None, d1=None, rules=("base",)):
     tickets, ests = {r: [] for r in rules}, {}
     for day in sorted(set(days)):
         before = pl[pl["day"] < day]
+        hist = {pid: d_ for pid, d_ in before.groupby(before["player_id"].astype(str))}
+        ests_t = {}
         avg = {}
         for pid, d_ in before.groupby(before["player_id"].astype(str)):
             l5 = d_.tail(5)
@@ -65,6 +67,7 @@ def main(season, d0=None, d1=None, rules=("base",)):
                 continue
             est = engine.predict(c, g, c.ctxs[gid], {}, eff=c.eff, base_override=c.base[gid], lineup_feat=c.lfeat.get(gid))
             ests[gid] = est["margin"]
+            ests_t[gid] = est["total"]
             side_rows = {}
             for side in ("home", "away"):
                 rows = []
@@ -97,6 +100,20 @@ def main(season, d0=None, d1=None, rules=("base",)):
                            "starter": int((rows.get(str(l.get("player"))) or {}).get("starter") or 0),
                            "pmin": (plogs.get((gid, str(l.get("player")))) or {}).get("min"), "amin": (rows.get(str(l.get("player"))) or {}).get("min")}
                           for l, x in zip(tk["legs"], res)]
+                for dd, l in zip(detail, tk["legs"]):  # inputs known before the game, for testing new leg factors
+                    side = "home" if l.get("team") == gm["home"] else "away"
+                    cx, ox = c.ctxs[gid][side], c.ctxs[gid]["away" if side == "home" else "home"]
+                    dd.update(home=side == "home", total=ests_t.get(gid), rest=cx.get("rest"), b2b=cx.get("b2b"),
+                              t34=cx.get("three_in_four"), km=cx.get("km"), miss=cx.get("missing"), omiss=ox.get("missing"),
+                              opp_b2b=ox.get("b2b"), proj=l.get("proj"), avg=l.get("avg"), l5=l.get("last5"),
+                              voices=l.get("voices"), sd=(l.get("dist") or {}).get("sd"))
+                    if l.get("kind") == "prop":
+                        h = hist.get(str(l.get("player")))
+                        if h is not None and len(h):
+                            v = h[l["stat"]].tail(10).to_numpy(float)
+                            dd.update(l10_over=float((v > l["line"]).mean()), l10_sd=float(v.std()),
+                                      min_l3=float(h["min"].tail(3).mean()), min_szn=float(h["min"].mean()),
+                                      start_last=int(h["starter"].iloc[-1] or 0) if "starter" in h else None, gp=len(h))
                 tickets[rname].append({"day": day, "game": gid, "home": gm["home"], "p": tk["p"], "est": tk.get("winamax_est"),
                                 "m_exp": ests.get(gid), "m_act": gm["home_pts"] - gm["away_pts"],
                                 "legs": [(l["p"], x, l.get("kind")) for l, x in zip(tk["legs"], res)], "detail": detail,
