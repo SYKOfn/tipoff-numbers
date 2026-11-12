@@ -1046,7 +1046,7 @@ details.tw-card[open] > summary { margin-bottom: 12px; }
   --ease: cubic-bezier(.2,.7,.2,1);
 }
 body { font-family: var(--text); background: var(--floor);
-  font-feature-settings: "cv11", "ss01"; -webkit-font-smoothing: antialiased; }
+  -webkit-font-smoothing: antialiased; }
 h1, h2, .brand { font-family: var(--display); font-weight: 500; letter-spacing: -0.015em; font-optical-sizing: auto; }
 h1 { font-size: clamp(2.3rem, 5.2vw, 4.1rem); line-height: 1.02; text-wrap: balance; }
 h2 { font-size: clamp(1.5rem, 2.6vw, 2.1rem); line-height: 1.12; text-wrap: balance; }
