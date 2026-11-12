@@ -33,7 +33,7 @@ def rule(name, ests, plogs):
         if "min35" in name and pmin >= 35:
             return False
         return True
-    return None if name == "base" else keep
+    return None if name in ("base", "nofix") else keep
 
 
 def main(season, d0=None, d1=None, rules=("base",)):
@@ -83,6 +83,9 @@ def main(season, d0=None, d1=None, rules=("base",)):
             continue
         for rname in rules:
             parlay.TICKET_FILTER = rule(rname, ests, plogs)
+            w0 = dict(parlay.LEG_W)
+            if rname == "nofix":  # the leg chance before the game-script correction
+                parlay.LEG_W.update(dog=0.0, min_hi=0.0)
             out, _ = parlay.build(slate, pdisp, {}, avg)
             for tk in out.get("game_tickets", []):
                 gid = tk["game"]
@@ -98,6 +101,7 @@ def main(season, d0=None, d1=None, rules=("base",)):
                                 "m_exp": ests.get(gid), "m_act": gm["home_pts"] - gm["away_pts"],
                                 "legs": [(l["p"], x, l.get("kind")) for l, x in zip(tk["legs"], res)], "detail": detail,
                                 "hit": bool(live) and all(x == "hit" for x in live)})
+            parlay.LEG_W.update(w0)
         print(day, {r: len(v) for r, v in tickets.items()}, flush=True)
     parlay.TICKET_FILTER = None
     json.dump(tickets, open(f"/tmp/tickets_{season}.json", "w"), default=float)

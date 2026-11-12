@@ -97,17 +97,23 @@ def singles_value(l, books):
 # Held out on 2025-27 the stated chances matched what landed in every band (e.g. 77.7% stated, 77.2% landed).
 # Tickets over 2022-27 against the plain consensus + minutes tilt: Core 3 landed 68% (67%), the daily 6 47% (43%),
 # the 5-leg long shot 21% (19%). Safe / long is still decided by the voices agreeing (the consensus).
-LEG_W = {"b0": 0.284, "model": 0.645, "avg": 0.14, "l5": 0.094, "min": 0.018, "tpm_high": -0.173}
+LEG_W = {"b0": 0.284, "model": 0.645, "avg": 0.14, "l5": 0.094, "min": 0.018, "tpm_high": -0.173,
+         # game script (backtest/tickets.py, 2025-26 replay; fitted Oct-Jan, held up Feb-Apr): players on a team
+         # expected to lose by more than 4 land less often, per point beyond 4, and so do players projected
+         # beyond 34 minutes, per minute (heavy-minute projections run high)
+         "dog": -0.010, "min_hi": -0.09}
 
 
-def agreed_chance(voices, minutes, stat, line):
-    """voices: over chances from [projection, season average, last 5 (, market)]."""
+def agreed_chance(voices, minutes, stat, line, margin=None):
+    """voices: over chances from [projection, season average, last 5 (, market)]; margin: the player's team's
+    expected margin (negative when expected to lose)."""
     lg = lambda v: logit(min(max(v, 1e-4), 1 - 1e-4))
     z = (LEG_W["b0"] + LEG_W["model"] * lg(voices[0]) + LEG_W["avg"] * lg(voices[1]) + LEG_W["l5"] * lg(voices[2])
          + LEG_W["min"] * (min(max(minutes or 30.0, 20.0), 38.0) - 30.0)
          + (LEG_W["tpm_high"] if stat == "tpm" and line >= 1.5 else 0.0))
     if len(voices) > 3:  # a real market line: half the weight
         z = 0.5 * z + 0.5 * lg(voices[3])
+    z += LEG_W["dog"] * max(-(margin or 0.0) - 4.0, 0.0) + LEG_W["min_hi"] * max((minutes or 30.0) - 34.0, 0.0)
     return sigmoid(z)
 EST_T = {"pts": 1.05, "reb": 1.1, "ast": 1.1, "tpm": 1.05, "pra": 1.1}
 # markets Winamax lets you bet only on their own, never inside a combiné with other legs
@@ -264,7 +270,7 @@ def novig(a, b):
     return ia / (ia + ib)
 
 
-def prop_legs(game, players, calib, avg, disp_all, real=None):
+def prop_legs(game, players, calib, avg, disp_all, real=None, m_home=None):
     """Player props at the line a bookmaker would most likely post: books anchor main lines on the player's
     season average, so that line is estimated as his average rounded to .5. A leg is a candidate when the
     projection (matchup, minutes, teammates out, psychology) disagrees with that line."""
@@ -335,7 +341,8 @@ def prop_legs(game, players, calib, avg, disp_all, real=None):
                         pa_over = min(max(voices[1], 0.03), 0.97)
                         price = round(1 / (pa_over * winamax_margin(pa_over)), 2)
                         cons = pc  # the consensus decides safe / long; the stated chance is agreed_chance (measured weights)
-                        pc = agreed_chance(voices, pl.get("min"), st, L)
+                        pc = agreed_chance(voices, pl.get("min"), st, L,
+                                           None if m_home is None else (m_home if side == "home" else -m_home))
                         legs.append(_leg(game, "prop", f"{pl['name']} over {L:.1f} {STAT_NAME[st]}", voices[0], pc, price,
                                          consensus=round(cons, 4),
                                          dist={"mu": round(proj, 2), "sd": round(sd_for(st, proj, dp), 2), "d": round(dp.get(st, 1.5), 3), "alone": 1.0, "model": 1.0},
@@ -651,7 +658,7 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None)
                 continue
             legs = book_legs(game, est, players, g.get("odds"), (g.get("offers") or {}).get("offers", []), calib, disp, gap)
         else:
-            legs = team_legs(game, est, g.get("odds"), gap) + prop_legs(game, players, calib, avg or {}, disp, real_props)
+            legs = team_legs(game, est, g.get("odds"), gap) + prop_legs(game, players, calib, avg or {}, disp, real_props, m_home=est.get("margin"))
         games[game["id"]] = game
         books_of[game["id"]] = g.get("odds_books") or {}
         sims[game["id"]] = simulate(game, est, players, disp, rng)
