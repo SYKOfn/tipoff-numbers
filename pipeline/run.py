@@ -710,18 +710,18 @@ def main(demo=False, now=None, collect_data=True):
     history = []
     for path in sorted(PAR.glob("*.json")):
         pj = read_json(path)
-        if not pj or not pj.get("parlays"):
+        if not pj or not (pj.get("parlays") or pj.get("game_tickets") or pj.get("singles")):
             continue
         if not pj.get("scored"):
-            gids = {l["game"] for pr in pj["parlays"] + pj.get("game_tickets", []) for l in pr["legs"]} | {l["game"] for l in pj.get("singles", [])}
+            gids = {l["game"] for pr in pj.get("parlays", []) + pj.get("game_tickets", []) for l in pr["legs"]} | {l["game"] for l in pj.get("singles", [])}
             if gids and all(gid in fin_rows for gid in gids):
-                for pr in pj["parlays"]:
-                    for l in pr["legs"] + ([] if pr is not pj["parlays"][0] else []):
+                for pr in pj.get("parlays", []):
+                    for l in pr["legs"] + ([] if pr is not pj.get("parlays", [])[0] else []):
                         pass
                 def sc(l):
                     rows = {r["player_id"]: r for team in byg.get(l["game"], {}).values() for r in team}
                     l["result"] = parlay.score_leg(l, fin_rows.get(l["game"]), rows)
-                for pr in pj["parlays"] + pj.get("game_tickets", []):
+                for pr in pj.get("parlays", []) + pj.get("game_tickets", []):
                     for l in pr["legs"]:
                         sc(l)
                     live_legs = [l for l in pr["legs"] if l["result"] != "void"]
@@ -756,7 +756,7 @@ def main(demo=False, now=None, collect_data=True):
                     "clv_avg": round(sum(v["clv"] for v in vb if v.get("clv") is not None) / max(1, sum(1 for v in vb if v.get("clv") is not None)), 4)} if vb else None
     rec = {}
     for pr_name in ("Value 2", "Core 3", "Same-game 3", "The daily 6", "Long shot 1", "Long shot 2", "Long shot 3"):
-        items = [pr for h_ in history for pr in h_["parlays"] if pr["name"] == pr_name]
+        items = [pr for h_ in history for pr in h_.get("parlays", []) if pr["name"] == pr_name]
         if items:
             legs = [l for pr in items for l in pr["legs"] if l.get("result") in ("hit", "miss")]
             rec[pr_name] = {"n": len(items), "hits": sum(pr.get("result") == "hit" for pr in items),
@@ -767,7 +767,12 @@ def main(demo=False, now=None, collect_data=True):
     if gt:
         gl = [l for pr in gt for l in pr["legs"] if l.get("result") in ("hit", "miss")]
         rec["One per game"] = {"n": len(gt), "hits": sum(pr["result"] == "hit" for pr in gt), "expected": round(sum(pr["p"] for pr in gt), 2),
-                               "legs": len(gl), "leg_hits": sum(l["result"] == "hit" for l in gl), "leg_expected": round(sum(l["p"] for l in gl), 1)}
+                               "legs": len(gl), "leg_hits": sum(l["result"] == "hit" for l in gl), "leg_expected": round(sum(l["p"] for l in gl), 1),
+                               # 1 unit per ticket: at fair odds (1/p) and at the estimated Winamax payout
+                               "profit_fair": round(sum((1 / pr["p"] - 1) if pr["result"] == "hit" else -1 for pr in gt), 2),
+                               "profit_est": round(sum(((pr.get("winamax_est") or 1) - 1) if pr["result"] == "hit" else -1 for pr in gt), 2),
+                               "by_kind": {k: {"legs": sum(1 for l in gl if l.get("kind") == k), "hits": sum(1 for l in gl if l.get("kind") == k and l["result"] == "hit"),
+                                               "expected": round(sum(l["p"] for l in gl if l.get("kind") == k), 1)} for k in sorted({l.get("kind") for l in gl})}}
     sg = [l for h_ in history for l in h_.get("singles", []) if l.get("result") in ("hit", "miss")]
     if sg:
         rec["Singles"] = {"n": len(sg), "hits": sum(l["result"] == "hit" for l in sg), "expected": round(sum(l["p"] for l in sg), 1),

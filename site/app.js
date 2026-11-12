@@ -1325,7 +1325,7 @@ setInterval(tickClocks, 30000);
 document.addEventListener("input", e => {
   const tk = e.target.closest && e.target.closest(".tkodds[data-tk]");
   if (!tk || !(PAR && PAR.today && PAR.today.parlays)) return;
-  const pr = PAR.today.parlays[+tk.dataset.tk], v = parseFloat(tk.value);
+  const pr = tkOf(PAR.today, tk.dataset.tk), v = parseFloat(tk.value);
   LS.set(tkKey(pr), v > 1 ? v : null);
   document.querySelectorAll(`[data-tkv="${tk.dataset.tk}"]`).forEach(el => { el.innerHTML = tkVerdict(pr); });
 });
@@ -1348,12 +1348,13 @@ function ticketText(pr) {
   return `${pr.name} — Tip-Off Numbers\n` + (pr.story ? `${pr.story}\n` : "") + pr.legs.map((l, i) => `${i + 1}. ${legDesc(l)} (${T(matchTeams(l)[0]).abbr} @ ${T(matchTeams(l)[1]).abbr}) — ${pct(l.p)}, take at ${fx(l.min_odds, 2)}+${l.story ? `\n   ${l.story}` : ""}`).join("\n")
     + `\nAll legs: ${pct(pr.p)} · fair combined odds ${fx(pr.fair, 2)} · worth it at ${fx(pr.min_odds, 2)}+${pr.winamax_est ? ` · Winamax usually about ${fx(pr.winamax_est, 2)}` : ""}`;
 }
-function gameTicket(pr) {
+const tkOf = (t, k) => t && (String(k)[0] === "g" ? (t.game_tickets || [])[+String(k).slice(1)] : (t.parlays || [])[+k]);
+function gameTicket(pr, i) {
   const sc = pr.scenarios || {}, lab = { close: "close game (6 pts or less)", normal: "normal margin", blowout: "blowout (15+)", home_wins: "home team wins", away_wins: "away team wins", overtime: "overtime" };
   const rows = Object.entries(lab).filter(([k]) => sc[k]).map(([k, t]) => `<li>${t}: <b>${pct(sc[k].lands)}</b> <span class="sub">(${pct(sc[k].share)} of the simulated games)</span></li>`).join("");
   return `<div class="ticket"><div class="ticket-head"><div><h3>${h(pr.name)}${pr.result ? ` <span class="cat ${pr.result === "hit" ? "Hot" : "Cold"}">${pr.result}</span>` : ""}</h3><p>${h(pr.why || "")}</p></div>
-    <span><button class="copybtn" data-copy="${h(ticketText(pr))}">Copy ticket</button></span></div>
-    <ul class="legs">${pr.legs.map(legRow).join("")}</ul>
+    <span><button class="copybtn" data-copy="${h(ticketText(pr))}">Copy ticket</button> <button class="copybtn" data-record="g${i}">Record as my bet</button></span></div>
+    ${tkBox(pr, "g" + i)}<ul class="legs">${pr.legs.map(legRow).join("")}</ul>
     ${rows ? `<p class="sub small" style="margin-top:8px"><b>How it lands in each kind of game</b></p><ul class="sub small">${rows}</ul>` : ""}
     <div class="ticket-foot"><div><b>${pct(pr.p)}</b>chance all ${pr.n_legs} land</div><div><b>${fx(pr.fair, 2)}</b>fair combined odds</div>
       <div class="go"><b>${fx(pr.min_odds, 2)}+</b>worth placing at these combined odds or better</div>
@@ -1500,7 +1501,7 @@ async function parlayPage() {
   const clv = d.clv || {};
   const selR = rec._selection;
   const selHtml = selR && selR.ticket_legs.n ? `<p class="sub small" style="margin-top:12px">Legs that went into tickets: <b>${selR.ticket_legs.hits}/${selR.ticket_legs.n}</b> landed (expected ${fx(selR.ticket_legs.expected, 1)}) · every other leg the model rated: <b>${selR.other_legs.hits}/${selR.other_legs.n}</b> (expected ${fx(selR.other_legs.expected, 1)}). If ticket legs keep falling short while the rest do not, the way tickets are chosen is biased.${selR.ticket_by_source ? " By source: " + [["team", "team legs"], ["prop_priced", "player legs with a real price"], ["prop_estimated", "player legs with an estimated price"]].filter(([k]) => (selR.ticket_by_source[k] || {}).n).map(([k, lab]) => `${lab} <b>${selR.ticket_by_source[k].hits}/${selR.ticket_by_source[k].n}</b> (expected ${fx(selR.ticket_by_source[k].expected, 1)})`).join(" · ") + "." : ""}</p>` : "";
-  const recHtml = Object.keys(rec).filter(k => !k.startsWith("_")).length ? `<div class="grid">${Object.entries(rec).filter(([k]) => !k.startsWith("_")).map(([k, r]) => `<div class="panel"><h3>${h(k)}</h3><div class="adv"><div><b>${r.hits}/${r.n}</b>tickets landed<br>expected ${fx(r.expected, 1)}</div><div><b>${r.leg_hits}/${r.legs}</b>legs landed<br>expected ${fx(r.leg_expected, 1)}</div></div></div>`).join("")}</div>`
+  const recHtml = Object.keys(rec).filter(k => !k.startsWith("_")).length ? `<div class="grid">${Object.entries(rec).filter(([k]) => !k.startsWith("_")).map(([k, r]) => `<div class="panel"><h3>${h(k)}</h3><div class="adv"><div><b>${r.hits}/${r.n}</b>tickets landed<br>expected ${fx(r.expected, 1)}</div><div><b>${r.leg_hits}/${r.legs}</b>legs landed<br>expected ${fx(r.leg_expected, 1)}</div>${r.profit_est != null ? `<div><b>${sgn(r.profit_est, 1)}</b>units at the estimated Winamax payout<br>${sgn(r.profit_fair, 1)} at fair odds · 1 unit a ticket</div>` : ""}</div>${r.by_kind ? `<p class="small">${Object.entries(r.by_kind).map(([k, b]) => `${h(KIND[k] || k)}: ${b.hits}/${b.legs} (expected ${fx(b.expected, 1)})`).join(" · ")}</p>` : ""}</div>`).join("")}</div>`
     : `<p class="note">No slate has been scored yet. Each day's tickets are frozen at the first tip-off and scored after the last game; nothing is ever changed afterwards.</p>`;
   const clvBox = (title, c, unit) => `<div class="panel"><h3>${title}</h3>${c && c.moved ? `<div class="adv"><div><b>${c.beat}/${c.moved}</b>moved our way<br>${pct(c.beat / c.moved)}</div>${c.avg_p != null ? `<div><b>${sgn(c.avg_p * 100, 2)}</b>avg chance points</div>` : ""}${c.avg_pts != null ? `<div><b>${sgn(c.avg_pts, 2)}</b>avg line points</div>` : ""}</div>` : `<p class="sub small">${unit}</p>`}</div>`;
   const mc = clv.model || {};
@@ -1611,7 +1612,7 @@ async function parlayPage() {
     if (r && t) {
       const k = r.dataset.record;
       if (k === "custom") { const legs = slipLegs(); if (legs.length) recordBet("My ticket", legs, jointOf(legs)); }
-      else { const pr = t.parlays[+k]; recordBet(pr.name, pr.legs, tkP(pr), LS.get(tkKey(pr), null)); }
+      else { const pr = tkOf(t, k); if (!pr) return; recordBet(pr.name, pr.legs, tkP(pr), LS.get(tkKey(pr), null)); }
       document.getElementById("mybets").innerHTML = myBets();
       r.textContent = "Recorded";
     }
