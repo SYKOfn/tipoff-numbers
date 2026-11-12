@@ -850,6 +850,11 @@ def main(demo=False, now=None, collect_data=True):
                                       "clv": {"tickets": clv_summary(clv_legs), "all_legs": clv_summary(clv_all), "model": model_clv},
                                       "value_record": value_record,
                                       "history": [hist_day(h_) for h_ in history[-160:][::-1]]})
+    try:  # share previews: a page and a picture per game ticket (pipeline/share.py)
+        from . import share
+        share.write(today_parlay, read_json(SITE / "teams.json", []))
+    except Exception as e:
+        print("share previews skipped:", e)
 
     # players: next-game projection per player, pages, index
     next_proj = {}

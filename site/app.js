@@ -1400,7 +1400,7 @@ function gameTicket(pr, i) {
       <div class="slip-figs"><div><span>Fair odds</span><b>${fx(pr.fair, 2)}</b></div><div class="go"><span>Place at</span><b>${fx(pr.min_odds, 2)}+</b></div>${pr.winamax_est ? `<div><span>Winamax usually</span><b>≈ ${fx(pr.winamax_est, 2)}</b></div>` : ""}</div>
     </footer>
     <div class="slip-bar"><span class="slip-bar-name">${aw && hm ? `${h(T(aw).short)} at ${h(T(hm).short)}` : h(pr.name)}</span>${tkBox(pr, "g" + i)}
-      <div class="slip-acts"><button class="copybtn" data-copy="${h(ticketText(pr))}">Copy</button><button class="copybtn primary" data-record="g${i}">Record as my bet</button></div></div>
+      <div class="slip-acts"><button class="copybtn" data-copy="${h(ticketText(pr))}">Copy</button>${PAR && PAR.today && PAR.today.day && pr.game ? `<button class="copybtn" data-share="t/${h(PAR.today.day)}-${h(pr.game)}.html" data-title="${h(pr.name)}">Share</button>` : ""}<button class="copybtn primary" data-record="g${i}">Record as my bet</button></div></div>
   </article>`;
 }
 function ticket(pr, main, idx) {
@@ -1786,6 +1786,17 @@ async function liveTick() {
     if (g.final) slip.dataset.done = "1";
   }
 }
+
+/* share a ticket: the phone's share sheet, or the link copied (the link opens as a picture of the slip) */
+document.addEventListener("click", async e => {
+  const b = e.target.closest && e.target.closest("[data-share]");
+  if (!b) return;
+  const url = new URL(b.dataset.share, location.href.split("#")[0]).href;
+  try {
+    if (navigator.share) await navigator.share({ title: b.dataset.title || "Tip-Off Numbers ticket", url });
+    else { await navigator.clipboard.writeText(url); b.textContent = "Link copied"; setTimeout(() => { b.textContent = "Share"; }, 2000); }
+  } catch (err) { /* share sheet closed */ }
+});
 
 /* ---------------------------------------------------------------- Tickets page: one section at a time */
 function showSeg(k) {
