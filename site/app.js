@@ -50,7 +50,7 @@ function readable(hex) {
 }
 function disc(ab, size = "sm") {
   const t = T(ab);
-  if (t.logo) return `<span class="disc logo ${size}"><img src="${h(t.logo)}" alt="" loading="lazy"></span>`;
+  if (t.logo) return `<span class="disc logo ${size}" style="--tc:${teamInk(ab)}"><img src="${h(logoDark(t))}" alt="" loading="lazy" decoding="async"></span>`;
   return `<span class="disc ${size}" style="background:${readable(t.color)}">${h(ab)}</span>`;
 }
 const tlink = ab => `<a class="tlink" href="#/team/${h(ab)}">${disc(ab, "xs")}<span>${h(T(ab).short)}</span></a>`;
@@ -136,7 +136,11 @@ function teamInk(ab) {
 // team badge: dark letters on bright team colours, white on deep ones (always 4.5:1 or better)
 const monoText = bg => { const n = parseInt(bg.slice(1), 16), f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
   const L = 0.2126 * f(n >> 16 & 255) + 0.7152 * f(n >> 8 & 255) + 0.0722 * f(n & 255); return (L + 0.05) / 0.05 > 1.05 / (L + 0.05) ? "#0A0B0F" : "#fff"; };
-const mono = (ab, cls = "") => { const bg = teamInk(ab); return `<span class="mono ${cls}" style="background:${bg};color:${monoText(bg)}">${h(T(ab).abbr)}</span>`; };
+// team badge: the team's logo (ESPN's dark-background version) on a tile lit in the team colour; letters if no logo
+const logoDark = t => t.logo ? t.logo.replace("/500/", "/500-dark/") : null;
+const mono = (ab, cls = "") => { const t = T(ab), bg = teamInk(ab), lg = logoDark(t);
+  return lg ? `<span class="mono lg ${cls}" style="--tc:${bg}" title="${h(t.name || t.abbr)}"><img src="${h(lg)}" alt="${h(t.abbr)}" loading="lazy" decoding="async"></span>`
+    : `<span class="mono ${cls}" style="background:${bg};color:${monoText(bg)}">${h(t.abbr)}</span>`; };
 function tnLeg(l) {
   const teams = matchTeams(l), p = effP(l);
   const badge = l.kind === "total" ? `<span class="mono" style="background:#2A2D3A">O/U</span>` : mono(l.team || teams[1]);
@@ -335,7 +339,7 @@ async function team(ab) {
   const inj = t.injuries.length ? `<ul class="spots">${t.injuries.map(i => `<li><div class="sh"><b>${h(i.name)}</b><span class="pill ${i.weight >= 1 ? "weak" : "none"}">${h(i.status)}</span></div>${i.detail ? `<p>${h(i.detail)}</p>` : ""}</li>`).join("")}</ul>` : `<p class="sub">Nobody listed.</p>`;
   const roster = t.roster.length ? `<div class="tscroll"><table><tr><th>Player</th><th class="n">GP</th><th class="n">Min</th><th class="n">Pts</th><th class="n">Reb</th><th class="n">Ast</th><th>Share of production</th></tr>
     ${t.roster.map(p => `<tr><td>${h(p.name)}</td><td class="n">${p.gp}</td><td class="n">${fx(p.mpg)}</td><td class="n">${fx(p.ppg)}</td><td class="n">${fx(p.rpg)}</td><td class="n">${fx(p.apg)}</td><td>${p.share ? `<span class="share"><span style="width:${Math.min(100, p.share * 300)}%"></span></span>${pct(p.share)}` : `<span class="sub">not a current regular</span>`}</td></tr>`).join("")}</table></div>` : `<p class="sub">No box scores yet.</p>`;
-  app.innerHTML = `<section class="thero" style="background:linear-gradient(110deg, ${col}, color-mix(in srgb, ${col} 55%, #0b1426))"><div class="wrap">${disc(t.abbr, "lg")}
+  app.innerHTML = `<section class="thero" style="--tc:${col}"><div class="wrap">${disc(t.abbr, "lg")}
     <div><h1>${h(t.name)}</h1><p class="meta">${h(t.conf)}ern Conference · ${h(t.div)}</p>
     <div class="facts"><div><b>${h(t.record)}</b>record</div><div><b>${t.seed ?? "–"}</b>seed</div><div><b>${sgn(t.net)}</b>net rating (#${t.net_rank})</div>
     <div><b>#${t.off_rank}</b>offence</div><div><b>#${t.def_rank}</b>defence</div><div><b>${t.streak ? (t.streak > 0 ? "W" : "L") + Math.abs(t.streak) : "–"}</b>streak</div></div></div></div></section>
