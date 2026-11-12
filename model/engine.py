@@ -131,6 +131,7 @@ def build_context(games, players, upcoming, tuned=None, effects_until=None, stin
         sr.fit(fin["day"].max())
     c.lineup, c.lfeat, c.stack, c.rows_raw, c.style, c.rapm, c.officials = lt, lfeat, stack, rows_raw, sty, rp, otr
     c.srapm = sr
+    c.stints = stints  # play-by-play lineups, also read by player_engine.walk (rotation habits)
     return c
 
 

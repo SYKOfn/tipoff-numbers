@@ -40,6 +40,8 @@ def rule(name, ests, plogs):
 def main(season, d0=None, d1=None, rules=("base",)):
     import os
     PE.MIN_CAL = os.environ.get("MIN_CAL") == "1"  # replay with the minutes calibration on
+    if os.environ.get("ROT_PBP"):  # replay with the play-by-play rotation inputs on (1) or off (0)
+        P.ROT_PBP = os.environ["ROT_PBP"] == "1"
     games, players = load_games(), load_players()
     c = engine.build_context(games, players, [], {"half_life": 90, "lam": 3.0, "carry": 0.6, "lam_effects": 40.0},
                              stints=load_stints())
@@ -126,7 +128,7 @@ def main(season, d0=None, d1=None, rules=("base",)):
             parlay.LEG_W.update(w0)
         print(day, {r: len(v) for r, v in tickets.items()}, flush=True)
     parlay.TICKET_FILTER = None
-    json.dump(tickets, open(f"/tmp/tickets_{season}.json", "w"), default=float)
+    json.dump(tickets, open(f"/tmp/tickets_{season}{os.environ.get('TAG', '')}.json", "w"), default=float)
     for rname, tk in tickets.items():
         print(f"\n== rule: {rname}")
         report(season, tk)

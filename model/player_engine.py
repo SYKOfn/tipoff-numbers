@@ -13,6 +13,34 @@ STORY = {
 }
 
 
+def rotation_pbp(stints):
+    """Fourth-quarter (and overtime) court time from the play-by-play lineups, per (game, player):
+    (seconds on court while the game was close, seconds the game was close, same two for blowouts).
+    Close = within CLOSE points at the start of the stint, blowout = BLOW or more."""
+    out = {}
+    if stints is None or not len(stints):
+        return out
+    for gid, d in stints.groupby(stints["game_id"].astype(str), sort=False):
+        d = d.sort_values(["period", "start"])
+        m = (d["h_pts"] - d["a_pts"]).cumsum().shift(fill_value=0).abs().to_numpy()
+        acc = defaultdict(lambda: [0.0, 0.0, 0.0, 0.0])
+        tot = [0.0, 0.0]
+        for (per, dur, hi, ai), mm in zip(d[["period", "dur", "home_ids", "away_ids"]].itertuples(index=False), m):
+            if per < 4 or not dur or dur <= 0:
+                continue
+            k = 0 if mm <= P.ROT_CLOSE else 1 if mm >= P.ROT_BLOW else None
+            if k is None:
+                continue
+            tot[k] += dur
+            for ids in (hi, ai):
+                for pid in str(ids).split(";"):
+                    acc[pid][2 * k] += dur
+        out[(str(gid), None)] = (0.0, tot[0], 0.0, tot[1])  # players who sat all of it
+        for pid, a in acc.items():
+            out[(str(gid), pid)] = (a[0], tot[0], a[2], tot[1])
+    return out
+
+
 def rows_by_game(df):
     out = defaultdict(lambda: defaultdict(list))
     if df is None or not len(df):
@@ -73,6 +101,7 @@ def walk(c, players_df, notes, cur, use_mm=True, ev=None, opp_mode="team", norm=
     pt = P.PlayerTracker()
     pt.use_mm = use_mm
     pt.opp_mode = opp_mode
+    pt.pbp = rotation_pbp(getattr(c, "stints", None)) if P.ROT_PBP else {}
     byg = rows_by_game(players_df)
     rows_eff, logs = [], {}
     sq = defaultdict(float)

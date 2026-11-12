@@ -71,7 +71,20 @@ BIAS_STATS = {"pts"}
 
 
 MIN_FEATS = ["const", "m8", "m3", "season", "last", "started", "gain_same", "gain_other", "blowout", "b2b",
-             "returning", "new", "crowd", "early_m8", "early_season", "short_absence"]
+             "returning", "new", "crowd", "early_m8", "early_season", "short_absence", "q4_blow", "q4_close"]
+# Rotation habits from the play-by-play lineups (player_engine.rotation_pbp): how much of the fourth quarter a
+# player is on the court when the game is close and when it is a blowout. That is the player's own and his
+# coach's habit (some coaches empty the bench at +15, others ride starters to +25). Two minutes-model inputs:
+#   q4_blow:  fourth-quarter minutes he loses in a blowout versus a close game x the chance of a blowout tonight
+#   q4_close: his close-game fourth-quarter share above his usual share x the chance of a close game tonight
+# Off (Nov 2026 test): minutes error fell in all 8 seasons, but only by ~0.005-0.01 a game, and the ticket replay
+# did not improve (2024-25: 450 -> 450 tickets landed; 2025-26: 429 -> 420). Switch on for research with
+# ROT_PBP=1 python -m backtest.tickets SEASON.
+ROT_PBP = False
+ROT_CLOSE, ROT_BLOW = 8, 16   # margin at the start of a stretch of play: close, blowout
+ROT_HL = 25                   # player-games of memory
+ROT_K = 600.0                 # seconds of padding towards his overall share of the minutes
+ROT_SD = 13.0                 # spread of the fourth-quarter margin around the expected final margin
 MIN_LAM = 50.0
 MIN_REFIT = 150     # refit after this many new player-games
 
@@ -138,13 +151,14 @@ class PlayerTracker:
         self.use_mm = True
         self.last_mf = None
         self.dsp_log = {}   # (game, player): his own spread going into that game (for the calibration fit)
+        self.pbp = {}       # (game, player): fourth-quarter court time, close and blowout (player_engine.rotation_pbp)
 
     # ------------------------------------------------------------ player state
     def get(self, pid, name=None, pos=None):
         if pid not in self.p:
             self.p[pid] = {"name": name, "pos": pos, "team": None, "teams": [], "ew_min": {}, "rate": {},
                            "last_team_game": {}, "missed": 0, "back_left": 0, "recent": deque(maxlen=5), "gp": 0,
-                           "ew3": {}, "last_min": None, "started": 0, "smin": [0.0, 0]}
+                           "ew3": {}, "last_min": None, "started": 0, "smin": [0.0, 0], "rot": [0.0, 0.0, 0.0, 0.0]}
         q = self.p[pid]
         if name:
             q["name"] = name
@@ -230,9 +244,21 @@ class PlayerTracker:
             gain[kind] = lost * m8 / here
         here_all = sum(v * avail_of(k) for k, v in rot.items() if k not in absent)
         heavy = m8 / 30.0
+        q4b = q4c = 0.0
+        rt = q.get("rot") or [0.0, 0.0, 0.0, 0.0]
+        if ROT_PBP and rt[1] + rt[3] > 0:
+            share = min(m8 / 48.0, 1.0)
+            rc = (rt[0] + share * ROT_K) / (rt[1] + ROT_K)
+            rb = (rt[2] + share * ROT_K) / (rt[3] + ROT_K)
+            em = abs(exp_margin or 0.0)
+            cdf = lambda x: 0.5 * (1.0 + math.erf(x / (ROT_SD * math.sqrt(2.0))))
+            p_blow = (1.0 - cdf(ROT_BLOW - em)) + cdf(-ROT_BLOW - em)
+            p_close = cdf(ROT_CLOSE - em) - cdf(-ROT_CLOSE - em)
+            q4b = 12.0 * (rb - rc) * p_blow
+            q4c = 12.0 * (rc - share) * p_close
         return [1.0, m8, m3, sm, last, float(q["started"]), gain["same"], gain["other"],
                 abs(exp_margin or 0.0) / 10.0 * heavy, float(b2b) * heavy, float(returning),
-                float(q["gp"] < 10), (here_all / 240.0 - 1.0) * m8, early * m8, early * sm, short_abs * heavy]
+                float(q["gp"] < 10), (here_all / 240.0 - 1.0) * m8, early * m8, early * sm, short_abs * heavy, q4b, q4c]
 
     def project(self, pid, team, opp, is_home, b2b, absent=(), missing_share=0.0, notes=None, eff=None, extra_min=None,
                 exp_margin=None):
@@ -334,6 +360,12 @@ class PlayerTracker:
                 q["started"] = int(r.get("starter") == 1 or r.get("starter") is True)
                 q["smin"][0] += mn
                 q["smin"][1] += 1
+                gid_ = str(g.get("game_id"))
+                if (gid_, None) in self.pbp:  # fourth-quarter court time, close and blowout (recency-weighted)
+                    a_r = 0.5 ** (1 / ROT_HL)
+                    v_r = self.pbp.get((gid_, pid)) or self.pbp[(gid_, None)]
+                    q.setdefault("rot", [0.0, 0.0, 0.0, 0.0])
+                    q["rot"] = [x_ * a_r + y_ for x_, y_ in zip(q["rot"], v_r)]
                 for k_ in list(q["rate"]):  # every stat's history decays once per game played
                     al = 0.5 ** (1 / RATE_HL_STAT.get(k_[5:] if k_.startswith("_min_") else k_, RATE_HL))
                     a_, b_ = q["rate"][k_]
