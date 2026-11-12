@@ -8,6 +8,7 @@ estimate's factor sizes are fitted on the whole history.
 
     python -m backtest.tickets [SEASON] [FIRST_DAY LAST_DAY]
 """
+import json
 import sys
 from collections import defaultdict
 
@@ -19,7 +20,23 @@ from model import players as P
 from pipeline.store import load_games, load_players, load_stints
 
 
-def main(season, d0=None, d1=None):
+def rule(name, ests, plogs):
+    """Candidate ticket rules, tested here only: each drops some player legs before the ticket is picked."""
+    def keep(l, game):
+        if l.get("kind") != "prop":
+            return True
+        m = ests.get(game["id"], 0.0)
+        dog = game["home"] if m < 0 else game["away"]
+        pmin = (plogs.get((game["id"], str(l.get("player")))) or {}).get("min") or 0
+        if "dog8" in name and abs(m) >= 8 and l.get("team") == dog:
+            return False
+        if "min35" in name and pmin >= 35:
+            return False
+        return True
+    return None if name == "base" else keep
+
+
+def main(season, d0=None, d1=None, rules=("base",)):
     games, players = load_games(), load_players()
     c = engine.build_context(games, players, [], {"half_life": 90, "lam": 3.0, "carry": 0.6, "lam_effects": 40.0},
                              stints=load_stints())
@@ -34,7 +51,7 @@ def main(season, d0=None, d1=None):
     pl = pl.sort_values("day")
     days = sorted(d for gid, d in day_of.items() if int(c.meta[gid]["season"]) == season and int(c.meta[gid]["stype"]) == 2
                   and (d0 is None or d >= d0) and (d1 is None or d <= d1))
-    tickets = []
+    tickets, ests = {r: [] for r in rules}, {}
     for day in sorted(set(days)):
         before = pl[pl["day"] < day]
         avg = {}
@@ -47,6 +64,7 @@ def main(season, d0=None, d1=None):
             if g["day"] != day or gid not in c.base or gid not in byg:
                 continue
             est = engine.predict(c, g, c.ctxs[gid], {}, eff=c.eff, base_override=c.base[gid], lineup_feat=c.lfeat.get(gid))
+            ests[gid] = est["margin"]
             side_rows = {}
             for side in ("home", "away"):
                 rows = []
@@ -63,15 +81,32 @@ def main(season, d0=None, d1=None):
             slate.append(({"odds": None}, pay))
         if not slate:
             continue
-        out, _ = parlay.build(slate, pdisp, {}, avg)
-        for tk in out.get("game_tickets", []):
-            gid = tk["game"]
-            rows = {str(r["player_id"]): r for team in byg.get(gid, {}).values() for r in team}
-            res = [parlay.score_leg(l, c.meta[gid], rows) for l in tk["legs"]]
-            live = [x for x in res if x != "void"]
-            tickets.append({"day": day, "p": tk["p"], "est": tk.get("winamax_est"), "legs": [(l["p"], x, l.get("kind")) for l, x in zip(tk["legs"], res)],
-                            "hit": bool(live) and all(x == "hit" for x in live)})
-        print(day, len(tickets), flush=True)
+        for rname in rules:
+            parlay.TICKET_FILTER = rule(rname, ests, plogs)
+            out, _ = parlay.build(slate, pdisp, {}, avg)
+            for tk in out.get("game_tickets", []):
+                gid = tk["game"]
+                rows = {str(r["player_id"]): r for team in byg.get(gid, {}).values() for r in team}
+                res = [parlay.score_leg(l, c.meta[gid], rows) for l in tk["legs"]]
+                live = [x for x in res if x != "void"]
+                gm = c.meta[gid]
+                detail = [{"p": l["p"], "res": x, "kind": l.get("kind"), "stat": l.get("stat"), "team": l.get("team"), "line": l.get("line"),
+                           "starter": int((rows.get(str(l.get("player"))) or {}).get("starter") or 0),
+                           "pmin": (plogs.get((gid, str(l.get("player")))) or {}).get("min"), "amin": (rows.get(str(l.get("player"))) or {}).get("min")}
+                          for l, x in zip(tk["legs"], res)]
+                tickets[rname].append({"day": day, "game": gid, "home": gm["home"], "p": tk["p"], "est": tk.get("winamax_est"),
+                                "m_exp": ests.get(gid), "m_act": gm["home_pts"] - gm["away_pts"],
+                                "legs": [(l["p"], x, l.get("kind")) for l, x in zip(tk["legs"], res)], "detail": detail,
+                                "hit": bool(live) and all(x == "hit" for x in live)})
+        print(day, {r: len(v) for r, v in tickets.items()}, flush=True)
+    parlay.TICKET_FILTER = None
+    json.dump(tickets, open(f"/tmp/tickets_{season}.json", "w"), default=float)
+    for rname, tk in tickets.items():
+        print(f"\n== rule: {rname}")
+        report(season, tk)
+
+
+def report(season, tickets):
     n = len(tickets)
     if not n:
         print("no tickets")
@@ -95,4 +130,5 @@ def main(season, d0=None, d1=None):
 
 if __name__ == "__main__":
     a = sys.argv[1:]
-    main(int(a[0]) if a else 2026, *(a[1:3] if len(a) >= 3 else ()))
+    main(int(a[0]) if a else 2026, *(a[1:3] if len(a) >= 3 else (None, None)),
+         rules=tuple(a[3].split(",")) if len(a) >= 4 else ("base",))

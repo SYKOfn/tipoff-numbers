@@ -631,6 +631,9 @@ def package(name, why, legs, sims, games):
             "n_legs": len(legs), "games": len({l["game"] for l in legs})}
 
 
+TICKET_FILTER = None  # replay-only hook (backtest/tickets.py) for testing ticket rules; None live, so live rules are unchanged
+
+
 def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None):
     """slate: list of (game dict, payload). Returns the day's parlays and the full leg board."""
     rng = np.random.default_rng(seed)
@@ -787,7 +790,8 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None)
                 if not states:
                     return None
             return (states[0][1], states[0][0]) if len(states[0][0]) == GAME_LEGS else None
-        mine = [l for l in cands if l["game"] == gid and combinable(l) and l["mind_flag"] != "against"]
+        mine = [l for l in cands if l["game"] == gid and combinable(l) and l["mind_flag"] != "against"
+                and (TICKET_FILTER is None or TICKET_FILTER(l, game))]
         strict = sorted([l for l in mine if GAME_P <= l["p"] <= AGREE_MAX and (l["kind"] != "prop" or l.get("agree"))],
                         key=lambda l: -l["p"])[:GAME_POOL]
         best = best_ticket(strict)
