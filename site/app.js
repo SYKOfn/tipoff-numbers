@@ -212,12 +212,13 @@ async function home() {
       <ul>${hitU.map(x => `<li><b>${h(legDesc(x.l))}</b> (${h(t.parlays.filter(pr => pr.legs.some(l => l.id === x.l.id)).map(pr => pr.name).join(", "))}): ${h(x.l.alert)}${x.l.swap ? `<br><span class="swapline">Suggested swap: <b>${h(x.l.swap.desc)}</b> · ${h(x.l.swap.matchup || "")} · ${pct(x.l.swap.p)}</span>` : ""}</li>`).join("")}</ul></section>`;
     let gt = "";
     if (t.game_tickets && t.game_tickets.length) gt = `<section class="tn-sec"><div class="hd"><div><h2>One ticket per game</h2><p class="sub2">Each game's five legs most likely to land together, from 20,000 simulations of the game. A combined bet: the book keeps a bigger cut, so it loses on average.</p></div><a class="pill-btn" href="#/parlay">All picks</a></div><div class="slips">${t.game_tickets.map(gameTicket).join("")}</div></section>`;
+    tickets += gt + recStrip(par);
     if (t.singles && t.singles.length) tickets += `<section class="tn-sec"><div class="hd"><div><h2>Tonight's singles</h2><p class="sub2">Each bet on its own. Take one only at the "take ≥" odds or better.</p></div><a class="pill-btn" href="#/parlay">All picks</a></div><div class="ticket"><ul class="legs">${t.singles.map(legRow).join("")}</ul></div></section>`;
-    tickets += gt + BANNER;
+    tickets += BANNER;
     tickets += `<details class="tn-sec"><summary><b>Parlays</b> <span class="sub">set aside (they lose more on average)</span></summary><section class="tw" aria-label="Tonight's tickets">${t.parlays.map((pr, i) => twCard(pr, i, i === 0)).join("")}</section></details>`;
   } else if (t && t.locked === false) {
     tickets = `<section class="tk-row"><div class="tk-wait"><p class="eyebrow">Tonight's singles</p><h2>Chosen once, then locked</h2><p class="clock num" id="lockclock">${tipTime(t.lock_at)}</p><p class="lockin num" data-at="${h(t.lock_at)}"></p>
-      <p class="sub2" style="color:var(--muted);max-width:620px;margin-top:16px">Three hours before the first tip-off, once the main injury reports are in, the full model picks the night's singles (and the parlays, set aside) and explains each one in plain words. They never change after that.</p></div></section>`;
+      <p class="sub2" style="color:var(--muted);max-width:620px;margin-top:16px">Three hours before the first tip-off, once the main injury reports are in, the full model picks one ticket per game and the night's singles, and explains each one in plain words. They never change after that.</p></div></section>` + recStrip(par);
   }
 
   // Winamax vs Pinnacle
@@ -877,6 +878,7 @@ async function route() {
     else if (page === "mind") await mind();
     else if (page === "parlay") await parlayPage();
     else if (page === "accuracy") await accuracy();
+    else if (page === "results") await results();
     else if (page === "you") await yourBets();
     else if (page === "about") await about();
     else await home();
@@ -1666,6 +1668,58 @@ async function parlayPage() {
       const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `tipoff-my-bets-${new Date().toISOString().slice(0, 10)}.json`; a.click();
     }
   };
+}
+
+/* ---------------------------------------------------------------- the public record: every ticket ever issued */
+function tallyHist(hist) {
+  const z = () => ({ n: 0, hits: 0, exp: 0, legs: 0, leg_hits: 0, leg_exp: 0 });
+  const out = { game: z(), single: z() };
+  (hist || []).forEach(d => {
+    (d.game_tickets || []).filter(t => t.result === "hit" || t.result === "miss").forEach(t => {
+      const a = out.game; a.n++; a.hits += t.result === "hit"; a.exp += t.p;
+      t.legs.filter(l => l.result === "hit" || l.result === "miss").forEach(l => { a.legs++; a.leg_hits += l.result === "hit"; a.leg_exp += l.p; });
+    });
+    (d.singles || []).filter(l => l.result === "hit" || l.result === "miss").forEach(l => { const a = out.single; a.n++; a.hits += l.result === "hit"; a.exp += l.p; });
+  });
+  return out;
+}
+function recStrip(par) {
+  const hist = (par && par.history) || [], last = hist.find(d => (d.game_tickets || []).some(t => t.result));
+  const all = tallyHist(hist).game;
+  if (!all.n) return "";
+  const lt = last ? last.game_tickets.filter(t => t.result) : [];
+  return `<section class="rec-strip" aria-label="Our record">
+    ${last ? `<div><span>${h(longDay(last.day))}</span><b>${lt.filter(t => t.result === "hit").length} of ${lt.length}</b><em>game tickets landed</em></div>` : ""}
+    <div><span>All game tickets so far</span><b>${all.hits} of ${all.n}</b><em>landed · we said ${fx(all.exp, 1)}</em></div>
+    <div><span>Legs</span><b>${pct(all.leg_hits / Math.max(all.legs, 1))}</b><em>landed · we said ${pct(all.leg_exp / Math.max(all.legs, 1))}</em></div>
+    <a class="pill-btn" href="#/results">Every ticket, every result</a></section>`;
+}
+async function results() {
+  const par = await get("parlay.json");
+  PAR = par;
+  setTitle("Results");
+  const hist = par.history || [], tl = tallyHist(hist), g = tl.game, s1 = tl.single;
+  const badge = r => r === "hit" ? `<span class="rs-b up">Landed</span>` : r === "miss" ? `<span class="rs-b down">Missed</span>` : `<span class="rs-b">Pending</span>`;
+  const legMark = r => r === "hit" ? `<b class="up">✓</b>` : r === "miss" ? `<b class="down">✗</b>` : r === "void" ? `<b class="sub">void</b>` : `<b class="sub">·</b>`;
+  const days = hist.filter(d => (d.game_tickets || []).length || (d.singles || []).length).map(d => {
+    const gts = d.game_tickets || [], sg = d.singles || [], landed = gts.filter(t => t.result === "hit").length, done = gts.filter(t => t.result).length;
+    return `<section class="rs-day"><header><h2>${h(longDay(d.day))}</h2><p class="sub">${gts.length ? `${done ? `${landed} of ${done} game tickets landed` : "game tickets pending"}` : ""}${sg.length ? ` · ${sg.filter(l => l.result === "hit").length} of ${sg.filter(l => l.result === "hit" || l.result === "miss").length} singles` : ""}</p></header>
+      ${gts.length ? `<ul class="rs-list">${gts.map(t => `<li><details><summary><span class="rs-name">${h(String(t.name).split(" at ").length === 2 ? String(t.name).split(" at ").map(x => T(x).short).join(" at ") : t.name)}</span><span class="rs-p"><b>${pct(t.p)}</b><span>stated</span></span><span class="rs-p"><b>${fx(t.fair, 2)}</b><span>fair odds</span></span>${badge(t.result)}</summary>
+        <ul class="rs-legs">${t.legs.map(l => `<li>${legMark(l.result)}<span>${h(l.desc)}</span><span class="sub">${pct(l.p)}</span></li>`).join("")}</ul></details></li>`).join("")}</ul>` : ""}
+      ${sg.length ? `<details class="rs-singles"><summary>Singles (${sg.length})</summary><ul class="rs-legs">${sg.map(l => `<li>${legMark(l.result)}<span>${h(l.desc)}</span><span class="sub">${pct(l.p)}${l.wmx ? ` · ${fx(l.wmx, 2)}` : ""}</span></li>`).join("")}</ul></details>` : ""}
+    </section>`;
+  }).join("");
+  app.innerHTML = `<section class="hero court"><div class="wrap"><h1>Every ticket, every result</h1>
+    <p class="lede" style="margin-top:10px">Each night's tickets are frozen when they're chosen and scored after the last game. Nothing is removed or edited afterwards, wins or losses.</p></div></section>
+  <div class="wrap">${demoBanner()}
+    <div class="rs-sum">
+      <div class="tile"><p class="k">Game tickets landed</p><p class="v num">${g.n ? `${g.hits} of ${g.n}` : "–"}</p><p class="sub small">${g.n ? `we said ${fx(g.exp, 1)} (${pct(g.exp / g.n)}), it was ${pct(g.hits / g.n)}` : "scored after tonight's games"}</p></div>
+      <div class="tile"><p class="k">Ticket legs landed</p><p class="v num">${g.legs ? pct(g.leg_hits / g.legs) : "–"}</p><p class="sub small">${g.legs ? `${g.leg_hits} of ${g.legs}; we said ${pct(g.leg_exp / g.legs)}` : ""}</p></div>
+      <div class="tile"><p class="k">Singles landed</p><p class="v num">${s1.n ? `${s1.hits} of ${s1.n}` : "–"}</p><p class="sub small">${s1.n ? `we said ${fx(s1.exp, 1)}` : ""}</p></div>
+    </div>
+    <p class="note small">A ticket's chance is the share of the time it should land. When we say 37%, about 37 of 100 such tickets should land; landing more or less over a few nights is mostly luck. Combined bets lose money on average at usual bookmaker prices, which is why every ticket shows the odds it is worth placing at. Statistical estimates, not advice; 18+.</p>
+    ${days || `<p class="empty">The first tickets are scored after tonight's games.</p>`}
+  </div>`;
 }
 
 /* ---------------------------------------------------------------- live tickets: legs follow the game as it is played */

@@ -62,7 +62,7 @@ def pages():
     sched = json.loads((SITE / "data" / "schedule.json").read_text())
     gid = (sched.get("upcoming") or sched.get("recent") or [{}])[0].get("id")
     pl = sorted(p.stem for p in (SITE / "data" / "player").glob("*.json"))
-    out = ["#/", "#/parlay", "#/games", "#/players", "#/mind", "#/standings", "#/teams", "#/team/BOS", "#/accuracy", "#/you", "#/about"]
+    out = ["#/", "#/parlay", "#/games", "#/players", "#/mind", "#/standings", "#/teams", "#/team/BOS", "#/accuracy", "#/results", "#/you", "#/about"]
     if gid:
         out.append(f"#/game/{gid}")
     if pl:

@@ -81,6 +81,16 @@ def lines_around(center, sd, step, n=2):
     return out
 
 
+
+def hist_day(h_):
+    """One day of the public record: every ticket issued, its stated chance and how it ended (nothing removed)."""
+    leg = lambda l: {"desc": l["desc"], "p": l["p"], "result": l.get("result"), "kind": l["kind"], "team": l.get("team"), "clv": l.get("clv")}
+    tk = lambda pr: {"name": pr["name"], "p": pr["p"], "fair": pr["fair"], "result": pr.get("result"), "legs": [leg(l) for l in pr["legs"]],
+                     **({"min_odds": pr.get("min_odds"), "winamax_est": pr.get("winamax_est")} if pr.get("game") else {})}
+    return {"day": h_["day"], "parlays": [tk(pr) for pr in h_.get("parlays", [])],
+            "game_tickets": [tk(pr) for pr in h_.get("game_tickets", [])],
+            "singles": [{**leg(l), "wmx": l.get("wmx")} for l in h_.get("singles", [])]}
+
 def main(demo=False, now=None, collect_data=True):
     now = now or datetime.now(timezone.utc)
     today = now.astimezone(espn.ET).date()
@@ -839,12 +849,7 @@ def main(demo=False, now=None, collect_data=True):
                                       "odds_api": (read_json(STATE / "collect.json", {}) or {}).get("odds_api"),
                                       "clv": {"tickets": clv_summary(clv_legs), "all_legs": clv_summary(clv_all), "model": model_clv},
                                       "value_record": value_record,
-                                      "history": [{"day": h_["day"], "parlays": [{"name": pr["name"], "p": pr["p"], "fair": pr["fair"],
-                                                                                   "result": pr.get("result"),
-                                                                                   "legs": [{"desc": l["desc"], "p": l["p"], "result": l.get("result"),
-                                                                                             "kind": l["kind"], "team": l.get("team"), "clv": l.get("clv")}
-                                                                                            for l in pr["legs"]]}
-                                                                                  for pr in h_["parlays"]]} for h_ in history[-30:][::-1]]})
+                                      "history": [hist_day(h_) for h_ in history[-160:][::-1]]})
 
     # players: next-game projection per player, pages, index
     next_proj = {}
