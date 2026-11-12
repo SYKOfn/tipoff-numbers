@@ -1,4 +1,12 @@
 {
   "_about": "Written each morning by the analyst task. Facts about tonight's players stated by a reputable source, nothing else: rest (sits tonight), min_cap (minutes limit), start / bench (lineup change), returning (back from an absence). Each entry applies only to games on its 'day' (US date). See pipeline/news.py.",
-  "players": {}
+  "players": {
+    "Grant Williams": {
+      "day": "2026-11-12",
+      "team": "CHA",
+      "returning": true,
+      "quote": "Set to make his season debut tonight after missing camp and the start of the season (hamstring).",
+      "source": "https://atthehive.com/charlotte-hornets-vs-phoenix-suns-game-11-preview-and-discussion/"
+    }
+  }
 }
