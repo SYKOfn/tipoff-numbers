@@ -208,7 +208,7 @@ async function home() {
     if (hitU.length) tickets += `<section class="late-banner" role="alert"><p class="eyebrow">Late news since the lock</p>
       <ul>${hitU.map(x => `<li><b>${h(legDesc(x.l))}</b> (${h(t.parlays.filter(pr => pr.legs.some(l => l.id === x.l.id)).map(pr => pr.name).join(", "))}): ${h(x.l.alert)}${x.l.swap ? `<br><span class="swapline">Suggested swap: <b>${h(x.l.swap.desc)}</b> · ${h(x.l.swap.matchup || "")} · ${pct(x.l.swap.p)}</span>` : ""}</li>`).join("")}</ul></section>`;
     let gt = "";
-    if (t.game_tickets && t.game_tickets.length) gt = `<section class="tn-sec"><div class="hd"><div><h2>One ticket per game</h2><p class="sub2">Each game's five legs most likely to land together, from 20,000 simulations of the game. A combined bet: the book keeps a bigger cut, so it loses on average.</p></div><a class="pill-btn" href="#/parlay">All picks</a></div>${t.game_tickets.map(gameTicket).join("")}</section>`;
+    if (t.game_tickets && t.game_tickets.length) gt = `<section class="tn-sec"><div class="hd"><div><h2>One ticket per game</h2><p class="sub2">Each game's five legs most likely to land together, from 20,000 simulations of the game. A combined bet: the book keeps a bigger cut, so it loses on average.</p></div><a class="pill-btn" href="#/parlay">All picks</a></div><div class="slips">${t.game_tickets.map(gameTicket).join("")}</div></section>`;
     if (t.singles && t.singles.length) tickets += `<section class="tn-sec"><div class="hd"><div><h2>Tonight's singles</h2><p class="sub2">Each bet on its own. Take one only at the "take ≥" odds or better.</p></div><a class="pill-btn" href="#/parlay">All picks</a></div><div class="ticket"><ul class="legs">${t.singles.map(legRow).join("")}</ul></div></section>`;
     tickets += gt + BANNER;
     tickets += `<details class="tn-sec"><summary><b>Parlays</b> <span class="sub">set aside (they lose more on average)</span></summary><section class="tw" aria-label="Tonight's tickets">${t.parlays.map((pr, i) => twCard(pr, i, i === 0)).join("")}</section></details>`;
@@ -1284,7 +1284,7 @@ function oddsCell(l) {
 }
 function legIndex() {
   const t = PAR && PAR.today, m = {};
-  if (t) [...(t.parlays || []).flatMap(p => p.legs), ...(t.board || []), ...(t.singles || [])].forEach(l => { m[l.id] = l; });
+  if (t) [...(t.parlays || []).flatMap(p => p.legs), ...(t.game_tickets || []).flatMap(p => p.legs), ...(t.board || []), ...(t.singles || [])].forEach(l => { m[l.id] = l; });
   return m;
 }
 function legRow(l, i) {
@@ -1349,16 +1349,49 @@ function ticketText(pr) {
     + `\nAll legs: ${pct(pr.p)} · fair combined odds ${fx(pr.fair, 2)} · worth it at ${fx(pr.min_odds, 2)}+${pr.winamax_est ? ` · Winamax usually about ${fx(pr.winamax_est, 2)}` : ""}`;
 }
 const tkOf = (t, k) => t && (String(k)[0] === "g" ? (t.game_tickets || [])[+String(k).slice(1)] : (t.parlays || [])[+k]);
+/* a chance as a ring: the arc fills to the chance */
+function ring(p, size = 40, cls = "") {
+  const r = size / 2 - 3, c = 2 * Math.PI * r, v = Math.max(0, Math.min(1, p || 0));
+  return `<svg class="ring ${cls}" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" aria-hidden="true"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" class="ring-bg"/><circle cx="${size / 2}" cy="${size / 2}" r="${r}" class="ring-fg" stroke-dasharray="${(v * c).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 ${size / 2} ${size / 2})"/></svg>`;
+}
+/* one leg of a game ticket: a single tight line, the details open on tap */
+function slipLeg(l, i) {
+  const p = effP(l), mark = l.result === "hit" ? `<span class="sl-res up" aria-label="landed">✓</span>` : l.result === "miss" ? `<span class="sl-res down" aria-label="missed">✗</span>` : "";
+  const odds = l.wmx ? `<b>${fx(l.wmx, 2)}</b><span>${l.wmx_real ? "Winamax" : "Winamax est."}</span>` : `<b data-f="${l.id}">${fx(1 / p, 2)}</b><span>fair</span>`;
+  const team = l.team ? T(l.team).short : "";
+  const mind = l.mind_flag === "with" ? `<span class="sl-tag with">mind with it</span>` : l.mind_flag === "against" ? `<span class="sl-tag against">mind against</span>` : "";
+  return `<li class="sl ${l.result || ""}"><details><summary>
+      <span class="sl-p">${ring(p, 42)}<b data-p="${l.id}">${pct(p)}</b></span>
+      <span class="sl-d"><b data-d="${l.id}">${h(legDesc(l))}</b><span class="sl-m">${KIND[l.kind] || l.kind}${team ? ` · ${h(team)}` : ""}${mind}</span></span>
+      <span class="sl-o">${odds}</span>${mark}<span class="sl-chev" aria-hidden="true"></span></summary>
+    <div class="sl-x">
+      <dl class="sl-nums"><div><dt>Chance</dt><dd data-p="${l.id}">${pct(p)}</dd></div><div><dt>Fair odds</dt><dd data-f="${l.id}">${fx(1 / p, 2)}</dd></div><div><dt>Take at</dt><dd data-m="${l.id}">fair · take ≥ ${fx(1.05 / p, 2)}</dd></div>${l.wmx ? `<div><dt>Value at Winamax</dt><dd class="${l.ev >= 0 ? "up" : "down"}">${sgn(l.ev * 100, 0)}%</dd></div>` : ""}</dl>
+      ${l.note ? `<p class="sl-note">${h(l.note)}</p>` : ""}${l.story ? `<p class="story">${h(l.story)}</p>` : ""}${l.alert ? `<p class="down"><b>⚠ ${h(l.alert)}</b></p>` : ""}
+      <p class="sl-game"><a href="#/game/${h(l.game)}">${h(T(matchTeams(l)[0]).short)} at ${h(T(matchTeams(l)[1]).short)}</a> · ${tip(l.tip)}</p>
+      ${oddsCell(l)}
+    </div></details></li>`;
+}
 function gameTicket(pr, i) {
-  const sc = pr.scenarios || {}, lab = { close: "close game (6 pts or less)", normal: "normal margin", blowout: "blowout (15+)", home_wins: "home team wins", away_wins: "away team wins", overtime: "overtime" };
-  const rows = Object.entries(lab).filter(([k]) => sc[k]).map(([k, t]) => `<li>${t}: <b>${pct(sc[k].lands)}</b> <span class="sub">(${pct(sc[k].share)} of the simulated games)</span></li>`).join("");
-  return `<div class="ticket"><div class="ticket-head"><div><h3>${h(pr.name)}${pr.result ? ` <span class="cat ${pr.result === "hit" ? "Hot" : "Cold"}">${pr.result}</span>` : ""}</h3><p>${h(pr.why || "")}</p></div>
-    <span><button class="copybtn" data-copy="${h(ticketText(pr))}">Copy ticket</button> <button class="copybtn" data-record="g${i}">Record as my bet</button></span></div>
-    ${tkBox(pr, "g" + i)}<ul class="legs">${pr.legs.map(legRow).join("")}</ul>
-    ${rows ? `<p class="sub small" style="margin-top:8px"><b>How it lands in each kind of game</b></p><ul class="sub small">${rows}</ul>` : ""}
-    <div class="ticket-foot"><div><b>${pct(pr.p)}</b>chance all ${pr.n_legs} land</div><div><b>${fx(pr.fair, 2)}</b>fair combined odds</div>
-      <div class="go"><b>${fx(pr.min_odds, 2)}+</b>worth placing at these combined odds or better</div>
-      <div><b>${pr.lift >= 1 ? "+" : ""}${Math.round((pr.lift - 1) * 100)}%</b>correlation lift</div></div></div>`;
+  const sc = pr.scenarios || {}, lab = { close: "Close game (6 pts or less)", normal: "Normal margin", blowout: "Blowout (15+)", home_wins: "Home team wins", away_wins: "Away team wins", overtime: "Overtime" };
+  const rows = Object.entries(lab).filter(([k]) => sc[k]).map(([k, t]) => `<li><span>${t}</span><span class="bar"><span style="width:${Math.round(sc[k].lands * 100)}%"></span></span><b>${pct(sc[k].lands)}</b><span class="sub">${pct(sc[k].share)} of games</span></li>`).join("");
+  const [aw, hm] = String(pr.name || "").split(" at ");
+  const tipAt = pr.legs[0] && pr.legs[0].tip;
+  const res = pr.result ? `<span class="slip-stamp ${pr.result === "hit" ? "up" : "down"}">${pr.result === "hit" ? "Landed" : "Missed"}</span>` : "";
+  return `<article class="slip" data-tilt>
+    <header class="slip-head">
+      <div class="slip-teams">${aw && hm ? `${disc(aw, "sm")}<span class="slip-at">at</span>${disc(hm, "sm")}` : ""}<div><h3>${aw && hm ? `${h(T(aw).short)} <i>at</i> ${h(T(hm).short)}` : h(pr.name)}</h3><p>${tipAt ? tip(tipAt) + " · " : ""}${pr.n_legs} legs<span class="long">, priced together on 20,000 simulated games</span></p></div></div>
+      <div class="slip-chance">${ring(tkP(pr), 74, "big")}<div><b>${pct(tkP(pr))}</b><span>chance</span></div></div>${res}
+    </header>
+    <div class="perf" aria-hidden="true"></div>
+    <ol class="slip-legs">${pr.legs.map(slipLeg).join("")}</ol>
+    ${rows ? `<details class="slip-sc"><summary>How it lands in each kind of game</summary><ul>${rows}</ul></details>` : ""}
+    <div class="perf" aria-hidden="true"></div>
+    <footer class="slip-foot">
+      <div class="slip-figs"><div><span>Fair odds</span><b>${fx(pr.fair, 2)}</b></div><div class="go"><span>Place at</span><b>${fx(pr.min_odds, 2)}+</b></div>${pr.winamax_est ? `<div><span>Winamax usually</span><b>≈ ${fx(pr.winamax_est, 2)}</b></div>` : ""}</div>
+    </footer>
+    <div class="slip-bar">${tkBox(pr, "g" + i)}
+      <div class="slip-acts"><button class="copybtn" data-copy="${h(ticketText(pr))}">Copy</button><button class="copybtn primary" data-record="g${i}">Record as my bet</button></div></div>
+  </article>`;
 }
 function ticket(pr, main, idx) {
   return `<div class="ticket ${main ? "main" : ""}"><div class="ticket-head"><div><h3>${h(pr.name)}${pr.result ? ` <span class="cat ${pr.result === "hit" ? "Hot" : "Cold"}">${pr.result}</span>` : ""}</h3><p>${h(pr.why || "")}</p>${pr.story ? `<p class="story"><b>Why this ticket:</b> ${h(pr.story)}</p>` : ""}</div>
@@ -1528,7 +1561,7 @@ async function parlayPage() {
     <p class="note small">Every player line is one Winamax lists (5+, 10+, 15+ …). Type the combined odds Winamax shows in each ticket to see Place or Skip. Statistical estimates, not advice; 18+.</p>
     <section class="section"><h2>One ticket per game <span class="sub">the main picks: each game's five legs most likely to land together</span></h2>
       <p class="sub small">Every game is simulated 20,000 times (minutes, blowouts, overtime, teammates sharing the points), so legs that win and lose together are priced together. Below each ticket: how often it lands in close games, normal games and blowouts. It is still a combiné: Winamax pays about half its fair winnings, so on average it loses more than a single.</p>
-      ${t && t.game_tickets && t.game_tickets.length ? t.game_tickets.map(gameTicket).join("") : t && t.locked === false ? `<p class="sub">Chosen at ${tip(t.lock_at)}, with the singles.</p>` : `<p class="sub">No game ticket today.</p>`}</section>
+      ${t && t.game_tickets && t.game_tickets.length ? `<div class="slips">${t.game_tickets.map(gameTicket).join("")}</div>` : t && t.locked === false ? `<p class="sub">Chosen at ${tip(t.lock_at)}, with the singles.</p>` : `<p class="sub">No game ticket today.</p>`}</section>
     <section class="section"><h2>Tonight's singles <span class="sub">each bet on its own, Winamax's margin paid once</span></h2>
       <p class="sub small">The night's best values among winners, handicaps, totals and player legs: our chance times the odds Winamax is expected to pay (its real odds for winners; for the rest, its usual discount, about 0.87 to 0.93 of the fair odds). Only positive values are listed. Bet one only if Winamax shows at least the "take ≥" odds.</p>${singles}</section>
 
@@ -1624,6 +1657,31 @@ async function parlayPage() {
     }
   };
 }
+
+/* ---------------------------------------------------------------- depth: cards lean toward the pointer and catch the light */
+(function tilt() {
+  if (REDUCED || !window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+  const SEL = "[data-tilt], .gm, .tile, .pc, .hw-card, .panel";
+  let cur = null, raf = 0;
+  const reset = el => { el.style.removeProperty("--rx"); el.style.removeProperty("--ry"); el.classList.remove("lit"); };
+  document.addEventListener("pointermove", e => {
+    const el = e.target.closest && e.target.closest(SEL);
+    if (cur && cur !== el) reset(cur);
+    cur = el;
+    if (!el || raf) return;
+    raf = requestAnimationFrame(() => {
+      raf = 0;
+      const r = el.getBoundingClientRect(), x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
+      const k = el.matches("[data-tilt]") ? 2.2 : 3.5;  // big tickets lean less
+      el.style.setProperty("--rx", `${((0.5 - y) * k).toFixed(2)}deg`);
+      el.style.setProperty("--ry", `${((x - 0.5) * k).toFixed(2)}deg`);
+      el.style.setProperty("--mx", `${(x * 100).toFixed(1)}%`);
+      el.style.setProperty("--my", `${(y * 100).toFixed(1)}%`);
+      el.classList.add("lit");
+    });
+  }, { passive: true });
+  document.addEventListener("pointerleave", () => { if (cur) reset(cur); cur = null; });
+})();
 
 /* ---------------------------------------------------------------- installable app (home-screen icon, offline copy) */
 if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
