@@ -1,0 +1,102 @@
+{
+ "updated": "2026-11-14",
+ "note": "The current model and build rules replayed over two past seasons, with every input as it was before each game. Payouts assume 1 unit on every ticket.",
+ "seasons": [
+  {
+   "season": "2024-25",
+   "tickets": 1188,
+   "landed": 446,
+   "expected": 439.4,
+   "legs": 5940,
+   "legs_landed": 4893,
+   "legs_expected": 4847.7,
+   "fair": 16.9,
+   "winamax": -362.7
+  },
+  {
+   "season": "2025-26",
+   "tickets": 1183,
+   "landed": 439,
+   "expected": 429.4,
+   "legs": 5915,
+   "legs_landed": 4853,
+   "legs_expected": 4809.8,
+   "fair": 13.3,
+   "winamax": -365.4
+  }
+ ],
+ "market": {
+  "source": "ESPN BET closing player lines, 2024-25",
+  "n": 34111,
+  "period": "February to April 2025, weights fitted on October to January",
+  "logloss_model": 0.6895,
+  "logloss_market": 0.6862,
+  "logloss_blend": 0.6853,
+  "logloss_live_blend": 0.6857,
+  "disagree_n": 12157,
+  "disagree_won": 0.535,
+  "tickets_without": 446,
+  "tickets_with_close": 445,
+  "tickets_with_open": 439
+ },
+ "rejected": [
+  [
+   "Minutes calibration and refitted game-script weights",
+   "fewer tickets landed in the replay"
+  ],
+  [
+   "18 extra leg factors and a gradient-boosted leg model",
+   "never beat the stated chance on an unseen season"
+  ],
+  [
+   "Market spreads and totals, referee tendencies",
+   "no gain in the replay"
+  ],
+  [
+   "Confirmed-lineup role changes",
+   "no gain in the replay"
+  ],
+  [
+   "Rotation habits from play-by-play (fourth quarter in close games and blowouts)",
+   "minutes slightly better, tickets not (450/450, 429/420)"
+  ],
+  [
+   "Player-specific blowout minutes in the simulation",
+   "0.05-0.1% better minutes, too small to matter"
+  ],
+  [
+   "Trade-deadline roster changes",
+   "no projection bias found after trades"
+  ],
+  [
+   "Game after a blowout, game after a big night",
+   "projections slightly better, tickets not"
+  ],
+  [
+   "National TV, opponent strength, tanking, 3 games in 4 nights, road trips, time zones, altitude, early tips, streaks",
+   "change minutes, not production"
+  ],
+  [
+   "Shooting-luck split for points",
+   "lucky shooters' legs already land as stated"
+  ],
+  [
+   "Real market lines in ticket building, line movement",
+   "no more tickets (445/439 vs 446); movement adds nothing beyond the close"
+  ],
+  [
+   "Locking tickets closer to tip-off",
+   "chances just before tip were no more accurate (3 nights so far)"
+  ]
+ ],
+ "kept": [
+  [
+   "Key players on the second night of a back-to-back",
+   "legs +13 and +15, tickets 450→446 and 429→439"
+  ],
+  [
+   "Honest ticket chance (leg chance with game script)",
+   "tickets 408→429 and 413→450"
+  ]
+ ]
+}

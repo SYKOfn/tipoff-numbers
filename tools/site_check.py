@@ -82,6 +82,71 @@ class QuietHandler(SimpleHTTPRequestHandler):
         pass
 
 
+def keyboard(page, url):
+    """Keyboard-only use of the header: skip link, "/" search with arrows and Enter, Escape on the menu,
+    page announcements, plus an accessibility scan with the search results and the menu open."""
+    out = []
+    def check(ok, what):
+        if not ok:
+            out.append(what)
+    page.goto(url + "#/")
+    page.reload()  # a fresh load: changing only the hash keeps the old page's state
+    page.wait_for_function("() => document.querySelector('#app h1')")
+    page.add_style_tag(content=QUIET)  # animations off, so contrast is measured on the settled page
+    page.keyboard.press("Tab")
+    check(page.evaluate("document.activeElement.textContent.trim()") == "Skip to content", "Tab does not reach the skip link first")
+    page.keyboard.press("Enter")
+    check(page.evaluate("document.activeElement.id") == "app", "skip link does not move focus to the content")
+    page.keyboard.press("/")
+    check(page.evaluate("document.activeElement.id") == "hq", '"/" does not focus the search')
+    page.keyboard.type("standings")
+    page.wait_for_selector("#hq-list [role=option]")
+    check(page.get_attribute("#hq", "aria-expanded") == "true", "search does not report its results as expanded")
+    check(bool(page.get_attribute("#hq", "aria-activedescendant")), "no active search result for screen readers")
+    page.evaluate("document.getElementById('app').classList.remove('entering','leaving')")
+    try:
+        page.add_script_tag(url=AXE)
+        res = page.evaluate("() => axe.run(document, { runOnly: ['wcag2a', 'wcag2aa'] })")
+        check(not [v for v in res["violations"] if v["impact"] in ("serious", "critical")], "accessibility problems with search results open: "
+              + ", ".join(v["id"] for v in res["violations"]))
+    except Exception:
+        pass
+    page.keyboard.press("Enter")
+    page.wait_for_function("() => location.hash === '#/standings' && document.querySelector('#app h1')")
+    try:
+        page.wait_for_function("() => { const h = document.querySelector('#app h1'); return h && document.getElementById('announce').textContent.includes(h.textContent.trim()); }", timeout=5000)
+    except Exception:
+        pass
+    ann, h1 = page.evaluate("[document.getElementById('announce').textContent, document.querySelector('#app h1').textContent.trim()]")
+    check(bool(ann) and h1 in ann, f"page change not announced (announced: {ann!r}, heading: {h1!r})")
+    name = page.evaluate("fetch('data/players.json').then(r => r.json()).then(p => p[0].name)")
+    page.keyboard.press("/")
+    page.keyboard.type(name.split()[-1][:5].lower())
+    page.wait_for_selector("#hq-list [role=option]")
+    n = page.evaluate("document.querySelectorAll('#hq-list [role=option]').length")
+    for _ in range(n):  # arrow down to the first player
+        if page.evaluate("(document.querySelector('#hq-list [aria-selected=true]') || {}).getAttribute?.('href') || ''").startswith("#/player/"):
+            break
+        page.keyboard.press("ArrowDown")
+    page.keyboard.press("Enter")
+    page.wait_for_timeout(500)
+    check(page.evaluate("location.hash").startswith("#/player/"), "arrow keys + Enter do not open a player from search")
+    if page.is_visible("details.more summary"):
+        page.wait_for_timeout(300)
+        page.evaluate("document.getElementById('app').classList.remove('entering','leaving'); document.querySelectorAll('.reveal').forEach(e => e.classList.add('in'))")
+        page.click("details.more summary")
+        try:
+            page.add_script_tag(url=AXE)
+            res = page.evaluate("() => axe.run(document, { runOnly: ['wcag2a', 'wcag2aa'] })")
+            check(not [v for v in res["violations"] if v["impact"] in ("serious", "critical")], "accessibility problems with the menu open: "
+                  + ", ".join(v["id"] for v in res["violations"]))
+        except Exception:
+            pass
+        page.keyboard.press("Escape")
+        check(not page.evaluate("document.querySelector('details.more').open"), "Escape does not close the More menu")
+    return out
+
+
 def main(argv):
     baseline, ci = "--baseline" in argv, "--ci" in argv
     OUT.mkdir(parents=True, exist_ok=True)
@@ -117,6 +182,10 @@ def main(argv):
                 bad = bool(errors or prob["overflow"] or any(i in ("serious", "critical") for i, *_ in ax))
                 fails += bad
                 prints.append((key, errors[:3], prob, ax))
+            if size == "desktop":
+                kb = keyboard(page, url)
+                fails += bool(kb)
+                prints.append(("desktop keyboard", kb, {"overflow": [], "tiny": []}, []))
             ctx.close()
         browser.close()
     httpd.shutdown()
@@ -124,7 +193,7 @@ def main(argv):
         flag = "OK " if not (errs or prob["overflow"] or prob["tiny"] or ax) else "!! "
         print(f"{flag}{key}")
         for e in errs:
-            print("    script error:", e[:160])
+            print("    problem:" if key.endswith("keyboard") else "    script error:", e[:160])
         if prob["overflow"]:
             print("    scrolls sideways because of:", ", ".join(prob["overflow"]))
         if prob["tiny"]:

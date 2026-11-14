@@ -104,6 +104,32 @@ def run(compare=True):
             o = lg.get("price")
             if isinstance(o, (int, float)) and o < 1.01:
                 fails.append(f"parlay leg {lg.get('desc')}: odds {o}")
+        # the game tickets: one game each, every leg from that game, honest chances, a "place at" above fair
+        for t in td.get("game_tickets") or []:
+            nm = f"game ticket {t.get('name')}"
+            if t.get("p") is None or not 0 < t["p"] < 1:
+                fails.append(f"{nm}: chance {t.get('p')}")
+            tl = t.get("legs") or []
+            if not tl or (t.get("n_legs") is not None and len(tl) != t["n_legs"]):
+                fails.append(f"{nm}: {len(tl)} legs, says {t.get('n_legs')}")
+            if t.get("game") and any(str(lg.get("game")) != str(t["game"]) for lg in tl):
+                fails.append(f"{nm}: a leg from another game")
+            for lg in tl:
+                if lg.get("p") is None or not 0 < lg["p"] < 1:
+                    fails.append(f"{nm}: leg {lg.get('desc')} chance {lg.get('p')}")
+            if t.get("fair") and t.get("min_odds") and t["min_odds"] < t["fair"]:
+                fails.append(f"{nm}: place-at odds {t['min_odds']} below fair {t['fair']}")
+    # the files every page needs: present and readable
+    for name in ("schedule.json", "players.json", "teams.json", "parlay.json", "accuracy.json", "standings.json", "meta.json"):
+        f = SITE / name
+        try:
+            json.loads(f.read_text())
+        except FileNotFoundError:
+            fails.append(f"{name}: missing")
+        except ValueError:
+            fails.append(f"{name}: not valid JSON")
+    if not (SITE / "replay.json").exists():
+        warns.append("replay.json missing: the Record and How it works pages lose the replay")
     report = {"games_checked": games, "fails": fails[:50], "warnings": warns, "ok": not fails}
     (SITE / "checks.json").write_text(json.dumps(report, indent=1))
     return report

@@ -505,6 +505,9 @@ def main(demo=False, now=None, collect_data=True):
     (SITE / "game").mkdir(parents=True, exist_ok=True)
     (SITE / "team").mkdir(parents=True, exist_ok=True)
     (SITE / "player").mkdir(parents=True, exist_ok=True)
+    # the replay of past seasons (written by hand from backtest/tickets.py runs; shown on the Record and How it works pages)
+    if (ROOT / "data" / "replay.json").exists():
+        shutil.copy(ROOT / "data" / "replay.json", SITE / "replay.json")
 
     cards_up, cards_res = [], []
     from model import sim as SIM
