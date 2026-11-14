@@ -71,7 +71,7 @@ BIAS_STATS = {"pts"}
 
 
 MIN_FEATS = ["const", "m8", "m3", "season", "last", "started", "gain_same", "gain_other", "blowout", "b2b",
-             "returning", "new", "crowd", "early_m8", "early_season", "short_absence", "q4_blow", "q4_close", "b2b_key"]
+             "returning", "new", "crowd", "early_m8", "early_season", "short_absence", "q4_blow", "q4_close", "b2b_key", "after_blow"]
 # Rotation habits from the play-by-play lineups (player_engine.rotation_pbp): how much of the fourth quarter a
 # player is on the court when the game is close and when it is a blowout. That is the player's own and his
 # coach's habit (some coaches empty the bench at +15, others ride starters to +25). Two minutes-model inputs:
@@ -85,6 +85,14 @@ ROT_PBP = False
 # for everyone; on 2024-25 and 2025-26 players projected 28+ minutes still came in 0.7-1.1 minutes and about 3%
 # of pts+reb+ast under projection on the second night (Nov 2026 test).
 B2B_KEY = True
+# The game after a blowout: starters sat the fourth quarter, which drags their recent minutes down, but coaches
+# do not keep them on short minutes. Input: points of the team's last margin beyond 15 (up to 20), x minutes share.
+# (2024-25 / 2025-26: key players +2.4-3.8% pts+reb+ast and up to +1.1 minutes over projection after a 20+ game.)
+AFTER_BLOW = False  # off: projections slightly better every season, tickets not (replay 446->452 / 439->420)
+# Last game's output per minute against its projection carries a little into the next game (a bigger role, a
+# teammate out, a matchup). Per stat, fitted on 2018-19 to 2023-24, the same on 2024-25 and 2025-26 (Nov 2026).
+LAST_FORM = False   # off: replay 446->448 / 439->427 (with AFTER_BLOW: 444 / 438)
+LAST_K = {"pts": 0.045, "reb": 0.016, "ast": 0.056, "tpm": 0.031}
 ROT_CLOSE, ROT_BLOW = 8, 16   # margin at the start of a stretch of play: close, blowout
 ROT_HL = 25                   # player-games of memory
 ROT_K = 600.0                 # seconds of padding towards his overall share of the minutes
@@ -144,6 +152,7 @@ class PlayerTracker:
     def __init__(self):
         self.p = {}                                   # pid -> dict
         self.team_games = defaultdict(int)            # team -> games played
+        self.team_margin = {}                         # team -> final margin of its last game (its own view)
         self.team_hist = defaultdict(lambda: deque(maxlen=12))  # team -> deque of set(pids who played)
         self.allowed = defaultdict(dict)              # team -> ew state of what opponents produced per stat
         self.league = {}                              # ew of team production per stat
@@ -263,7 +272,8 @@ class PlayerTracker:
         return [1.0, m8, m3, sm, last, float(q["started"]), gain["same"], gain["other"],
                 abs(exp_margin or 0.0) / 10.0 * heavy, float(b2b) * heavy, float(returning),
                 float(q["gp"] < 10), (here_all / 240.0 - 1.0) * m8, early * m8, early * sm, short_abs * heavy, q4b, q4c,
-                float(b2b) * max(m8 - 28.0, 0.0) if B2B_KEY else 0.0]
+                float(b2b) * max(m8 - 28.0, 0.0) if B2B_KEY else 0.0,
+                min(max(abs(self.team_margin.get(team, 0.0)) - 15.0, 0.0), 20.0) / 10.0 * heavy if AFTER_BLOW else 0.0]
 
     def project(self, pid, team, opp, is_home, b2b, absent=(), missing_share=0.0, notes=None, eff=None, extra_min=None,
                 exp_margin=None):
@@ -322,6 +332,10 @@ class PlayerTracker:
                     of = 0.5 * of + 0.5 * fp
             r = self.rate(q, st) * mins * of
             proj[st] = max(0.0, r * mult[use[st]])
+        q["last_base"] = (proj["pts"] + proj["reb"] + proj["ast"]) / max(mins, 1.0)  # before the form step below
+        if LAST_FORM and q.get("last_rel") is not None:
+            for st, k_ in LAST_K.items():
+                proj[st] *= 1.0 + k_ * q["last_rel"]
         proj["pra"] = proj["pts"] + proj["reb"] + proj["ast"]
         return proj, x
 
@@ -329,6 +343,9 @@ class PlayerTracker:
     def post_game(self, g, rows_by_team, team_box=None):
         """rows_by_team: {team: [row dicts with player_id, name, pos, min, stats...]}"""
         h, a = g["home"], g["away"]
+        hp_, ap_ = g.get("home_pts"), g.get("away_pts")
+        if hp_ is not None and ap_ is not None and hp_ == hp_ and ap_ == ap_:
+            self.team_margin[h], self.team_margin[a] = float(hp_ - ap_), float(ap_ - hp_)
         for team in (h, a):
             self.team_games[team] += 1
             rows = rows_by_team.get(team) or []
@@ -351,6 +368,9 @@ class PlayerTracker:
                     q["team"] = team
                 if mn <= 0:
                     continue
+                lb = q.pop("last_base", None)  # this game's per-minute projection, if it was projected
+                pra_ = sum(float(r.get(k_) or 0) for k_ in ("pts", "reb", "ast"))
+                q["last_rel"] = min(max((pra_ / mn) / lb - 1.0, -0.6), 1.0) if lb and lb > 0.05 and mn >= 10 else None
                 played.add(pid)
                 gap = self.team_games[team] - 1 - q["last_team_game"].get(team, self.team_games[team] - 1)
                 if gap >= BACK_GAP and q["gp"] > 5:
