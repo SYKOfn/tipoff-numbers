@@ -3,7 +3,7 @@ name: site-check
 # scroll sideways or serious accessibility problems (axe, WCAG 2 AA) fail the run. Data updates don't trigger it.
 on:
   push:
-    paths: ["site/app.js", "site/styles.css", "site/index.html", "tools/site_check.py", ".github/workflows/site-check.yml"]
+    paths: ["site/js/**", "site/styles.css", "site/index.html", "site/sw.js", "tools/site_check.py", ".github/workflows/site-check.yml"]
   workflow_dispatch:
 jobs:
   check:
