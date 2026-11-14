@@ -177,10 +177,9 @@ p { margin: 0 0 12px; max-width: 72ch; }
 
 .pill { display: inline-block; border-radius: 999px; padding: 1px 9px; font-size: .74rem; font-weight: 650; white-space: nowrap; background: var(--bar-bg); color: var(--muted); }
 .pill.strong { background: var(--pos-soft); color: var(--pos); }
-.pill.moderate { background: #e3ecf8; color: var(--base); }
+.pill.moderate { background: #1c2a45; color: var(--base); }
 .pill.weak { background: var(--body-soft); color: var(--body); }
 .pill.none { background: var(--bar-bg); color: var(--muted); }
-@media (prefers-color-scheme: dark) { .pill.moderate { background: #1c2a45; } }
 .pill.kind { background: var(--ball-soft); color: var(--ball); }
 
 .why { margin: 6px 0 0; padding-left: 18px; font-size: .93rem; }
