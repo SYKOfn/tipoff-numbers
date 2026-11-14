@@ -52,6 +52,26 @@ def main(season, d0=None, d1=None, rules=("base",)):
                              stints=load_stints())
     pt, pe, pdisp, plogs, ptrack, byg = PE.walk(c, players, {}, season)
     day_of = {gid: g["day"] for gid, g in c.meta.items()}
+    # REAL_PROPS=close|open: give the ticket builder real posted player lines (ESPN's book, backtest/espn_props.py)
+    # the way the live site gets them from The Odds API, with the prop calibration fitted monthly on earlier games
+    real_mode = os.environ.get("REAL_PROPS")
+    real = None
+    if real_mode:
+        from backtest import espn_props
+        real = espn_props.load(season, real_mode)
+        print(f"real prop lines ({real_mode}): {len(real)}", flush=True)
+    if os.environ.get("MARKET_W"):
+        parlay.MARKET_W["w"] = float(os.environ["MARKET_W"])
+    calib_cache = {}
+
+    def calib_for(day):
+        if not real_mode:
+            return {}
+        m = day[:7]
+        if m not in calib_cache:
+            past = {k: v for k, v in plogs.items() if day_of.get(k[0], "9") < m + "-01"}
+            calib_cache[m] = parlay.fit_prop_calibration(past, byg, pdisp, pt.dsp_log) if past else {}
+        return calib_cache[m]
     pl = players.copy()
     pl["gid"] = pl["game_id"].astype(str)
     pl["day"] = pl["gid"].map(day_of)
@@ -101,7 +121,7 @@ def main(season, d0=None, d1=None, rules=("base",)):
                 parlay.LEG_W.update(dog=0.0, min_hi=0.0)
             if rname == "refit":  # game-script weights given in the environment (fitted on another season)
                 parlay.LEG_W.update(dog=float(os.environ["LEG_DOG"]), min_hi=float(os.environ["LEG_MINHI"]))
-            out, _ = parlay.build(slate, pdisp, {}, avg)
+            out, _ = parlay.build(slate, pdisp, calib_for(day), avg, real_props=real)
             for tk in out.get("game_tickets", []):
                 gid = tk["game"]
                 rows = {str(r["player_id"]): r for team in byg.get(gid, {}).values() for r in team}
