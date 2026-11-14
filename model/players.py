@@ -71,7 +71,7 @@ BIAS_STATS = {"pts"}
 
 
 MIN_FEATS = ["const", "m8", "m3", "season", "last", "started", "gain_same", "gain_other", "blowout", "b2b",
-             "returning", "new", "crowd", "early_m8", "early_season", "short_absence", "q4_blow", "q4_close"]
+             "returning", "new", "crowd", "early_m8", "early_season", "short_absence", "q4_blow", "q4_close", "b2b_key"]
 # Rotation habits from the play-by-play lineups (player_engine.rotation_pbp): how much of the fourth quarter a
 # player is on the court when the game is close and when it is a blowout. That is the player's own and his
 # coach's habit (some coaches empty the bench at +15, others ride starters to +25). Two minutes-model inputs:
@@ -81,6 +81,10 @@ MIN_FEATS = ["const", "m8", "m3", "season", "last", "started", "gain_same", "gai
 # did not improve (2024-25: 450 -> 450 tickets landed; 2025-26: 429 -> 420). Switch on for research with
 # ROT_PBP=1 python -m backtest.tickets SEASON.
 ROT_PBP = False
+# Second night of a back-to-back, key players: minutes beyond 28 x back-to-back. The plain b2b input is one size
+# for everyone; on 2024-25 and 2025-26 players projected 28+ minutes still came in 0.7-1.1 minutes and about 3%
+# of pts+reb+ast under projection on the second night (Nov 2026 test).
+B2B_KEY = True
 ROT_CLOSE, ROT_BLOW = 8, 16   # margin at the start of a stretch of play: close, blowout
 ROT_HL = 25                   # player-games of memory
 ROT_K = 600.0                 # seconds of padding towards his overall share of the minutes
@@ -258,7 +262,8 @@ class PlayerTracker:
             q4c = 12.0 * (rc - share) * p_close
         return [1.0, m8, m3, sm, last, float(q["started"]), gain["same"], gain["other"],
                 abs(exp_margin or 0.0) / 10.0 * heavy, float(b2b) * heavy, float(returning),
-                float(q["gp"] < 10), (here_all / 240.0 - 1.0) * m8, early * m8, early * sm, short_abs * heavy, q4b, q4c]
+                float(q["gp"] < 10), (here_all / 240.0 - 1.0) * m8, early * m8, early * sm, short_abs * heavy, q4b, q4c,
+                float(b2b) * max(m8 - 28.0, 0.0) if B2B_KEY else 0.0]
 
     def project(self, pid, team, opp, is_home, b2b, absent=(), missing_share=0.0, notes=None, eff=None, extra_min=None,
                 exp_margin=None):

@@ -42,6 +42,8 @@ def main(season, d0=None, d1=None, rules=("base",)):
     PE.MIN_CAL = os.environ.get("MIN_CAL") == "1"  # replay with the minutes calibration on
     if os.environ.get("ROT_PBP"):  # replay with the play-by-play rotation inputs on (1) or off (0)
         P.ROT_PBP = os.environ["ROT_PBP"] == "1"
+    if os.environ.get("B2B_KEY"):  # replay with the key-player back-to-back input on (1) or off (0)
+        P.B2B_KEY = os.environ["B2B_KEY"] == "1"
     games, players = load_games(), load_players()
     c = engine.build_context(games, players, [], {"half_life": 90, "lam": 3.0, "carry": 0.6, "lam_effects": 40.0},
                              stints=load_stints())
