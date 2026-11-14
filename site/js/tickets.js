@@ -331,7 +331,7 @@ async function parlayPage() {
   app.innerHTML = `<section class="hero court"><div class="wrap"><h1>Tonight's tickets</h1>
     <p class="lede" style="margin-top:10px">${lockLine}</p></div></section>
   <div class="wrap">${demoBanner()}
-    <nav class="segs" aria-label="Tickets page sections">${[["tickets", "Game tickets"], ["singles", "Singles"], ["value", "Value"], ["build", "Build your own"], ["record", "Record & method"]].map(([k, v]) => `<button type="button" data-seg="${k}">${v}</button>`).join("")}</nav>
+    <nav class="segs" aria-label="Tickets page sections">${[["tickets", "Game tickets", "Tickets"], ["singles", "Singles", "Singles"], ["value", "Value", "Value"], ["build", "Build your own", "Build"], ["record", "Record & method", "Method"]].map(([k, v, sh]) => `<button type="button" data-seg="${k}" aria-label="${v}"><span class="seg-l">${v}</span><span class="seg-s" aria-hidden="true">${sh}</span></button>`).join("")}</nav>
     <p class="note small" data-pane="tickets">Every player line is one Winamax lists (5+, 10+, 15+ …). Type the combined odds Winamax shows in each ticket to see Place or Skip. Statistical estimates, not advice; 18+.</p>
     <section class="section" data-pane="tickets"><h2>One ticket per game <span class="sub">the main picks: each game's five legs most likely to land together</span></h2>
       <p class="sub small">Each game is simulated 20,000 times, so legs that win and lose together are priced together. A combined bet still loses more on average than a single: Winamax pays about half its fair winnings.</p>

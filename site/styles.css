@@ -1354,3 +1354,15 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 .tested-l li span { color: var(--muted); font-size: .9rem; }
 .rp-t td:first-child { white-space: nowrap; }
 @media (max-width: 560px) { .rp-grid { grid-template-columns: 1fr 1fr; } .rp-grid .tile .v { font-size: 26px; } }
+
+/* phones: tighter page header, full-width section subtitles, tab labels that fit */
+h2 .sub, h2 .sub2 { text-wrap: pretty; }
+.segs .seg-s { display: none; }
+@media (max-width: 600px) {
+  .hero:not(.tn-hero) { padding: 40px 0 14px; margin-bottom: 10px; }
+  .section > h2 .sub, .section > h2 .sub2 { flex-basis: 100%; }
+  .segs { width: 100%; justify-content: space-between; }
+  .segs button { padding: 8px 10px; }
+  .segs .seg-l { display: none; }
+  .segs .seg-s { display: inline; }
+}
