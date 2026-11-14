@@ -131,6 +131,8 @@ async function route() {
     if (page !== "player" && LAST_PLAYER) { const h1 = app.querySelector(".ph h1"); if (h1) h1.style.viewTransitionName = "player-name"; }
     app.classList.remove("entering", "leaving");
     const tr = document.startViewTransition(render);
+    // a quick second tap skips this transition: expected, not an error
+    tr.ready.catch(() => {}); tr.updateCallbackDone.catch(() => {});
     try { await tr.finished; } catch (e) { /* skipped: the page is still rendered */ }
     document.querySelectorAll("[style*='view-transition-name']").forEach(e => { e.style.viewTransitionName = ""; });
   } else {

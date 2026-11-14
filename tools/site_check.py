@@ -144,6 +144,14 @@ def keyboard(page, url):
             pass
         page.keyboard.press("Escape")
         check(not page.evaluate("document.querySelector('details.more').open"), "Escape does not close the More menu")
+    # quick taps through several pages: skipped transitions must not raise errors
+    errs = []
+    page.on("pageerror", lambda e: errs.append(str(e)))
+    for h in ("#/parlay", "#/results", "#/about", "#/players", "#/accuracy", "#/games", "#/"):
+        page.evaluate(f"location.hash = '{h}'")
+        page.wait_for_timeout(60)
+    page.wait_for_timeout(2000)
+    check(not errs, f"errors when moving quickly between pages: {errs[:2]}")
     return out
 
 
