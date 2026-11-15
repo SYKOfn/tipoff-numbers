@@ -1,8 +1,6 @@
 {
- "games_checked": 99,
+ "games_checked": 98,
  "fails": [],
- "warnings": [
-  "3 player projections moved more than 40% with no news"
- ],
+ "warnings": [],
  "ok": true
 }
