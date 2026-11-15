@@ -3,7 +3,7 @@
  "players": {
   "Tyler Herro": {
    "contract_year": true,
-   "note": "Leading Milwaukee after the Giannis trade; back from a knee bruise with 27 vs the Lakers; contract year."
+   "note": "Leading Milwaukee after the Giannis trade; \"We can't just be smiling and thinking this is OK.\""
   },
   "Jaime Jaquez Jr.": {
    "contract_year": true
@@ -16,7 +16,7 @@
   },
   "Michael Porter Jr.": {
    "contract_year": true,
-   "note": "On the trade block in a contract year; talks stalled over asking price."
+   "note": "Missed Nov 14 for personal reasons; Brooklyn expected to shop him before the deadline."
   },
   "Draymond Green": {
    "contract_year": true
@@ -43,13 +43,14 @@
    "note": "Gave Tatum a frosty reception in his first game vs Boston; held to 13 points in a 22-point loss."
   },
   "Kyle Kuzma": {
-   "note": "Called for more urgency as Milwaukee sit 1-10; faces his first NBA team, the Lakers."
+   "note": "On an expiring deal; Milwaukee have been trying to trade him since the offseason.",
+   "contract_year": true
   },
   "Brandon Ingram": {
    "note": "Close to his Clippers debut after heel surgery, but ruled out vs Oklahoma City."
   },
   "Darryn Peterson": {
-   "note": "Four straight 20-point games for the 1-11 Jazz."
+   "note": "Five straight 20-point games for the 1-12 Jazz."
   },
   "Ja Morant": {
    "note": "Out with a hamstring strain he picked up against former team Memphis; coach says he may return sooner than four weeks."
@@ -58,13 +59,14 @@
    "note": "Ripped Wizards' defense after a 44-point return; team reportedly wants 20-30 games before deciding on an extension."
   },
   "Domantas Sabonis": {
-   "note": "Shrinking role next to rookie Darius Acuff Jr.; deadline-trade talk."
+   "note": "Kings reportedly willing to discuss anyone but Darius Acuff Jr., Sabonis included."
   },
   "Darius Acuff Jr.": {
    "note": "Rookie scoring about 26 a game; openly frustrated at 1-10: \"I'm not a loser, so it's not fun.\""
   },
   "Noah Clowney": {
-   "note": "Frustration since losing his starting role; fouled out and shoved an opponent in Dallas."
+   "note": "Started for the absent Michael Porter Jr.; headed to restricted free agency, has struggled with a bench role.",
+   "contract_year": true
   },
   "Kevin Durant": {
    "note": "Faces former team Golden State; within about 900 points of passing Kobe for 4th all-time; taking a career-low 12.3 shots a game."
@@ -85,7 +87,7 @@
    "note": "Extension talks stalled after he reportedly turned down about $200M; Knicks have reportedly raised a possible trade."
   },
   "Kyrie Irving": {
-   "note": "At the centre of deadline trade talk; reportedly \"not on the Mavericks' timeline\"."
+   "note": "Scored 34 in a warm return to Cleveland; a rest risk on second nights of back-to-backs."
   },
   "Anthony Edwards": {
    "note": "Out up to two months after knee surgery; the absence threatens the 65-game mark that matters for his supermax eligibility."
@@ -116,10 +118,10 @@
    "contract_year": true
   },
   "Stephen Curry": {
-   "note": "Oblique abdominal tear confirmed by MRI; re-evaluated in two weeks."
+   "note": "Oblique tear; out at least two weeks and Golden State are preparing for about a month."
   },
   "Marcus Smart": {
-   "note": "Suspended three games for punching Charles Bassey; misses Utah, Washington and Miami."
+   "note": "Three-game suspension for punching Charles Bassey; eligible again after Nov 16."
   },
   "James Harden": {
    "note": "Broke a scoring slump with a season-high 32 at the Knicks."
@@ -149,13 +151,13 @@
    "note": "Out with a toe injury, his first missed game of the season."
   },
   "Dejounte Murray": {
-   "note": "Requested a trade from New Orleans; reportedly will not play for the Pelicans going forward."
+   "note": "Requested a trade from New Orleans after a deleted \"sabotage\" tweet; Suns reportedly interested."
   },
   "Mikal Bridges": {
    "note": "Deep shooting slump with the Knicks; Brunson publicly backed him."
   },
   "Jalen Green": {
-   "note": "Rival teams believe Phoenix are motivated to trade him amid a career-low scoring start."
+   "note": "Trade buzz as Phoenix look for a proven point guard."
   },
   "Santi Aldama": {
    "note": "Back from knee surgery; minutes limit lifted, calls it an \"in-season training camp\"."
@@ -168,6 +170,35 @@
   },
   "Gary Trent Jr.": {
    "note": "The NBA is investigating whether his Milwaukee deal circumvents the salary cap."
+  },
+  "GG Jackson": {
+   "contract_year": true,
+   "note": "\"Relatively serious\" foot injury in his contract year, per coach Tuomas Iisalo."
+  },
+  "Nikola Vucevic": {
+   "contract_year": true,
+   "note": "Back in Orlando on a one-year deal; faces former team Boston on Nov 16."
+  },
+  "Bradley Beal": {
+   "note": "Repeated setbacks with his hip; Tyronn Lue doubts a near-term return."
+  },
+  "Jalen Johnson": {
+   "note": "Milwaukee-area native; Atlanta kept him rather than trade for Giannis."
+  },
+  "Scottie Barnes": {
+   "note": "Upgraded to questionable after missing four games with a groin strain."
+  },
+  "Fred VanVleet": {
+   "note": "Back from a torn ACL; fired up the Rockets bench against Utah, per Ime Udoka."
+  },
+  "Damian Lillard": {
+   "note": "Back from a long Achilles rehab; calls his partnership with Deni Avdija \"the most joyful\" of his career."
+  },
+  "Tyrese Haliburton": {
+   "note": "Achilles comeback stalled by a hamstring strain; out at least 10 days from Nov 11."
+  },
+  "Kon Knueppel": {
+   "note": "Re-strained his hamstring in his season debut; about four weeks out."
   }
  }
 }
