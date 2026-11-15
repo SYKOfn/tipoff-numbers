@@ -1,12 +1,19 @@
 {
   "_about": "Written each morning by the analyst task. Facts about tonight's players stated by a reputable source, nothing else: rest (sits tonight), min_cap (minutes limit), start / bench (lineup change), returning (back from an absence). Each entry applies only to games on its 'day' (US date). See pipeline/news.py.",
   "players": {
-    "Yves Missi": {
-      "day": "2026-11-14",
-      "team": "NO",
+    "Brandon Miller": {
+      "day": "2026-11-15",
+      "team": "CHA",
       "returning": true,
-      "quote": "Listed probable; expected to return after missing games since Oct. 24 with a left knee bone bruise.",
-      "source": "https://athlonsports.com/nba/new-orleans-pelicans/final-injury-report-for-nuggets-pelicans-will-trey-murphy-iii-dejounte-murray-play"
+      "quote": "Off the injury report; returns vs. Clippers after missing two games with a right hip strain.",
+      "source": "https://athlonsports.com/nba/charlotte-hornets/final-injury-report-for-hornets-clippers-will-brandon-miller-brandon-ingram-play"
+    },
+    "Quentin Grimes": {
+      "day": "2026-11-15",
+      "team": "LAL",
+      "returning": true,
+      "quote": "Returns at Phoenix after missing the previous two games with a right finger injury.",
+      "source": "https://sports.yahoo.com/articles/lakers-major-collin-sexton-injury-180453707.html"
     }
   }
 }
