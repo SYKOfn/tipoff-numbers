@@ -16,7 +16,7 @@
   },
   "Michael Porter Jr.": {
    "contract_year": true,
-   "note": "Missed Nov 14 for personal reasons; Brooklyn expected to shop him before the deadline."
+   "note": "Missed Nov 14 for personal reasons, believed resolved; Brooklyn expected to shop him before the deadline."
   },
   "Draymond Green": {
    "contract_year": true
@@ -78,7 +78,7 @@
    "note": "32 points as the Spurs won a 10th straight, rallying from 22 down in Chicago."
   },
   "Trae Young": {
-   "note": "Faced former team Atlanta for the first time on Nov 6."
+   "note": "First scoreless game of his career in a 147-119 loss to Houston; questions about his Washington future are growing."
   },
   "Paul George": {
    "note": "Scored 36 against his former team, Philadelphia, in a 22-point win."
@@ -106,10 +106,11 @@
    "note": "Faces Charlotte, his longtime team, for the first time since the June trade."
   },
   "Kawhi Leonard": {
-   "note": "Ruled out vs the Knicks with knee swelling; has not played since Oct 23."
+   "note": "Out since late October with knee swelling; still 'reconditioning' with no return date."
   },
   "RJ Barrett": {
-   "contract_year": true
+   "contract_year": true,
+   "note": "Final year of his deal; faces former team New York in a back-to-back set."
   },
   "Paul Reed": {
    "contract_year": true
@@ -189,7 +190,7 @@
    "note": "Upgraded to questionable after missing four games with a groin strain."
   },
   "Fred VanVleet": {
-   "note": "Back from a torn ACL; fired up the Rockets bench against Utah, per Ime Udoka."
+   "note": "Back from a torn ACL and starting: 'I'm appreciating every minute.'"
   },
   "Damian Lillard": {
    "note": "Back from a long Achilles rehab; calls his partnership with Deni Avdija \"the most joyful\" of his career."
@@ -199,6 +200,33 @@
   },
   "Kon Knueppel": {
    "note": "Re-strained his hamstring in his season debut; about four weeks out."
+  },
+  "Donovan Mitchell": {
+   "note": "Rested a bruised knee on Nov 14; removed from the injury report for the Bulls game."
+  },
+  "Joel Embiid": {
+   "note": "Sat vs Indiana with plantar fascia management; hasn't played both ends of a back-to-back this season."
+  },
+  "Paolo Banchero": {
+   "note": "Out since Oct 23 with a high ankle sprain."
+  },
+  "Austin Reaves": {
+   "note": "Heel bruise; Redick says his return is 'a pain tolerance thing'."
+  },
+  "Dylan Harper": {
+   "note": "31 points running the offense with De'Aaron Fox out, as the Spurs won a 12th straight."
+  },
+  "Nic Claxton": {
+   "note": "Already floated as a trade candidate weeks after his Bulls debut."
+  },
+  "LJ Cryer": {
+   "note": "New Orleans native; likely his first NBA game in his hometown, vs the Pelicans."
+  },
+  "Jonathan Kuminga": {
+   "note": "Holds a $6.4M player option for 2027, so this could become a contract year."
+  },
+  "Mo Bamba": {
+   "note": "26 points in his first Jazz start; admits the frustration but says the locker room isn't hopeless."
   }
  }
 }
