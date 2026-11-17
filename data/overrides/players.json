@@ -3,7 +3,7 @@
  "players": {
   "Tyler Herro": {
    "contract_year": true,
-   "note": "Leading Milwaukee after the Giannis trade; \"We can't just be smiling and thinking this is OK.\""
+   "note": "Returns to Miami for a tribute night on Nov 18 with Milwaukee 1-13."
   },
   "Jaime Jaquez Jr.": {
    "contract_year": true
@@ -37,7 +37,7 @@
    "contract_year": true
   },
   "Giannis Antetokounmpo": {
-   "note": "Called Doc Rivers' public criticism of his basketball IQ \"insane\"; playing through a sprained right wrist."
+   "note": "Faces Milwaukee for the first time since the trade; calls it \"just another game\"."
   },
   "Jaylen Brown": {
    "note": "Gave Tatum a frosty reception in his first game vs Boston; held to 13 points in a 22-point loss."
@@ -59,7 +59,7 @@
    "note": "Ripped Wizards' defense after a 44-point return; team reportedly wants 20-30 games before deciding on an extension."
   },
   "Domantas Sabonis": {
-   "note": "Kings reportedly willing to discuss anyone but Darius Acuff Jr., Sabonis included."
+   "note": "Reported to want out of Sacramento; Charlotte and Toronto expected to pursue him."
   },
   "Darius Acuff Jr.": {
    "note": "Rookie scoring about 26 a game; openly frustrated at 1-10: \"I'm not a loser, so it's not fun.\""
@@ -106,7 +106,7 @@
    "note": "Faces Charlotte, his longtime team, for the first time since the June trade."
   },
   "Kawhi Leonard": {
-   "note": "Out since late October with knee swelling; still 'reconditioning' with no return date."
+   "note": "Out since Oct 23 with left knee swelling; an update was expected around Nov 17."
   },
   "RJ Barrett": {
    "contract_year": true,
@@ -146,19 +146,19 @@
    "note": "Called the Pelicans' back-to-back blowouts \"unacceptable\" and told teammates and coaches to look in the mirror."
   },
   "Ty Jerome": {
-   "note": "Five straight 20-point games for Memphis heading into free agency."
+   "note": "Sat Nov 16 with a sore right hip; Memphis 7-0 on the road."
   },
   "Evan Mobley": {
-   "note": "Out with a toe injury, his first missed game of the season."
+   "note": "Sprained right big toe; out at least another 7-10 days (from Nov 16)."
   },
   "Dejounte Murray": {
-   "note": "Requested a trade from New Orleans after a deleted \"sabotage\" tweet; Suns reportedly interested."
+   "note": "Requested a trade from New Orleans via Klutch; Pelicans confirmed and are taking offers."
   },
   "Mikal Bridges": {
    "note": "Deep shooting slump with the Knicks; Brunson publicly backed him."
   },
   "Jalen Green": {
-   "note": "Trade buzz as Phoenix look for a proven point guard."
+   "note": "Named in Suns trade talk around Dejounte Murray; averaging a career-low 11.8 points."
   },
   "Santi Aldama": {
    "note": "Back from knee surgery; minutes limit lifted, calls it an \"in-season training camp\"."
@@ -174,7 +174,7 @@
   },
   "GG Jackson": {
    "contract_year": true,
-   "note": "\"Relatively serious\" foot injury in his contract year, per coach Tuomas Iisalo."
+   "note": "Broken fifth metatarsal in his left foot; needs surgery, no timeline, in his contract year."
   },
   "Nikola Vucevic": {
    "contract_year": true,
@@ -196,7 +196,7 @@
    "note": "Back from a long Achilles rehab; calls his partnership with Deni Avdija \"the most joyful\" of his career."
   },
   "Tyrese Haliburton": {
-   "note": "Achilles comeback stalled by a hamstring strain; out at least 10 days from Nov 11."
+   "note": "Hamstring timetable \"uncertain\" per Carlisle; Pacers shopping for upgrades meanwhile."
   },
   "Kon Knueppel": {
    "note": "Re-strained his hamstring in his season debut; about four weeks out."
@@ -217,7 +217,7 @@
    "note": "31 points running the offense with De'Aaron Fox out, as the Spurs won a 12th straight."
   },
   "Nic Claxton": {
-   "note": "Already floated as a trade candidate weeks after his Bulls debut."
+   "note": "Faces Brooklyn, the team that traded him to Chicago; nursing a hamstring injury."
   },
   "LJ Cryer": {
    "note": "New Orleans native; likely his first NBA game in his hometown, vs the Pelicans."
@@ -227,6 +227,21 @@
   },
   "Mo Bamba": {
    "note": "26 points in his first Jazz start; admits the frustration but says the locker room isn't hopeless."
+  },
+  "Bam Adebayo": {
+   "note": "Left Nov 16 game with left hip tightness; Spoelstra does not expect a long-term issue."
+  },
+  "Lu Dort": {
+   "note": "First return to Oklahoma City since leaving the title team for Atlanta."
+  },
+  "Aaron Wiggins": {
+   "note": "First return to Oklahoma City since leaving the title team for Atlanta."
+  },
+  "Walker Kessler": {
+   "note": "Faces Utah, who sent him to the Lakers in a July sign-and-trade; sat Nov 17 with leg soreness."
+  },
+  "Jayson Tatum": {
+   "note": "Playing through a bruised hand; shot 9-of-23 in the loss at Orlando."
   }
  }
 }
