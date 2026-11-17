@@ -17,3 +17,7 @@
 {"at": "2026-11-17T01:01:21.275945+00:00", "game_id": "401910002", "books": {}}
 {"at": "2026-11-17T01:01:21.275945+00:00", "game_id": "401910004", "books": {}}
 {"at": "2026-11-17T01:01:21.275945+00:00", "game_id": "401910006", "books": {}}
+{"at": "2026-11-17T04:45:57.084064+00:00", "game_id": "401910002", "books": {"winamax_fr": {"last_update": "2026-11-17T04:45:10Z", "ml_away": 1.52, "ml_home": 2.0}, "pinnacle": {"last_update": "2026-11-17T04:45:49Z", "ml_away": 1.69, "ml_home": 2.29, "spread_price_away": 1.95, "spread_home": 3.0, "spread_price_home": 1.93, "total": 216.0, "over": 1.88, "under": 1.99}}}
+{"at": "2026-11-17T04:45:57.084064+00:00", "game_id": "401910004", "books": {"winamax_fr": {"last_update": "2026-11-17T04:45:10Z", "ml_away": 3.05, "ml_home": 1.21}, "pinnacle": {"last_update": "2026-11-17T04:45:49Z", "ml_away": 3.83, "ml_home": 1.29, "spread_price_away": 1.91, "spread_home": -8.5, "spread_price_home": 1.98, "total": 222.0, "over": 1.93, "under": 1.93}}}
+{"at": "2026-11-17T04:45:57.084064+00:00", "game_id": "401910003", "books": {"winamax_fr": {"last_update": "2026-11-17T04:45:10Z", "ml_home": 1.58, "ml_away": 1.9}}}
+{"at": "2026-11-17T04:45:57.084064+00:00", "game_id": "401910006", "books": {"winamax_fr": {"last_update": "2026-11-17T04:45:10Z", "ml_home": 1.35, "ml_away": 2.4}, "pinnacle": {"last_update": "2026-11-17T04:45:49Z", "ml_home": 1.46, "ml_away": 2.87, "spread_home": -6.0, "spread_price_home": 1.99, "spread_price_away": 1.9, "total": 226.0, "over": 1.99, "under": 1.88}}}
