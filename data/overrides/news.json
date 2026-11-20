@@ -1,4 +1,12 @@
 {
   "_about": "Written each morning by the analyst task. Facts about tonight's players stated by a reputable source, nothing else: rest (sits tonight), min_cap (minutes limit), start / bench (lineup change), returning (back from an absence). Each entry applies only to games on its 'day' (US date). See pipeline/news.py.",
-  "players": {}
+  "players": {
+    "Quentin Grimes": {
+      "day": "2026-11-20",
+      "team": "LAL",
+      "start": true,
+      "quote": "Expected to start again Friday in place of Austin Reaves (out, heel).",
+      "source": "https://www.espn.com/fantasy/basketball/story/_/id/50541974/fantasy-basketball-tips-nba-betting-picks-today"
+    }
+  }
 }
