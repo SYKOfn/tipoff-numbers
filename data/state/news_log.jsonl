@@ -5,3 +5,4 @@
 {"day": "2026-11-14", "game": "401909980", "player": "5061589", "name": "Yves Missi", "signals": {"returning": true}, "min_news": 0.0, "min_without": 0.0}
 {"day": "2026-11-15", "game": "401909986", "player": "4397014", "name": "Quentin Grimes", "signals": {"returning": true}, "min_news": 27.4, "min_without": 27.4}
 {"day": "2026-11-15", "game": "401909987", "player": "4433287", "name": "Brandon Miller", "signals": {"returning": true}, "min_news": 24.5, "min_without": 24.5}
+{"day": "2026-11-20", "game": "401909313", "player": "4397014", "name": "Quentin Grimes", "signals": {"start": true}, "min_news": 36.1, "min_without": 36.1}
