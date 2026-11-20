@@ -2,7 +2,8 @@
  "_about": "Player notes the data can't show, keyed by ESPN player id or full name: {\"contract_year\": true|false, \"note\": \"short storyline\"}. Kept up to date by the daily analyst task. contract_year feeds the measured 'Contract year' effect; notes are shown on player pages.",
  "players": {
   "Tyler Herro": {
-   "contract_year": true
+   "contract_year": true,
+   "note": "11-for-41 over three games; could lose minutes in Taylor Jenkins' lineup changes."
   },
   "Jaime Jaquez Jr.": {
    "contract_year": true
@@ -19,8 +20,7 @@
    "note": "$40.8M expiring deal; Brooklyn listening to calls; shooting slump (1-of-7 vs Chicago)."
   },
   "Draymond Green": {
-   "contract_year": true,
-   "note": "Right elbow; sits Nov 19 at Memphis, the second night of a back-to-back."
+   "contract_year": true
   },
   "Anthony Black": {
    "contract_year": true
@@ -32,7 +32,8 @@
    "contract_year": true
   },
   "Zach LaVine": {
-   "contract_year": true
+   "contract_year": true,
+   "note": "Spirited on-court exchange with Sabonis; Kings listening to offers and his minutes expected to drop."
   },
   "De'Andre Hunter": {
    "contract_year": true
@@ -41,7 +42,7 @@
    "note": "Beat Milwaukee in his first meeting: 27 points, 14 rebounds, 9 assists."
   },
   "Jaylen Brown": {
-   "note": "Left hamstring strain; misses Nov 18 at Orlando, re-evaluated before Saturday."
+   "note": "Hamstring strain, no timeline."
   },
   "Kyle Kuzma": {
    "note": "On an expiring deal; Milwaukee have been trying to trade him since the offseason.",
@@ -54,16 +55,16 @@
    "note": "Five straight 20-point games for the 1-12 Jazz."
   },
   "Ja Morant": {
-   "note": "Out with a hamstring strain he picked up against former team Memphis; coach says he may return sooner than four weeks."
+   "note": "Grade 2 hamstring strain suffered against former team Memphis on Oct 30; no return date yet."
   },
   "Anthony Davis": {
    "note": "Ripped Wizards' defense after a 44-point return; team reportedly wants 20-30 games before deciding on an extension."
   },
   "Domantas Sabonis": {
-   "note": "Reported (Nov 2) to want out of Sacramento; visible exchange with Zach LaVine on Nov 18."
+   "note": "Reported (Nov 2) to want out of Sacramento; on-court spat with Zach LaVine on Nov 18."
   },
   "Darius Acuff Jr.": {
-   "note": "Leads rookies at about 28 points a game; 36 vs Phoenix as Sacramento fell to 1-13."
+   "note": "The one King reported as off-limits in trade talks; leads rookies in scoring."
   },
   "Noah Clowney": {
    "note": "Started for the absent Michael Porter Jr.; headed to restricted free agency, has struggled with a bench role.",
@@ -85,10 +86,10 @@
    "note": "Scored 36 against his former team, Philadelphia, in a 22-point win."
   },
   "Karl-Anthony Towns": {
-   "note": "Returns to Minnesota as a champion ('bittersweet'); extension talks stalled, holds a player option."
+   "note": "Seeking an extension; the Knicks tabled talks until later in the season; holds a 2027-28 player option."
   },
   "Kyrie Irving": {
-   "note": "Scored 34 in a warm return to Cleveland; a rest risk on second nights of back-to-backs."
+   "note": "Back after 19 months out after knee surgery, averaging about 22 points."
   },
   "Anthony Edwards": {
    "note": "Out up to two months after knee surgery; the absence threatens the 65-game mark that matters for his supermax eligibility."
@@ -98,10 +99,10 @@
    "contract_year": true
   },
   "Grayson Allen": {
-   "note": "Concussion-like symptoms after a hit to the head on Nov 15."
+   "note": "Day-to-day in concussion protocol."
   },
   "Kawhi Leonard": {
-   "note": "Knee; out at least four more games, next update Nov 24."
+   "note": "Back in Toronto; out since Oct 23 with knee swelling, at least another week (Nov 17). Raptors 3-9 without him."
   },
   "RJ Barrett": {
    "contract_year": true,
@@ -120,7 +121,7 @@
    "note": "Broke a scoring slump with a season-high 32 at the Knicks."
   },
   "Franz Wagner": {
-   "note": "71 points over two road wins for Orlando's first winning streak, with Banchero out."
+   "note": "First NBA game against his brother Moritz (Nov 20): 'a blessing.'"
   },
   "Ayo Dosunmu": {
    "note": "Starting with Edwards out; scored 30 vs Portland."
@@ -132,7 +133,7 @@
    "note": "Fractured right hand; surgery expected, out about four to six weeks."
   },
   "Cade Cunningham": {
-   "note": "Right knee soreness; missed his first game Nov 18, described as mostly precautionary."
+   "note": "Probable for Nov 20 after missing one game with right knee soreness."
   },
   "Zion Williamson": {
    "note": "Called the Pelicans' back-to-back blowouts \"unacceptable\" and told teammates and coaches to look in the mirror."
@@ -144,7 +145,7 @@
    "note": "Sprained right big toe; out at least another 7-10 days (from Nov 16)."
   },
   "Dejounte Murray": {
-   "note": "Trade request has found no significant market (ESPN); away from the team with an ankle injury."
+   "note": "Trade request (Nov 13), ankle sprain; ESPN calls his value negative; posted and deleted a 'SABOTAGE' tweet."
   },
   "Mikal Bridges": {
    "note": "Deep shooting slump with the Knicks; Brunson publicly backed him."
@@ -169,22 +170,23 @@
    "contract_year": true
   },
   "Bradley Beal": {
-   "note": "Listed for right knee injury management on the Clippers' trip."
+   "note": "Knee; estimated return Nov 29."
   },
   "Jalen Johnson": {
    "note": "Milwaukee-area native; Atlanta kept him rather than trade for Giannis."
   },
   "Scottie Barnes": {
-   "note": "Upgraded to questionable after missing four games with a groin strain."
+   "note": "Expected back from a groin strain on Nov 20."
   },
   "Fred VanVleet": {
-   "note": "Back from a torn ACL and starting: 'I'm appreciating every minute.'"
+   "note": "Back from a torn ACL and starting: 'I'm appreciating every minute.'",
+   "contract_year": true
   },
   "Damian Lillard": {
-   "note": "First trip back to Milwaukee since his Achilles tear: 'I'm not going to limp out of here.'"
+   "note": "Scored 33 on his first trip back to Milwaukee."
   },
   "Tyrese Haliburton": {
-   "note": "Hamstring; Carlisle said 'check back in 10 days' on Nov 11."
+   "note": "Hamstring; out since Oct 26, no firm timetable."
   },
   "Kon Knueppel": {
    "note": "Re-strained his hamstring in his season debut; about four weeks out."
@@ -196,10 +198,10 @@
    "note": "Out since Oct 23 with a high ankle sprain."
   },
   "Austin Reaves": {
-   "note": "Heel bruise; missed three straight, encouraging workout on Nov 18."
+   "note": "Heel bruise; still out on Nov 20."
   },
   "Dylan Harper": {
-   "note": "Out with left hip soreness after slipping on the court vs Detroit."
+   "note": "Left hip strain; out 1-3 weeks (from Nov 19)."
   },
   "Jonathan Kuminga": {
    "note": "Right shoulder contusion, no timetable; holds a $6.4M player option for 2027."
@@ -214,17 +216,17 @@
    "note": "Back from leg soreness with 10 points and 11 rebounds against former team Utah."
   },
   "Jayson Tatum": {
-   "note": "Playing through a bruised hand; shot 9-of-23 in the loss at Orlando."
+   "note": "Technical foul late in the loss at Denver: 'That's on me.'"
   },
   "Julius Randle": {
    "contract_year": true,
-   "note": "Called the 30-point loss to Chicago 'embarrassing'; the Nets are listening to offers."
+   "note": "Called the 30-point loss to Chicago 'embarrassing' and took it on himself; the Nets are listening to offers."
   },
   "CJ McCollum": {
    "note": "Calf strain, out at least four weeks; had asked Quin Snyder to change the starting lineup."
   },
   "Deni Avdija": {
-   "note": "Sore left foot; ruled out vs Minnesota, no timeline."
+   "note": "Left foot soreness; missed two games, Saturday at New York possible."
   },
   "Yanic Konan Niederhauser": {
    "note": "Cleared for his season debut after a Lisfranc fracture."
@@ -255,6 +257,51 @@
   },
   "Desmond Bane": {
    "note": "Franchise-record nine straight games with 3+ threes."
+  },
+  "Kenrich Williams": {
+   "contract_year": true
+  },
+  "Keldon Johnson": {
+   "contract_year": true
+  },
+  "Bilal Coulibaly": {
+   "contract_year": true
+  },
+  "Moritz Wagner": {
+   "note": "Faces Orlando, his former team, and brother Franz for the first time since joining Brooklyn."
+  },
+  "Thomas Bryant": {
+   "note": "Faces Indiana, his 2024-25 team."
+  },
+  "Andrew Nembhard": {
+   "note": "Hip; questionable after missing two games."
+  },
+  "Sam Merrill": {
+   "note": "Missed two late free throws in the loss to Memphis: 'I feel like I cost the team the game.'"
+  },
+  "Nic Claxton": {
+   "note": "Now with Chicago; holds 'no ill will' toward the Nets after the rout in Brooklyn."
+  },
+  "Trey Murphy III": {
+   "note": "Knee tendinopathy; upgraded to questionable after missing six games."
+  },
+  "Shai Gilgeous-Alexander": {
+   "note": "OKC 1-4 in their last five with three starters out: 'a new challenge for this group.'"
+  },
+  "DeMar DeRozan": {
+   "note": "13 fourth-quarter points in Denver's comeback from 17 down vs Boston."
+  },
+  "Luka Doncic": {
+   "note": "Called his own 9-turnover night in the loss to Utah 'unacceptable'."
+  },
+  "Josh Hart": {
+   "note": "Extension talks tabled: 'I would love to get it done.'"
+  },
+  "Jerami Grant": {
+   "note": "Left calf injury on Nov 19; status for Nov 21 unknown."
+  },
+  "Tyrese Maxey": {
+   "note": "Right foot soreness; late scratch on Nov 18."
   }
  }
 }
