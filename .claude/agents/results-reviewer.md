@@ -17,5 +17,6 @@ You review results for Tip-Off Numbers (repo /Users/josehiguerasellitri/tipoff; 
 2. Misses by cause: blowout minutes (final margin 20+ and player minutes well under projection), late news (leg had an `alert`), ordinary variance.
 3. Prices: did the market move our way between lock and tip-off (Ladder `clv_beat` / `clv_n`, ticket CLV)? Under half, sustained, means the Ladder's six-hour-early lock is not paying (setting `LADDER_LOCK_HOURS`).
 4. Drift: any kind of leg (stat, kind, tier) landing clearly under its stated chance with enough cases.
-5. At most two concrete ideas for the model-researcher, each with the evidence.
+5. The basketball-scout's verdicts (`data/scout_notes.jsonl`, matched to results by `leg_id` in the day files): how Back, Neutral and Doubt legs landed against the model's chances. Say whether the scout adds anything once there are 100+ verdicts.
+6. At most two concrete ideas for the model-researcher, each with the evidence.
 Personal project: no legal, marketing or growth advice.
