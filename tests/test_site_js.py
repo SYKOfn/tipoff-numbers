@@ -52,7 +52,7 @@ def test_formatting(page):
 def test_search_finds_pages_teams_and_players(page):
     hrefs = lambda q, ps="[]", gs="[]": page.evaluate(f"searchHits({q!r}, {ps}, {gs}).map(x => x.href)")
     assert "#/standings" in hrefs("stand")
-    assert len(hrefs("")) == 11  # an empty search lists every page
+    assert len(hrefs("")) == page.evaluate("PAGES.length")  # an empty search lists every page
     team = page.evaluate("Object.values(TEAMS)[0]")
     assert f"#/team/{team['abbr']}" in hrefs(team["name"].lower()[:5])
     ps = '[{"id": "7", "name": "Test Player", "team": "' + team["abbr"] + '", "ppg": 20}]'

@@ -63,8 +63,11 @@ def messages(day_file, sent, short=None):
     if key not in sent and upcoming(d.get("first_tip")) and tickets:
         lines = [f"{_title(t, short)}: {round(100 * t['p'])}%, place at {t['min_odds']:.2f}+" for t in sorted(tickets, key=lambda t: -t["p"])]
         sg = d.get("singles") or []
+        lad = d.get("ladder")
+        lad_line = (f"\nThe Ladder: {lad['leg']['desc']} at {lad['odds']:.2f} ({round(100 * lad['p'])}%)"
+                    + ("" if lad.get("odds_real") else ", check Winamax's price") + ".") if lad else ""
         out.append((key, {"title": f"Tonight's {len(tickets)} game tickets are locked",
-                          "message": "\n".join(lines) + (f"\nPlus {len(sg)} singles." if sg else "") + f"\nFirst tip-off {madrid(d.get('first_tip'))}.",
+                          "message": "\n".join(lines) + (f"\nPlus {len(sg)} singles." if sg else "") + lad_line + f"\nFirst tip-off {madrid(d.get('first_tip'))}.",
                           "tags": ["basketball"], "priority": 4, "click": SITE + "#/parlay"}))
     # 2. late news on a locked leg, once per leg
     for l in legs_all:

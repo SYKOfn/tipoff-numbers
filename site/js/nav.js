@@ -6,13 +6,13 @@
 /* search: players, teams, tonight's games and every page, fully usable from the keyboard (an ARIA combobox) */
 const PAGES = [["Tonight", "#/", "Tonight's games and the best picks"], ["Tickets", "#/parlay", "Tonight's game tickets"],
   ["Games", "#/games", "Every upcoming game"], ["Players", "#/players", "Every player, projections and lines"],
-  ["Record", "#/results", "How the tickets did"], ["Standings", "#/standings", "Both conferences"], ["Teams", "#/teams", "All 30 teams"],
+  ["Record", "#/results", "How the tickets did"], ["The Ladder", "#/ladder", "One bet a day at 2.00-2.10, level by level"], ["Standings", "#/standings", "Both conferences"], ["Teams", "#/teams", "All 30 teams"],
   ["Model accuracy", "#/accuracy", "How often the chances came true"], ["Mind ranking", "#/mind", "Psychological edges by team"],
   ["Your bets", "#/you", "Tickets you recorded"], ["How it works", "#/about", "Methods and tests"]];
 function searchHits(q, ps, games) {
   const has = (...xs) => xs.join(" ").toLowerCase().includes(q);
   const out = [];
-  PAGES.filter(([n, , d]) => !q || has(n, d)).slice(0, q ? 4 : 11).forEach(([n, href, d]) => out.push({ href, kind: "Page", html: `<b>${h(n)}</b><span class="sub">${h(d)}</span>` }));
+  PAGES.filter(([n, , d]) => !q || has(n, d)).slice(0, q ? 4 : PAGES.length).forEach(([n, href, d]) => out.push({ href, kind: "Page", html: `<b>${h(n)}</b><span class="sub">${h(d)}</span>` }));
   games.filter(g => !q || has(T(g.away).name, T(g.home).name, g.away, g.home)).slice(0, q ? 4 : 0)
     .forEach(g => out.push({ href: `#/game/${g.id}`, kind: "Game", html: `${disc(g.away, "xs")}${disc(g.home, "xs")}<b>${h(T(g.away).short)} at ${h(T(g.home).short)}</b><span class="sub">${tip(g.tip)}</span>` }));
   if (q) {
@@ -105,6 +105,7 @@ async function route() {
       else if (page === "parlay") await parlayPage();
       else if (page === "accuracy") await accuracy();
       else if (page === "results") await results();
+      else if (page === "ladder") await ladderPage();
       else if (page === "you") await yourBets();
       else if (page === "about") await about();
       else await home();

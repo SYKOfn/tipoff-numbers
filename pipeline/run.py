@@ -20,6 +20,7 @@ from model import players as PM
 from model.features import Tracker
 from model.style import MARGIN_F, TOTAL_F
 from . import player_pages
+from . import ladder
 from . import espn
 from .store import (OVR, PRED, ROOT, SITE, STATE, archived_seasons, load_games, load_players, load_stints, read_json, write_json)
 from .teams import TEAMS, info
@@ -84,7 +85,9 @@ def lines_around(center, sd, step, n=2):
 
 def locked_tickets(day_parlay):
     """Every locked ticket the late-news check watches: the game tickets and the multi-game parlays."""
-    return (day_parlay.get("game_tickets") or []) + (day_parlay.get("parlays") or [])
+    lad = day_parlay.get("ladder")
+    return (day_parlay.get("game_tickets") or []) + (day_parlay.get("parlays") or []) + (
+        [{"name": "The Ladder", "games": 1, "legs": [lad["leg"]]}] if lad and lad.get("leg") else [])
 
 
 def hist_day(h_):
@@ -93,6 +96,7 @@ def hist_day(h_):
     tk = lambda pr: {"name": pr["name"], "p": pr["p"], "fair": pr["fair"], "result": pr.get("result"), "legs": [leg(l) for l in pr["legs"]],
                      **({"min_odds": pr.get("min_odds"), "winamax_est": pr.get("winamax_est")} if pr.get("game") else {})}
     return {"day": h_["day"], "parlays": [tk(pr) for pr in h_.get("parlays", [])],
+            "ladder": ({k: h_["ladder"].get(k) for k in ("odds", "odds_real", "p", "result")} | {"desc": h_["ladder"]["leg"]["desc"]}) if h_.get("ladder") else None,
             "game_tickets": [tk(pr) for pr in h_.get("game_tickets", [])],
             "singles": [{**leg(l), "wmx": l.get("wmx")} for l in h_.get("singles", [])]}
 
@@ -715,7 +719,7 @@ def main(demo=False, now=None, collect_data=True):
             lock_at = first_tip - timedelta(hours=LOCK_HOURS)
             today_parlay["lock_at"] = lock_at.isoformat()
             if old and old.get("locked"):
-                for k in ("parlays", "singles", "game_tickets", "locked_at", "games", "candidates", "eligible", "book", "not_on_book"):
+                for k in ("parlays", "singles", "game_tickets", "ladder", "locked_at", "games", "candidates", "eligible", "book", "not_on_book"):
                     if k in old:
                         today_parlay[k] = old[k]
                 today_parlay["locked"] = True
@@ -737,12 +741,14 @@ def main(demo=False, now=None, collect_data=True):
     # score finished slates
     fin_rows = {str(k): v for k, v in c.meta.items()}
     history = []
+    lad_days = []  # every locked day's Ladder pick, oldest first (pipeline/ladder.py rebuilds the levels from it)
     for path in sorted(PAR.glob("*.json")):
         pj = read_json(path)
-        if not pj or not (pj.get("parlays") or pj.get("game_tickets") or pj.get("singles")):
+        if not pj or not (pj.get("parlays") or pj.get("game_tickets") or pj.get("singles") or pj.get("ladder")):
             continue
         if not pj.get("scored"):
-            gids = {l["game"] for pr in pj.get("parlays", []) + pj.get("game_tickets", []) for l in pr["legs"]} | {l["game"] for l in pj.get("singles", [])}
+            gids = {l["game"] for pr in pj.get("parlays", []) + pj.get("game_tickets", []) for l in pr["legs"]} | {l["game"] for l in pj.get("singles", [])} \
+                | ({pj["ladder"]["game"]} if pj.get("ladder") else set())
             if gids and all(gid in fin_rows for gid in gids):
                 for pr in pj.get("parlays", []):
                     for l in pr["legs"] + ([] if pr is not pj.get("parlays", [])[0] else []):
@@ -758,6 +764,9 @@ def main(demo=False, now=None, collect_data=True):
                 for l in pj.get("singles", []) + pj.get("board", []):
                     if l["game"] in fin_rows:
                         sc(l)
+                if pj.get("ladder"):  # the day's 2.00-2.10 single: landed, missed or void (he sat)
+                    sc(pj["ladder"]["leg"])
+                    pj["ladder"]["result"] = pj["ladder"]["leg"]["result"]
                 for v in pj.get("value", []):  # Winamax vs Pinnacle: result, and Pinnacle's closing view
                     gr = fin_rows.get(v["game"])
                     if gr is None:
@@ -774,6 +783,8 @@ def main(demo=False, now=None, collect_data=True):
                 pj["scored"] = True
                 pj["frozen"] = True
                 write_json(path, pj)
+        if pj.get("locked") is not False:  # a draft pick is not a step yet
+            lad_days.append((pj.get("day") or path.stem, pj.get("ladder")))
         if pj.get("scored"):
             history.append(pj)
     vb = [v for h_ in history for v in h_.get("value", []) if v.get("value") and "won" in v]
@@ -868,6 +879,7 @@ def main(demo=False, now=None, collect_data=True):
                                       "odds_api": (read_json(STATE / "collect.json", {}) or {}).get("odds_api"),
                                       "clv": {"tickets": clv_summary(clv_legs), "all_legs": clv_summary(clv_all), "model": model_clv},
                                       "value_record": value_record,
+                                      "ladder_run": ladder.state(lad_days),
                                       "history": [hist_day(h_) for h_ in history[-160:][::-1]]})
     try:  # share previews: a page and a picture per game ticket (pipeline/share.py)
         from . import share

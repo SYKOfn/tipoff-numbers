@@ -603,3 +603,74 @@ document.addEventListener("click", e => {
   const nav = b.closest(".segs");
   if (nav && nav.getBoundingClientRect().top < 0) nav.scrollIntoView({ block: "start" });
 });
+
+/* ---------------------------------------------------------------- the Ladder: one bet a day at Winamax 2.00-2.10 */
+// A landed bet climbs one rung, a miss sends it back to level 1, a void bet or a day without a pick keeps the level.
+// The pick and the levels come from the pipeline (model/parlay.py ladder_pick, pipeline/ladder.py).
+function ladderRungs(level, goal, climb) {
+  const n = Math.max(goal, level), rows = [];
+  for (let i = n; i >= 1; i--) {
+    const done = i < level, now = i === level, step = climb[i - 1];
+    rows.push(`<li class="lr ${done ? "done" : ""} ${now ? "now" : ""}"><span class="lr-n">${i}</span><span class="lr-bar">${done && step ? `${h(step.desc)} <b>${fx(step.odds, 2)}</b>` : now ? "Today" : ""}</span></li>`);
+  }
+  return `<ol class="lrungs" aria-label="Ladder levels, level ${level} of ${goal}">${rows.join("")}</ol>`;
+}
+function ladderBet(lp, today, level) {
+  if (!lp) return `<div class="panel lb-none"><h2>No games today</h2><p>The ladder waits at level ${level} for the next night with games.</p></div>`;
+  const l = lp.leg, draft = today && today.locked === false, res = lp.result;
+  const [aw, hm] = String(l.matchup || "").split(" at ");
+  const odds = lp.odds_real
+    ? `<span class="lb-ok">Winamax price checked</span>`
+    : `<span class="lb-check">Winamax price estimated from the market: check it shows ${lp.tier === 4 ? `about ${fx(lp.odds, 2)}` : "2.00-2.10"} before placing</span>`;
+  return `<article class="slip lb ${res || ""}">
+    <header class="slip-head"><div class="slip-teams">${aw && hm ? `${disc(aw, "sm")}<span class="slip-at">at</span>${disc(hm, "sm")}` : ""}<div>
+      <p class="eyebrow">Level ${level} · ${tip(lp.tip)}</p><h3>${h(legDesc(l))}</h3><p>${aw && hm ? `${h(T(aw).short)} at ${h(T(hm).short)}` : ""}</p></div></div>
+      ${draft ? `<span class="slip-draft">Draft · final at ${tipTime(today.lock_at)}</span>` : ""}
+      <div class="slip-chance">${ring(lp.p, 74, "big")}<div><b>${pct(lp.p)}</b><span>chance</span></div></div>
+      ${res ? `<span class="slip-stamp ${res === "hit" ? "up" : res === "miss" ? "down" : ""}">${res === "hit" ? "Landed" : res === "miss" ? "Missed" : "Void"}</span>` : ""}</header>
+    <div class="perf" aria-hidden="true"></div>
+    <div class="lb-why">${lp.note ? `<p class="lb-note">${h(lp.note)}</p>` : ""}<p>${h(lp.why)}</p></div>
+    <div class="perf" aria-hidden="true"></div>
+    <footer class="slip-foot"><div class="slip-figs"><div><span>Winamax odds</span><b>${fx(lp.odds, 2)}</b></div><div><span>Fair odds</span><b>${fx(lp.fair, 2)}</b></div><div class="go"><span>Worth it from</span><b>${fx(lp.min_odds, 2)}</b></div></div>${odds}</footer>
+  </article>`;
+}
+async function ladderPage() {
+  const [par, rp] = await Promise.all([get("parlay.json"), get("replay.json").catch(() => null)]);
+  const past = rp && rp.ladder;
+  PAR = par;
+  setTitle("The Ladder");
+  const run = par.ladder_run || { level: 1, goal: 10, climb: [], bank: 10, start: 10, best: 0, restarts: 0, bets: 0, won: 0, expected: 0, profit: 0, steps: [] };
+  const today = par.today || {}, lp = today.ladder || null;
+  const pending = lp && lp.result == null;
+  const level = run.level;
+  const steps = run.steps.filter(s => s.result || s.day !== today.day);
+  app.innerHTML = `<div class="wrap tn">${demoBanner()}
+  <section class="tn-hero lh"><div class="lead"><p class="eyebrow">One bet a day at Winamax odds of 2.00-2.10</p><h1>The Ladder</h1>
+    <p class="sublede">Every day the model picks the bet it rates most likely to land among those Winamax pays 2.00-2.10 for. A win climbs one level, a miss sends it back to level 1. Ten levels in a row turn ${fx(run.start, 0)}&nbsp;€ into about ${Math.round(run.start * Math.pow(2.05, run.goal)).toLocaleString("en-GB")}&nbsp;€.</p></div>
+    <div class="lh-level"><p class="k">Level</p><p class="v num">${level}</p><p class="s">of ${run.goal}${pending ? (today.locked === false ? ` · today's bet locks at ${tipTime(today.lock_at)}` : " · today's bet is on") : ""}</p></div></section>
+  <section class="tn-sec lgrid">
+    <div>${ladderBet(lp, today, level)}
+      <div class="rec-tiles lt">
+        <div class="tile"><p class="k">${fx(run.start, 0)} € rolled over</p><p class="v num">${fx(run.bank, 2)} €</p><p class="s">${run.climb.length ? `after ${run.climb.length} win${run.climb.length === 1 ? "" : "s"} in a row` : "back at the start"}</p></div>
+        <div class="tile"><p class="k">Best climb</p><p class="v num">${run.best}</p><p class="s">${run.best_days ? `${h(day(run.best_days[0]))} to ${h(day(run.best_days[1]))}` : "levels in a row"}</p></div>
+        <div class="tile"><p class="k">Bets landed</p><p class="v num">${run.bets ? `${run.won}/${run.bets}` : "–"}</p><p class="s">${run.bets ? `the chances said ${fx(run.expected, 1)}` : "the first one is tonight"}</p></div>
+        <div class="tile"><p class="k">1 unit a day</p><p class="v num ${run.profit >= 0 ? "up" : "down"}">${run.bets ? sgn(run.profit, 2) : "–"}</p><p class="s">${run.restarts} restart${run.restarts === 1 ? "" : "s"} so far</p></div>
+      </div></div>
+    <div class="panel"><h2>The climb</h2>${ladderRungs(level, run.goal, run.climb)}</div>
+  </section>
+  <section class="tn-sec"><h2>Every step</h2>${steps.length ? `<ul class="lsteps">${steps.map(s => `<li class="${s.result || ""}"><span class="ls-l">L${s.level}</span><span class="ls-d"><b>${h(s.desc)}</b><span class="sub">${h(day(s.day))}${s.matchup ? ` · ${h(s.matchup)}` : ""} · ${pct(s.p)} · ${fx(s.odds, 2)}${s.odds_real ? "" : " est."}</span></span><span class="ls-r">${s.result === "hit" ? "✓ up" : s.result === "miss" ? "✗ back to 1" : s.result === "void" ? "void · holds" : "pending"}</span></li>`).join("")}</ul>` : `<p class="sub">The first step is tonight.</p>`}</section>
+  ${past ? `<section class="tn-sec"><div class="panel lpast"><h2>How it would have done: ${h(past.season)}</h2>
+    <p class="sub">${h(past.note)}</p>
+    <div class="rec-tiles"><div class="tile"><p class="k">Bets landed</p><p class="v num">${past.won}/${past.bets}</p><p class="s">the chances said ${fx(past.expected, 1)}</p></div>
+      <div class="tile"><p class="k">Best climb</p><p class="v num">${past.best}</p><p class="s">levels in a row</p></div>
+      <div class="tile"><p class="k">Restarts</p><p class="v num">${past.restarts}</p><p class="s">over the season</p></div>
+      <div class="tile"><p class="k">1 unit a day</p><p class="v num ${past.profit >= 0 ? "up" : "down"}">${sgn(past.profit, 1)}</p><p class="s">at the estimated Winamax odds</p></div></div>
+    ${past.verdict ? `<p class="verdict">${h(past.verdict)}</p>` : ""}</div></section>` : ""}
+  <section class="tn-sec"><div class="panel lrules"><h2>The rules</h2><ul>
+    <li><b>One bet a day</b>, chosen at the same time as the tickets (${today.lock_at ? tipTime(today.lock_at) : "22:00"}, three hours before the first tip-off) and never changed.</li>
+    <li><b>Always a bet when there are games, at odds of 2.00-2.10 at Winamax.</b> A match winner at Winamax's real price comes first, then a player or team bet whose price comes from a bookmaker's real line (check Winamax shows 2.00-2.10 before placing).</li>
+    <li><b>The model should rate it at least 5% above break-even</b> (about 51% at 2.05). On a night where nothing does, the Ladder still bets the most likely one at 2.00-2.10 and says so; if nothing is priced 2.00-2.10 at all, it bets the closest.</li>
+    <li><b>Win: up one level. Miss: back to level 1.</b> A void bet (the player sat) keeps the level.</li>
+    <li>At 2.05 a bet the model rates 55% lands about 11 days in 20; ten in a row happens roughly once in 400 tries. It is a game: stake only what you are happy to lose.</li></ul></div></section>
+  </div>`;
+}

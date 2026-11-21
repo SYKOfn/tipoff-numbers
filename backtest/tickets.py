@@ -82,6 +82,7 @@ def main(season, d0=None, d1=None, rules=("base",)):
     days = sorted(d for gid, d in day_of.items() if int(c.meta[gid]["season"]) == season and int(c.meta[gid]["stype"]) == 2
                   and (d0 is None or d >= d0) and (d1 is None or d <= d1))
     tickets, ests = {r: [] for r in rules}, {}
+    ladder_days = []
     for day in sorted(set(days)):
         before = pl[pl["day"] < day]
         hist = {pid: d_ for pid, d_ in before.groupby(before["player_id"].astype(str))}
@@ -122,6 +123,13 @@ def main(season, d0=None, d1=None, rules=("base",)):
             if rname == "refit":  # game-script weights given in the environment (fitted on another season)
                 parlay.LEG_W.update(dog=float(os.environ["LEG_DOG"]), min_hi=float(os.environ["LEG_MINHI"]))
             out, _ = parlay.build(slate, pdisp, calib_for(day), avg, real_props=real)
+            lp = out.get("ladder")
+            if lp and rname == rules[0]:  # the Ladder's daily 2.00-2.10 single, scored like the live site does
+                gid = lp["game"]
+                rows = {str(r["player_id"]): r for team in byg.get(gid, {}).values() for r in team}
+                ladder_days.append((day, {**lp, "result": parlay.score_leg(lp["leg"], c.meta[gid], rows)}))
+            elif rname == rules[0]:
+                ladder_days.append((day, None))
             for tk in out.get("game_tickets", []):
                 gid = tk["game"]
                 rows = {str(r["player_id"]): r for team in byg.get(gid, {}).values() for r in team}
@@ -157,6 +165,21 @@ def main(season, d0=None, d1=None, rules=("base",)):
     for rname, tk in tickets.items():
         print(f"\n== rule: {rname}")
         report(season, tk)
+    from pipeline import ladder
+    ls = ladder.state(ladder_days)
+    picks = [lp for _, lp in ladder_days if lp]
+    lv = [s_["level"] for s_ in ls["steps"] if s_["result"] == "hit"]
+    print(f"\nladder: {len(picks)} picks on {len(ladder_days)} days, landed {ls['won']}/{ls['bets']} (stated {ls['expected']:.1f}), "
+          f"profit at the estimated odds {ls['profit']:+.1f} units, best climb {ls['best']} ({ls['best_days']}), restarts {ls['restarts']}, "
+          f"reached level 3+ {sum(1 for x in lv if x == 3)} times, 5+ {sum(1 for x in lv if x == 5)} times")
+    from collections import Counter
+    print("ladder picks by kind:", dict(Counter(lp["leg"]["kind"] + "/" + str(lp["leg"].get("stat")) for lp in picks)))
+    for t_ in (1, 2, 3, 4):
+        pk = [lp for lp in picks if lp.get("tier") == t_ and lp["result"] in ("hit", "miss")]
+        if pk:
+            print(f"  tier {t_}: {sum(lp['result'] == 'hit' for lp in pk)}/{len(pk)} landed, stated {sum(lp['p'] for lp in pk):.1f}, "
+                  f"odds {sum(lp['odds'] for lp in pk) / len(pk):.2f}, profit {sum((lp['odds'] - 1) if lp['result'] == 'hit' else -1 for lp in pk):+.1f}")
+    json.dump(ladder_days, open(f"/tmp/ladder_{season}{os.environ.get('TAG', '')}.json", "w"), default=float)
 
 
 def report(season, tickets):

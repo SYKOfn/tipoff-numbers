@@ -645,6 +645,7 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None)
     """slate: list of (game dict, payload). Returns the day's parlays and the full leg board."""
     rng = np.random.default_rng(seed)
     games, sims, cands, books_of = {}, {}, [], {}
+    gctx = {}  # each game's estimate and plain-words summary, for the Ladder's write-up
     out_skip = []
     for g, pay in slate:
         game = {"id": str(pay["id"]), "home": pay["home"]["abbr"], "away": pay["away"]["abbr"], "tip": pay["tip"]}
@@ -660,6 +661,7 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None)
         else:
             legs = team_legs(game, est, g.get("odds"), gap) + prop_legs(game, players, calib, avg or {}, disp, real_props, m_home=est.get("margin"))
         games[game["id"]] = game
+        gctx[game["id"]] = {"est": est, "why": list(pay.get("reasoning") or [])[:2]}
         books_of[game["id"]] = g.get("odds_books") or {}
         sims[game["id"]] = simulate(game, est, players, disp, rng)
         for l in legs:
@@ -775,6 +777,7 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None)
             team_g.add(l["game"])
         per_g[l["game"]] += 1
     out["singles"] = [{k: v for k, v in l.items() if not k.startswith("_") and k != "sim"} for l in singles]
+    out["ladder"] = ladder_pick(cands, games, gctx)
     # One ticket per game (Pepe, Nov 2026): the game's 5 legs most likely to land together, priced on the game's
     # 20,000 simulated versions (minutes, blowouts, overtime, teammates sharing points), so legs that win and lose
     # together are counted as such. They may repeat bets from the singles and the other tickets (Pepe, Nov 2026).
@@ -813,6 +816,102 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None)
         out["game_tickets"].append(pk)
     out["game_tickets"].sort(key=lambda t: -t["p"])
     return out, cands
+
+
+# ------------------------------------------------------------------ the Ladder: one bet a day at odds of about 2
+# (Pepe, Nov 2026) A daily single at Winamax odds of 2.00-2.10, the one the model rates most likely to land among
+# them; a landed bet moves the challenge up a level, a miss sends it back to level 1 (pipeline/ladder.py). At 2.05
+# a bet breaks even at a 49% chance: only bets the model rates at least 5% above that qualify (as for "Place at").
+# Winamax's real price is known for match winners only (The Odds API); a winner at a real 2.00-2.10 always comes
+# first. Otherwise a player bet with a real bookmaker line, its Winamax price carried from that line's market
+# price (the page says to check Winamax shows 2.00-2.10 before placing).
+LADDER_ODDS = (2.00, 2.10)
+LADDER_P = (0.48, 0.75)
+LADDER_SAFETY = 1.05
+
+
+def ladder_odds(l):
+    """(Winamax odds, real?) for one leg. Real only for Winamax's own price (match winners). A bookmaker's real line
+    is turned into the odds Winamax is expected to pay from that market's no-margin chance (WMX_FACTOR), never
+    passed off as Winamax's: other books pay more than Winamax does."""
+    if l.get("wmx") and l.get("wmx_real"):
+        return float(l["wmx"]), True
+    if l.get("book") and l.get("market") is not None:
+        return round(wmx_odds(float(l["market"])), 2), False
+    if l.get("wmx"):
+        return float(l["wmx"]), False
+    if l.get("price"):
+        return float(l["price"]), False
+    return None, False
+
+
+def ladder_why(l, odds, g):
+    """The pick in plain words: the player's or team's form, the game, and why the odds are worth it."""
+    est = (g or {}).get("est") or {}
+    home, away = l.get("home"), (l.get("matchup") or " at ").split(" at ")[0]
+    out = []
+    if l["kind"] == "prop":
+        side = "home" if l.get("team") == home else "away"
+        opp = away if side == "home" else home
+        bits = [f"The model projects {l['proj']:.1f}" if l.get("proj") is not None else None,
+                f"he averages {l['avg']:.1f} this season" if l.get("avg") is not None else None,
+                f"{l['last5']:.1f} over his last 5 games" if l.get("last5") is not None else None]
+        out.append(", ".join(b for b in bits if b) + f", against a line of {l['line']:.1f}." if any(bits) else "")
+        if l.get("spots"):
+            out.append("Form and context: " + ", ".join(x.lower() for x in l["spots"][:3]) + ".")
+        m = est.get("margin")
+        if m is not None:
+            lead = m if side == "home" else -m
+            out.append(f"His team {'is favoured by' if lead > 0 else 'is expected to lose by'} about {abs(lead):.0f} points against {opp}"
+                       + (", so he should play his usual minutes." if abs(lead) < 12 else ", so a blowout could cut his minutes: priced in."))
+    else:
+        out += [x for x in (g or {}).get("why", [])[:2]]
+    if l.get("note") and l["kind"] != "prop":
+        out.append(l["note"][0].upper() + l["note"][1:] + ("" if l["note"].endswith(".") else "."))
+    out.append(f"The model gives it {round(l['p'] * 100)}%; at {odds:.2f} it is worth taking from {1.05 / l['p']:.2f} (fair {1 / l['p']:.2f}).")
+    return " ".join(x for x in out if x)
+
+
+def ladder_pick(cands, games, gctx):
+    """The day's single bet, always one when there are games (Pepe, Nov 2026). In order of preference:
+      1. a match winner at Winamax's real price of 2.00-2.10 that the model rates 5%+ above break-even;
+      2. a bet with a market-set price of 2.00-2.10 (a bookmaker's real line) rated 5%+ above break-even;
+      3. the bet at 2.00-2.10 the model rates most likely, even without that margin ("no edge today");
+      4. the market-priced bet closest to 2.05, then the most likely ("closest to 2.0 today").
+    Within a step: a real Winamax price first, then the higher chance."""
+    priced, loose = [], []
+    for l in cands:
+        if l.get("mind_flag") == "against" or not 0.30 <= l.get("p", 0) <= 0.80:
+            continue
+        o, real = ladder_odds(l)
+        if o is None or o < 1.5 or o > 3.0:
+            continue
+        # a price the market has set: Winamax's own, or one carried from a bookmaker's real line. A price estimated
+        # from the season average is not a real offer: when a player's role has grown the books move the line, so
+        # "over his old average at 2.0" never exists (the replay without real lines picked exactly those, and they
+        # "landed" 80% at a stated 54%). Those are used only when there is no market price at all.
+        (priced if (l.get("wmx_real") or l.get("book")) else loose).append((l, o, real))
+    pool = priced or loose
+    if not pool:
+        return None
+    inwin = lambda x: LADDER_ODDS[0] <= x[1] <= LADDER_ODDS[1]
+    worth = lambda x: x[0]["p"] * x[1] >= LADDER_SAFETY
+    key = lambda x: (x[2], round(x[0]["p"], 2), x[0]["p"] * x[1])
+    tiers = [(1, [x for x in pool if x[2] and inwin(x) and worth(x)]), (2, [x for x in pool if inwin(x) and worth(x)]),
+             (3, [x for x in pool if inwin(x)])]
+    tier, best = next(((t, max(c, key=key)) for t, c in tiers if c), (4, None))
+    if best is None:
+        best = min(pool, key=lambda x: (abs(x[1] - 2.05), -x[0]["p"]))
+    l, o, real = best
+    note = {1: None, 2: None,
+            3: "No bet at 2.00-2.10 clears the 5% safety margin today: this is the most likely one, with little or no edge.",
+            4: f"Nothing is priced 2.00-2.10 today: this is the closest, at {o:.2f}."}[tier]
+    if not priced:
+        note = (note + " " if note else "") + "No market price was available, so the odds are only an estimate."
+    leg = {k: v for k, v in l.items() if not k.startswith("_") and k != "sim"}
+    return {"leg": leg, "odds": round(o, 2), "odds_real": real, "p": round(l["p"], 4), "fair": round(1 / l["p"], 2),
+            "min_odds": round(LADDER_SAFETY / l["p"], 2), "ev": round(l["p"] * o - 1, 4), "game": l["game"], "tip": l.get("tip"),
+            "tier": tier, "note": note, "why": ladder_why(l, o, gctx.get(l["game"])), "options": len(pool)}
 
 
 def board(cands, n=60):
