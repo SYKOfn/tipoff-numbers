@@ -3,7 +3,7 @@
  "players": {
   "Tyler Herro": {
    "contract_year": true,
-   "note": "11-for-41 over three games; could lose minutes in Taylor Jenkins' lineup changes."
+   "note": "Benched for the fourth quarter on Nov 15; booed in his return to Miami; has not spoken with Bam Adebayo since the summer."
   },
   "Jaime Jaquez Jr.": {
    "contract_year": true
@@ -20,7 +20,8 @@
    "note": "$40.8M expiring deal; Brooklyn listening to calls; shooting slump (1-of-7 vs Chicago)."
   },
   "Draymond Green": {
-   "contract_year": true
+   "contract_year": true,
+   "note": "Right elbow injury; sat on Nov 19."
   },
   "Anthony Black": {
    "contract_year": true
@@ -42,23 +43,23 @@
    "note": "Beat Milwaukee in his first meeting: 27 points, 14 rebounds, 9 assists."
   },
   "Jaylen Brown": {
-   "note": "Hamstring strain, no timeline."
+   "note": "Hamstring; questionable, says 'I don't think it's concerning'."
   },
   "Kyle Kuzma": {
    "note": "On an expiring deal; Milwaukee have been trying to trade him since the offseason.",
    "contract_year": true
   },
   "Brandon Ingram": {
-   "note": "Still listed out after heel surgery; said to be close to a return."
+   "note": "Debut for the Clippers reportedly expected Monday against Houston."
   },
   "Darryn Peterson": {
    "note": "Five straight 20-point games for the 1-12 Jazz."
   },
   "Ja Morant": {
-   "note": "Grade 2 hamstring strain suffered against former team Memphis on Oct 30; no return date yet."
+   "note": "Out with a hamstring strain; targeting a return in late November or early December."
   },
   "Anthony Davis": {
-   "note": "Ripped Wizards' defense after a 44-point return; team reportedly wants 20-30 games before deciding on an extension."
+   "note": "36 and 11 at Chicago; a max extension reportedly unlikely, so he is playing for a new deal."
   },
   "Domantas Sabonis": {
    "note": "Reported (Nov 2) to want out of Sacramento; on-court spat with Zach LaVine on Nov 18."
@@ -86,7 +87,7 @@
    "note": "Scored 36 against his former team, Philadelphia, in a 22-point win."
   },
   "Karl-Anthony Towns": {
-   "note": "Seeking an extension; the Knicks tabled talks until later in the season; holds a 2027-28 player option."
+   "note": "Reportedly motivated by not being extended; called the 4-year, $200M offer unreasonable; can opt out next summer."
   },
   "Kyrie Irving": {
    "note": "Back after 19 months out after knee surgery, averaging about 22 points."
@@ -139,13 +140,14 @@
    "note": "Called the Pelicans' back-to-back blowouts \"unacceptable\" and told teammates and coaches to look in the mirror."
   },
   "Ty Jerome": {
-   "note": "Right hip impingement; missed Nov 18 at former team Cleveland."
+   "note": "Upgraded to probable after a hip impingement; averaging about 25 points.",
+   "contract_year": true
   },
   "Evan Mobley": {
    "note": "Sprained right big toe; out at least another 7-10 days (from Nov 16)."
   },
   "Dejounte Murray": {
-   "note": "Trade request (Nov 13), ankle sprain; ESPN calls his value negative; posted and deleted a 'SABOTAGE' tweet."
+   "note": "Pelicans confirmed his trade request and are evaluating offers; out with an ankle sprain."
   },
   "Mikal Bridges": {
    "note": "Deep shooting slump with the Knicks; Brunson publicly backed him."
@@ -183,7 +185,7 @@
    "contract_year": true
   },
   "Damian Lillard": {
-   "note": "Scored 33 on his first trip back to Milwaukee."
+   "note": "Scored 33 in his first game back in Milwaukee since being waived."
   },
   "Tyrese Haliburton": {
    "note": "Hamstring; out since Oct 26, no firm timetable."
@@ -195,7 +197,7 @@
    "note": "Sat vs Indiana with plantar fascia management; hasn't played both ends of a back-to-back this season."
   },
   "Paolo Banchero": {
-   "note": "Out since Oct 23 with a high ankle sprain."
+   "note": "Missed 12 games with a 'complex' ankle sprain; hopes to return in the next few weeks."
   },
   "Austin Reaves": {
    "note": "Heel bruise; still out on Nov 20."
@@ -204,7 +206,8 @@
    "note": "Left hip strain; out 1-3 weeks (from Nov 19)."
   },
   "Jonathan Kuminga": {
-   "note": "Right shoulder contusion, no timetable; holds a $6.4M player option for 2027."
+   "note": "Right shoulder contusion, no timetable; holds a $6.4M player option for 2027.",
+   "contract_year": true
   },
   "Mo Bamba": {
    "note": "26 points in his first Jazz start; admits the frustration but says the locker room isn't hopeless."
@@ -216,14 +219,14 @@
    "note": "Back from leg soreness with 10 points and 11 rebounds against former team Utah."
   },
   "Jayson Tatum": {
-   "note": "Technical foul late in the loss at Denver: 'That's on me.'"
+   "note": "Questionable for rest against Sacramento, the night before the Golden State game."
   },
   "Julius Randle": {
    "contract_year": true,
    "note": "Called the 30-point loss to Chicago 'embarrassing' and took it on himself; the Nets are listening to offers."
   },
   "CJ McCollum": {
-   "note": "Calf strain, out at least four weeks; had asked Quin Snyder to change the starting lineup."
+   "note": "Out at least four weeks with a calf strain; had already lost his starting job to Kingston Flemings."
   },
   "Deni Avdija": {
    "note": "Left foot soreness; missed two games, Saturday at New York possible."
@@ -289,7 +292,7 @@
    "note": "OKC 1-4 in their last five with three starters out: 'a new challenge for this group.'"
   },
   "DeMar DeRozan": {
-   "note": "13 fourth-quarter points in Denver's comeback from 17 down vs Boston."
+   "note": "Former Bull on a one-year deal with Denver; scored 13 in the fourth against Boston."
   },
   "Luka Doncic": {
    "note": "Called his own 9-turnover night in the loss to Utah 'unacceptable'."
@@ -302,6 +305,31 @@
   },
   "Tyrese Maxey": {
    "note": "Right foot soreness; late scratch on Nov 18."
+  },
+  "Ryan Rollins": {
+   "contract_year": true
+  },
+  "Kris Dunn": {
+   "contract_year": true
+  },
+  "Miles McBride": {
+   "contract_year": true,
+   "note": "Final year of his deal; the Knicks paused extension talks in October."
+  },
+  "Derrick White": {
+   "note": "New shoulder issue; questionable after playing all 15 games."
+  },
+  "Mitchell Robinson": {
+   "note": "Moved to the bench; posted a frustrated Instagram message."
+  },
+  "Josh Giddey": {
+   "note": "Benched for most of the fourth at Cleveland; his starting job is being questioned."
+  },
+  "T.J. McConnell": {
+   "note": "Left the Cleveland game with a left hamstring issue after an earlier right hamstring strain."
+  },
+  "Derrick Jones Jr.": {
+   "note": "Faces his former team, Dallas."
   }
  }
 }
