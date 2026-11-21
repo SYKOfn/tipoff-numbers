@@ -44,7 +44,11 @@ TOTAL_BLEND_W = 0.4
 
 
 MODEL_HIST = int(os.environ.get("MODEL_HIST", "9"))  # full seasons before the current one used by the model
-LOCK_HOURS = float(os.environ.get("LOCK_HOURS", "3"))  # the day's tickets are chosen this long before the first tip
+LOCK_HOURS = float(os.environ.get("LOCK_HOURS", "3"))
+# The Ladder locks earlier (Nov 2026): on 2024-25 its picks landed 66% at the lines first posted and 51% at the
+# closing lines, because the market moves towards the model during the day. Six hours before the first tip-off
+# most day-of injury reports are in. Each pick's price at the lock is compared with the close (ladder "clv").
+LADDER_LOCK_HOURS = float(os.environ.get("LADDER_LOCK_HOURS", "6"))  # the day's tickets are chosen this long before the first tip
 
 
 def card_story(p):
@@ -87,7 +91,7 @@ def locked_tickets(day_parlay):
     """Every locked ticket the late-news check watches: the game tickets and the multi-game parlays."""
     lad = day_parlay.get("ladder")
     return (day_parlay.get("game_tickets") or []) + (day_parlay.get("parlays") or []) + (
-        [{"name": "The Ladder", "games": 1, "legs": [lad["leg"]]}] if lad and lad.get("leg") else [])
+        [{"name": "The Ladder", "games": 1, "legs": [lad["leg"]]}] if lad and lad.get("leg") and day_parlay.get("ladder_locked", True) else [])
 
 
 def hist_day(h_):
@@ -703,7 +707,8 @@ def main(demo=False, now=None, collect_data=True):
             odds_by_game = {str(g["game_id"]): g.get("odds") for g, _ in slate}
             first_seen = dict((old or {}).get("first_seen", {}))
             last_seen = {}
-            for l in [l for pr in built["parlays"] for l in pr["legs"]] + bl + built.get("singles", []):
+            for l in [l for pr in built["parlays"] for l in pr["legs"]] + bl + built.get("singles", []) + (
+                    [built["ladder"]["leg"]] if built.get("ladder") else []):
                 v = parlay.market_view(l, odds_by_game.get(l["game"]), real)
                 if v:
                     v = {**v, "at": now.isoformat()}
@@ -718,6 +723,24 @@ def main(demo=False, now=None, collect_data=True):
             # reports), then never change. Until then they are not shown.
             lock_at = first_tip - timedelta(hours=LOCK_HOURS)
             today_parlay["lock_at"] = lock_at.isoformat()
+            # news since a lock: what each player looks like now (for the late-news check)
+            now_pl = {}
+            for g_, pay_ in slate:
+                for side_ in ("home", "away"):
+                    for x in (pay_.get("players") or {}).get(side_, []):
+                        now_pl[str(x["id"])] = x
+            started_ = {str(g_["game_id"]) for g_, _ in slate if g_.get("state") in ("in", "post")}
+            # the Ladder's pick locks on its own, earlier than the tickets
+            ladder_lock_at = first_tip - timedelta(hours=LADDER_LOCK_HOURS)
+            today_parlay["ladder_lock_at"] = ladder_lock_at.isoformat()
+            if old and old.get("ladder_locked"):
+                today_parlay["ladder"], today_parlay["ladder_locked_at"] = old.get("ladder"), old.get("ladder_locked_at")
+                today_parlay["ladder_locked"] = True
+            elif now >= ladder_lock_at and today_parlay.get("ladder"):
+                today_parlay["ladder_locked"], today_parlay["ladder_locked_at"] = True, now.isoformat()
+                today_parlay["ladder"]["at_lock"] = last_seen.get(today_parlay["ladder"]["leg"]["id"])
+            else:
+                today_parlay["ladder_locked"] = False
             if old and old.get("locked"):
                 for k in ("parlays", "singles", "game_tickets", "ladder", "locked_at", "games", "candidates", "eligible", "book", "not_on_book"):
                     if k in old:
@@ -725,18 +748,15 @@ def main(demo=False, now=None, collect_data=True):
                 today_parlay["locked"] = True
                 # news after the lock: flag legs hit by it (player out or doubtful, no longer starting, or the
                 # model's chance clearly lower) and suggest a replacement; the ticket itself stays
-                now_pl = {}
-                for g_, pay_ in slate:
-                    for side_ in ("home", "away"):
-                        for x in (pay_.get("players") or {}).get(side_, []):
-                            now_pl[str(x["id"])] = x
-                started_ = {str(g_["game_id"]) for g_, _ in slate if g_.get("state") in ("in", "post")}
                 parlay.late_check(locked_tickets(today_parlay), cands, now_pl, started_)
             elif now >= lock_at:
                 today_parlay["locked"] = True
                 today_parlay["locked_at"] = now.isoformat()
             else:
                 today_parlay["locked"] = False
+                if today_parlay.get("ladder_locked") and today_parlay.get("ladder"):  # the Ladder alone is locked
+                    lad_ = today_parlay["ladder"]
+                    parlay.late_check([{"name": "The Ladder", "games": 1, "legs": [lad_["leg"]]}], cands, now_pl, started_)
             write_json(path, today_parlay)
     # score finished slates
     fin_rows = {str(k): v for k, v in c.meta.items()}
@@ -783,8 +803,11 @@ def main(demo=False, now=None, collect_data=True):
                 pj["scored"] = True
                 pj["frozen"] = True
                 write_json(path, pj)
-        if pj.get("locked") is not False:  # a draft pick is not a step yet
-            lad_days.append((pj.get("day") or path.stem, pj.get("ladder")))
+        if pj.get("ladder_locked", pj.get("locked") is not False):  # a draft pick is not a step yet
+            lp_ = pj.get("ladder")
+            if lp_ and pj.get("frozen"):  # its price at the lock against the close: did the market move our way?
+                lp_ = {**lp_, "clv": parlay.clv(lp_["leg"], lp_.get("at_lock"), (pj.get("last_seen") or {}).get(lp_["leg"]["id"]))}
+            lad_days.append((pj.get("day") or path.stem, lp_))
         if pj.get("scored"):
             history.append(pj)
     vb = [v for h_ in history for v in h_.get("value", []) if v.get("value") and "won" in v]

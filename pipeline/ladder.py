@@ -18,7 +18,7 @@ def state(days):
             continue
         res = lp.get("result")
         step = {"day": day, "desc": lp["leg"]["desc"], "matchup": lp["leg"].get("matchup"), "odds": lp["odds"],
-                "odds_real": lp.get("odds_real", False), "p": lp["p"], "level": level, "result": res}
+                "odds_real": lp.get("odds_real", False), "p": lp["p"], "level": level, "result": res, "clv": lp.get("clv")}
         if res == "hit":
             climb.append(step)
             bank *= lp["odds"]
@@ -31,9 +31,12 @@ def state(days):
             climb, bank, level = [], START, 1
         steps.append(step)
     done = [s for s in steps if s["result"] in ("hit", "miss")]
+    moved = [s["clv"] for s in steps if s.get("clv")]
+    beat = sum(1 for c in moved if (c.get("p") or c.get("pts") or 0) > 0)
     return {"level": level, "goal": GOAL, "climb": climb, "bank": round(bank, 2), "start": START,
             "best": best, "best_days": best_days, "restarts": runs,
             "bets": len(done), "won": sum(s["result"] == "hit" for s in done),
             "expected": round(sum(s["p"] for s in done), 2),
             "profit": round(sum((s["odds"] - 1) if s["result"] == "hit" else -1 for s in done), 2),
+            "clv_n": len(moved), "clv_beat": beat,  # the price at the lock vs the close: moved our way?
             "steps": steps[::-1][:90]}

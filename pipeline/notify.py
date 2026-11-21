@@ -48,27 +48,33 @@ def _title(t, short=None):
     return f"{sh.get(a, a)} at {sh.get(b, b)}" if b else t.get("name", "")
 
 
-def messages(day_file, sent, short=None):
+def messages(day_file, sent, short=None, level=None):
     """What to send for one day: the lock, late news on locked legs, and results as tickets settle."""
     d = json.loads(day_file.read_text())
     day, out = day_file.stem, []
     tickets = d.get("game_tickets") or []
-    if not d.get("locked") or not (tickets or d.get("parlays")):
+    if not (d.get("locked") or d.get("ladder_locked")) or not (tickets or d.get("parlays") or d.get("ladder")):
         return out
     now = datetime.now(timezone.utc)
     upcoming = lambda iso: bool(iso) and datetime.fromisoformat(str(iso).replace("Z", "+00:00")) > now
     legs_all = [l for t in tickets + d.get("parlays", []) for l in t["legs"]]
     # 1. the lock: tonight's game tickets, best chance first
     key = f"lock:{day}"
-    if key not in sent and upcoming(d.get("first_tip")) and tickets:
+    if d.get("locked") and key not in sent and upcoming(d.get("first_tip")) and tickets:
         lines = [f"{_title(t, short)}: {round(100 * t['p'])}%, place at {t['min_odds']:.2f}+" for t in sorted(tickets, key=lambda t: -t["p"])]
         sg = d.get("singles") or []
-        lad = d.get("ladder")
-        lad_line = (f"\nThe Ladder: {lad['leg']['desc']} at {lad['odds']:.2f} ({round(100 * lad['p'])}%)"
-                    + ("" if lad.get("odds_real") else ", check Winamax's price") + ".") if lad else ""
         out.append((key, {"title": f"Tonight's {len(tickets)} game tickets are locked",
-                          "message": "\n".join(lines) + (f"\nPlus {len(sg)} singles." if sg else "") + lad_line + f"\nFirst tip-off {madrid(d.get('first_tip'))}.",
+                          "message": "\n".join(lines) + (f"\nPlus {len(sg)} singles." if sg else "") + f"\nFirst tip-off {madrid(d.get('first_tip'))}.",
                           "tags": ["basketball"], "priority": 4, "click": SITE + "#/parlay"}))
+    # 1b. the Ladder's daily bet, locked earlier than the tickets
+    lad = d.get("ladder")
+    key = f"ladder:{day}"
+    if lad and d.get("ladder_locked") and key not in sent and upcoming(lad.get("tip")):
+        lvl = f"level {level}" if level else "today's step"
+        out.append((key, {"title": f"The Ladder, {lvl}: {lad['leg']['desc']} at {lad['odds']:.2f}",
+                          "message": f"{round(100 * lad['p'])}% chance. " + ("Winamax price checked." if lad.get("odds_real") else "Check Winamax shows 2.00-2.10 before placing.")
+                                     + (f" {lad['note']}" if lad.get("note") else "") + " Place it early: prices drift towards the model during the day.",
+                          "tags": ["ladder"], "priority": 4, "click": SITE + "#/ladder"}))
     # 2. late news on a locked leg, once per leg
     for l in legs_all:
         k = f"alert:{day}:{l['id']}"
@@ -120,7 +126,9 @@ def main():
     teams = ROOT / "site" / "data" / "teams.json"
     short = {t["abbr"]: t.get("short", t["abbr"]) for t in (json.loads(teams.read_text()) if teams.exists() else [])}
     work = dict(sent)
-    todo = [m for f in files for m in messages(f, work, short)]
+    pj = ROOT / "site" / "data" / "parlay.json"
+    level = ((json.loads(pj.read_text()) if pj.exists() else {}).get("ladder_run") or {}).get("level")
+    todo = [m for f in files for m in messages(f, work, short, level)]
     sent.update({k: v for k, v in work.items() if v == "in summary"})
     if not topic:
         print(f"notify: no NTFY_TOPIC set; {len(todo)} message(s) not sent")
