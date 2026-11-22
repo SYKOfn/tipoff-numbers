@@ -638,10 +638,31 @@ def package(name, why, legs, sims, games):
             "n_legs": len(legs), "games": len({l["game"] for l in legs})}
 
 
+# The books' "X+" ladders (Nov 2026): at the lines tickets use, a bookmaker's alternate-line price adds what the
+# model can't see (news, roles). Fitted on 2024-25 ESPN BET alternate lines, the same weights in every month split:
+# chance' = sigmoid(0.30 logit(ours) + 0.52 logit(book's implied, margin included) - 0.07). Used only to LOWER a leg:
+# lifting legs pushed the books' favourites above AGREE_MAX and out of the tickets (438 vs 440 landed); lowering only
+# landed 459 tickets vs 440 (Feb-Apr, where the prices exist: 223 vs 205; Oct-Jan unchanged). Legs our model rated
+# 78%+ that the books priced 6+ points lower landed 70-75%.
+ALT_W = (0.2987, 0.5242, -0.0711)
+
+
+def alt_lower(l, imp):
+    """Lower leg l's chance to the blend with the books' implied chance when that is lower; returns True if lowered."""
+    b = sigmoid(ALT_W[0] * logit(l["p"]) + ALT_W[1] * logit(imp) + ALT_W[2])
+    l["alt_book"] = round(imp, 3)
+    if b < l["p"]:
+        l["p_before_books"], l["p"] = l["p"], round(b, 4)
+        l["note"] = (l.get("note") or "") + f"; the books' {l.get('line', 0) + 0.5:.0f}+ price says {round(100 * imp)}% (margin included), so the chance was lowered from {round(100 * l['p_before_books'])}%"
+        return True
+    return False
+
+
+LEG_ADJUST = None  # replay-only hook (backtest/tickets.py): changes a candidate leg's chance before picking; None live
 TICKET_FILTER = None  # replay-only hook (backtest/tickets.py) for testing ticket rules; None live, so live rules are unchanged
 
 
-def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None):
+def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None, alt_props=None):
     """slate: list of (game dict, payload). Returns the day's parlays and the full leg board."""
     rng = np.random.default_rng(seed)
     games, sims, cands, books_of = {}, {}, [], {}
@@ -671,6 +692,16 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None)
             l["tip"] = game["tip"]
             l["mind_flag"] = "against" if (l.get("mind") or 0) <= -0.3 else "with" if (l.get("mind") or 0) >= 0.3 else "neutral"
         cands += legs
+    if alt_props:  # the books' "X+" prices: lower the legs they clearly rate below us (ALT_W)
+        from pipeline.oddsapi import norm_name
+        for l in cands:
+            if l.get("kind") == "prop" and l.get("line") is not None:
+                imp = alt_props.get((str(l["game"]), norm_name(l.get("player_name") or ""), l.get("stat"), float(l["line"])))
+                if imp:
+                    alt_lower(l, imp)
+    if LEG_ADJUST is not None:
+        for l in cands:
+            LEG_ADJUST(l)
     # a leg is eligible if its chance is in range, the price (when known) is worth taking, and the mind is not against it
     # an estimated price is a guess, so its "edge" is too: those legs only need the model to lean over the
     # season-average line; whether Winamax's real odds are worth it is decided on the ticket (place / skip box)

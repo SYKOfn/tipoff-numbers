@@ -5,6 +5,10 @@ ODDS_API_BOOKS      bookmakers for game odds, default "winamax_fr,pinnacle"
                     (Winamax = the prices you bet at; Pinnacle = the sharpest closing line, for CLV)
 ODDS_API_DAILY      credits the site may spend per day, default 15 (fits the free plan)
 ODDS_API_PROPS      "1" to also record player-prop lines (5 credits per game per snapshot)
+ODDS_API_ALT        "1" (or "odds_api_alt": true in data/settings.json) to fetch each game's alternate player lines ("X+" ladders: points, rebounds, assists,
+                    threes) once, about 7 hours before tip-off: about 4 credits per game. Ticket legs the
+                    bookmakers price clearly below the model are lowered (model/parlay.py ALT_W).
+ODDS_API_ALT_BOOKS  books for the alternate lines, default "draftkings,fanduel,betmgm" (up to 10 = one region)
 ODDS_API_PROPS_BOOKS  books for player props, default Pinnacle plus eight US books. Pinnacle is the sharpest
                     yardstick and is always preferred; the US books only fill in players Pinnacle has no line
                     for (9 Nov 2026: Pinnacle 70 player lines, all books together 399). Up to 10 books count as
@@ -38,6 +42,10 @@ STAT_OF = {"player_points": "pts", "player_rebounds": "reb", "player_assists": "
            "player_points_rebounds_assists": "pra", "player_points_alternate": "pts", "player_rebounds_alternate": "reb",
            "player_assists_alternate": "ast", "player_threes_alternate": "tpm",
            "player_points_rebounds_assists_alternate": "pra"}
+ALT_MARKETS = ("player_points_alternate", "player_rebounds_alternate", "player_assists_alternate", "player_threes_alternate")
+ALT_BOOKS = "draftkings,fanduel,betmgm"
+ALT_JSON = DATA / "props" / "alt_latest.json"
+ALT_HOURS = 7
 PROPS_COLS = ["fetched_at", "game_id", "day", "player", "stat", "line", "over", "under", "book", "phase"]
 
 
@@ -183,6 +191,25 @@ def collect(upcoming, now=None):
             if isinstance(data, dict) and data.get("bookmakers"):
                 archive_props(data, g, now, phase)
                 done.setdefault(g["game_id"], []).append(phase)
+    # alternate player lines (optional): every "X+" rung the books price, once per game about 7 h before tip-off
+    if env("ODDS_API_ALT", "0") == "1" or (read_json(DATA / "settings.json", {}) or {}).get("odds_api_alt"):
+        done = st.setdefault("props_done", {})
+        alt = read_json(ALT_JSON, {}) or {}
+        for g in upcoming:
+            gid = g["game_id"]
+            if g.get("state") != "pre" or gid not in snap or "alt" in done.get(gid, []):
+                continue
+            left = datetime.fromisoformat(g["date"].replace("Z", "+00:00")) - now
+            if not timedelta(0) <= left <= timedelta(hours=ALT_HOURS) or st["spent"] + len(ALT_MARKETS) > daily:
+                continue
+            data, used, _ = _get(f"/events/{snap[gid]['event_id']}/odds", {"bookmakers": env("ODDS_API_ALT_BOOKS", ALT_BOOKS),
+                                                                            "markets": ",".join(ALT_MARKETS), "oddsFormat": "decimal"})
+            st["spent"] += used or len(ALT_MARKETS)
+            done.setdefault(gid, []).append("alt")
+            if isinstance(data, dict) and data.get("bookmakers"):
+                alt[gid] = {"at": now.isoformat(), "rows": parse_alt(data)}
+        cutoff = (now - timedelta(days=3)).isoformat()
+        write_json(ALT_JSON, {k: v for k, v in alt.items() if v.get("at", "") >= cutoff})
     # the betting book's full menu (default Winamax): which markets it lists for each game, then every line it offers
     book = env("ODDS_API_BET_BOOK", "winamax_fr")
     offers = read_json(STATE / "book_offers.json", {}) or {}
@@ -256,6 +283,31 @@ def parse_offers(ev, g):
                     if team and name.lower() in ("over", "under") and point is not None:
                         out.append({"market": key, "kind": "team_total", "team": team, "side": name.lower(),
                                     "point": float(point), "price": float(price)})
+    return out
+
+
+def parse_alt(ev):
+    """[[player, stat, line, implied chance], ...] from an alternate-lines reply: the over side of each "X+" rung,
+    the median implied chance (1 / price, margin included, as the blend was fitted) across the books."""
+    by = {}
+    for bk in ev.get("bookmakers") or []:
+        for m in bk.get("markets") or []:
+            st = STAT_OF.get(m.get("key"))
+            if not st or m.get("key") not in ALT_MARKETS:
+                continue
+            for oc in m.get("outcomes") or []:
+                if (oc.get("name") or "").lower() != "over" or not oc.get("price") or oc.get("point") is None:
+                    continue
+                by.setdefault((oc.get("description"), st, float(oc["point"])), []).append(1 / float(oc["price"]))
+    return [[pl, st, line, round(sorted(v)[len(v) // 2], 4)] for (pl, st, line), v in by.items()]
+
+
+def alt_latest():
+    """{(game_id, normalised player, stat, line): the books' implied chance of the over} from alt_latest.json."""
+    out = {}
+    for gid, v in (read_json(ALT_JSON, {}) or {}).items():
+        for pl, st, line, imp in v.get("rows") or []:
+            out[(str(gid), norm_name(pl), st, float(line))] = float(imp)
     return out
 
 

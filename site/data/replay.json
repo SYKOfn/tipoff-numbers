@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-14",
+ "updated": "2026-11-22",
  "note": "The current model and build rules replayed over two past seasons, with every input as it was before each game. Payouts assume 1 unit on every ticket.",
  "seasons": [
   {
@@ -87,9 +87,21 @@
   [
    "Locking tickets closer to tip-off",
    "chances just before tip were no more accurate (3 nights so far)"
+  ],
+  [
+   "Teaching the model to copy the market (distillation), situational model-market blends",
+   "closes a quarter of the gap at best; the flat 50/50 blend is already optimal"
+  ],
+  [
+   "Lifting legs the books rate higher",
+   "pushed the books' favourites out of the tickets' 86% window: 438 vs 440"
   ]
  ],
  "kept": [
+  [
+   "Bookmakers' \"X+\" ladder prices lower the ticket legs they rate below us (needs alternate lines from The Odds API)",
+   "tickets 440 -> 459 on 2024-25 (Feb-Apr 205 -> 223, where the prices exist); legs the books rated 6+ points lower landed 70-75% at a stated 80-89%"
+  ],
   [
    "Key players on the second night of a back-to-back",
    "legs +13 and +15, tickets 450→446 and 429→439"

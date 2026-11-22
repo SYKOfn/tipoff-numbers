@@ -20,7 +20,7 @@ from pathlib import Path
 from pipeline.store import ROOT, load_games, load_players
 
 B = "https://sports.core.api.espn.com/v2/sports/basketball/leagues/nba/events"
-CACHE = Path("/tmp/espn_props")
+CACHE = Path.home() / ".cache" / "tipoff_espn"  # outside /tmp, which a restart clears
 TYPES = {"Total Points": "pts", "Total Rebounds": "reb", "Total Assists": "ast", "Total 3-Point Field Goals": "tpm",
          "Total Points, Rebounds, and Assists": "pra"}
 PAUSE = 0.3
@@ -43,7 +43,7 @@ def _get(url):
 def fetch(season):
     g = load_games()
     gids = g[(g.season == season) & (g.stype == 2)].sort_values("date").game_id.astype(str).tolist()
-    CACHE.mkdir(exist_ok=True)
+    CACHE.mkdir(parents=True, exist_ok=True)
     for i, gid in enumerate(gids):
         f = CACHE / f"{gid}.json"
         if f.exists():
@@ -144,5 +144,42 @@ def load(season, phase="close"):
     return out
 
 
+def parse_all(season):
+    """Every labelled over/under pair (all lines, not just the main one) -> data/props/espn_all_{season}.csv
+    (kept locally, not committed: about 50 MB a season). For testing the model where tickets bet (80%+ lines)."""
+    g = load_games()
+    gids = g[(g.season == season) & (g.stype == 2)].game_id.astype(str).tolist()
+    out = ROOT / "data" / "props" / f"espn_all_{season}.csv"
+    n = 0
+    with open(out, "w", newline="") as fh:
+        w = csv.writer(fh)
+        w.writerow(["game_id", "player_id", "stat", "line", "over", "under", "o_line", "o_over", "o_under"])
+        for gid in gids:
+            f = CACHE / f"{gid}.json"
+            if not f.exists():
+                continue
+            groups = {}
+            for it in json.loads(f.read_text()).get("items", []):
+                st = TYPES.get((it.get("type") or {}).get("name"))
+                o = it.get("odds") or {}
+                cur = it.get("current") or {}
+                side = "over" if "over" in cur else "under" if "under" in cur else None
+                if not st or not o.get("total") or not side:
+                    continue
+                ath = str(it["athlete"]["$ref"].split("/athletes/")[1].split("?")[0])
+                groups.setdefault((ath, st, o["total"].get("value")), {})[side] = it
+            for (ath, st, line), sd in groups.items():
+                if len(sd) != 2:
+                    continue
+                co, cu = _dec(sd["over"]["current"]["over"].get("decimal")), _dec(sd["under"]["current"]["under"].get("decimal"))
+                if not co or not cu:
+                    continue
+                op_o, op_u = sd["over"].get("open") or {}, sd["under"].get("open") or {}
+                w.writerow([gid, ath, st, float(line), co, cu, (op_o.get("target") or {}).get("value"),
+                            _dec((op_o.get("over") or {}).get("decimal")), _dec((op_u.get("under") or {}).get("decimal"))])
+                n += 1
+    print(f"{out}: {n} line pairs")
+
+
 if __name__ == "__main__":
-    {"fetch": fetch, "parse": parse}[sys.argv[1]](int(sys.argv[2]))
+    {"fetch": fetch, "parse": parse, "parse_all": parse_all}[sys.argv[1]](int(sys.argv[2]))

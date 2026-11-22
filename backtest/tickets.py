@@ -63,6 +63,30 @@ def main(season, d0=None, d1=None, rules=("base",)):
     if os.environ.get("MARKET_W"):
         parlay.MARKET_W["w"] = float(os.environ["MARKET_W"])
     calib_cache = {}
+    # ALT_BLEND="a,b,c": blend each player leg's chance with the book's milestone price at the same line
+    # (rows from the research script alt.py): p' = sigmoid(a logit p + b logit implied + c)
+    if os.environ.get("ALT_BLEND"):
+        import pickle, math
+        wa, wb, wc = map(float, os.environ["ALT_BLEND"].split(","))
+        AR = pickle.load(open(os.environ.get("ALT_ROWS", "/tmp/alt_rows.pkl"), "rb"))
+        imp = {(r.gid, r.pid, r.stat, float(r.line)): r.imp for r in AR.itertuples()}
+        lgt = lambda q: math.log(min(max(q, 1e-4), 1 - 1e-4) / (1 - min(max(q, 1e-4), 1 - 1e-4)))
+        def adjust(l):
+            if l.get("kind") != "prop":
+                return
+            i = imp.get((str(l["game"]), str(l.get("player")), l.get("stat"), float(l.get("line") or -1)))
+            if i:
+                b = 1 / (1 + math.exp(-(wa * lgt(l["p"]) + wb * lgt(i) + wc)))
+                mode = os.environ.get("ALT_MODE", "blend")
+                if mode == "blend":
+                    l["p"] = b
+                elif mode == "lower":          # only ever lower a leg, never lift it out of the builder's window
+                    l["p"] = min(l["p"], b)
+                elif mode.startswith("veto"):  # lower only when the book is clearly less sure: veto0.06
+                    if b < l["p"] - float(mode[4:] or 0.06):
+                        l["p"] = b
+        parlay.LEG_ADJUST = adjust
+        print(f"milestone blend on: {len(imp)} book prices", flush=True)
 
     def calib_for(day):
         if not real_mode:

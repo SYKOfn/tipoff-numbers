@@ -700,7 +700,8 @@ def main(demo=False, now=None, collect_data=True):
                 pre2.append((g, pay))
             full_menu = any((g.get("offers") or {}).get("offers") for g, _ in pre2)
             bet_book = oddsapi.env("ODDS_API_BET_BOOK", "winamax_fr") if (oddsapi.key() and full_menu) else None
-            built, cands = parlay.build(pre2, pdisp, calib, avg, real_props=real, book_only=bet_book)
+            alt = oddsapi.alt_latest() if oddsapi.key() else {}  # the books' "X+" prices (ODDS_API_ALT=1)
+            built, cands = parlay.build(pre2, pdisp, calib, avg, real_props=real, book_only=bet_book, alt_props=alt)
             from model import story
             story.annotate(built["parlays"], built.get("singles"), pre2)  # why each ticket, in plain words
             bl, lifts = parlay.board(cands)
