@@ -1,19 +1,4 @@
 {
   "_about": "Written each morning by the analyst task. Facts about tonight's players stated by a reputable source, nothing else: rest (sits tonight), min_cap (minutes limit), start / bench (lineup change), returning (back from an absence). Each entry applies only to games on its 'day' (US date). See pipeline/news.py.",
-  "players": {
-    "Dominick Barlow": {
-      "day": "2026-11-21",
-      "team": "PHI",
-      "returning": true,
-      "quote": "Cleared to make his season debut vs Milwaukee after missing Philadelphia's first 16 games (lower back).",
-      "source": "https://www.rotowire.com/basketball/headlines/dominick-barlow-news-cleared-to-play-saturday-540335"
-    },
-    "Ty Jerome": {
-      "day": "2026-11-21",
-      "team": "MEM",
-      "returning": true,
-      "quote": "Cleared to return vs Minnesota after missing games since Nov 13 with a right hip impingement.",
-      "source": "https://www.cbssports.com/fantasy/basketball/news/grizzlies-ty-jerome-cleared-to-play-saturday/"
-    }
-  }
+  "players": {}
 }
