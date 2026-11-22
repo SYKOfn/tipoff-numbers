@@ -1,126 +1,157 @@
 {
  "_about": "Optional written view per upcoming game, keyed by ESPN game id: {\"text\": \"...\", \"sources\": [urls], \"written_at\": ISO}. Shown on the game page as 'Analyst view' (locker-room news, trade rumours, a player facing his former team...). Never mixed into the numbers.",
  "games": {
-  "401910023": {
-   "text": "Milwaukee's 12-game losing streak is the club's longest since 1996. The last two losses were emotional 'reunion' games against Giannis Antetokounmpo and Damian Lillard. Taylor Jenkins has admitted that what the team is doing 'is not working', and Myles Turner and Kyle Kuzma are both out with shoulder injuries. Philadelphia are rolling, and LeBron James called the Orlando win one of their best of the season, though Tyrese Maxey and Jaylen Brown were questionable. The angle leans clearly towards Philadelphia.",
-   "sources": [
-    "https://www.cbssports.com/nba/news/rolling-sixers-host-bucks-looking-to-halt-12-game-skid/",
-    "https://www.cbssports.com/nba/gametracker/NBA_20261119_POR@MIL/",
-    "https://sports.yahoo.com/articles/taylor-jenkins-admits-bucks-current-144444833.html",
-    "https://northeasttimes.com/2026/11/19/sixers-injury-report-maxey-brown-next-three-games-november-2026/"
-   ],
-   "written_at": "2026-11-21T06:47:35Z"
-  },
-  "401910024": {
-   "text": "The defending champion Knicks open a five-game homestand, while Portland are on game five of a six-game road trip right after Damian Lillard's emotional 33-point return to Milwaukee. The Blazers are still without Ja Morant (hamstring) and Shaedon Sharpe, Deni Avdija is questionable, and they have lost seven straight to New York. The angle leans towards New York.",
-   "sources": [
-    "https://www.yardbarker.com/nba/articles/knicks_open_5_game_homestand_vs_well_traveled_trail_blazers/s1_17045_44594450",
-    "https://heavy.com/sports/nba/portland-trail-blazers/injury-report-vs-knicks-november-21/",
-    "https://wsau.com/2026/11/20/bucks-losing-streak-continues-2/"
-   ],
-   "written_at": "2026-11-21T06:47:35Z"
-  },
-  "401910025": {
-   "text": "The Clippers are 0-6 on the road and just lost to a three-win Utah team. Brandon Ingram is still out, with his debut reportedly targeted for Monday against Houston, and Bradley Beal has no timeline. Derrick Jones Jr. faces his former team. Dallas snapped a three-game skid by beating Golden State, have Kyrie Irving back, and Dusty May wants that physicality 'every night'. The angle leans towards Dallas.",
-   "sources": [
-    "https://www.1075thegame.com/2026/11/20/no-sophomore-slump-for-cooper-flagg-who-leads-mavs-vs-clippers/",
-    "https://sports.yahoo.com/articles/la-clippers-expected-2x-nba-234526857.html",
-    "https://nba.com/mavs/news/mavericks-clippers-preview-mavs-developing-their-identity-every-day-in-practice"
-   ],
-   "written_at": "2026-11-21T06:47:35Z"
-  },
-  "401910026": {
-   "text": "Memphis have won five straight and are 8-0 on the road. Ty Jerome was upgraded to probable after a hip issue, though Cameron Boozer, Jerami Grant and others are out. Minnesota are still without Anthony Edwards after knee surgery and come off a late collapse at the Knicks, when they went scoreless after cutting a 16-point deficit to three. The angle leans slightly towards Memphis.",
-   "sources": [
-    "https://heavy.com/sports/nba/memphis-grizzlies/ty-jerome-injury-update-timberwolves/",
-    "https://www.yardbarker.com/nba/articles/knicks_open_5_game_homestand_vs_well_traveled_trail_blazers/s1_17045_44594450"
-   ],
-   "written_at": "2026-11-21T06:47:35Z"
-  },
-  "401910027": {
-   "text": "New Orleans are in turmoil: the club confirmed Dejounte Murray's trade request, and Jamahl Mosley's lineup choices are under fire. The night before, they blew a 16-point lead at OKC to fall to 0-3 in the Cup, so this is the second night of a back-to-back with travel. San Antonio are rested, though Dylan Harper is out for a few weeks. The angle leans towards San Antonio.",
-   "sources": [
-    "https://www.hoopsrumors.com/2026/11/pelicans-to-begin-dejounte-murray-trade-search.html",
-    "https://www.si.com/nba/pelicans/onsi/where-jamahl-mosley-letting-pelicans-down-most-01m7hd6p32x1",
-    "https://www.espn.com/nba/recap/_/gameId/401909310"
-   ],
-   "written_at": "2026-11-21T06:47:35Z"
-  },
-  "401910028": {
-   "text": "Boston are on their first two-game skid of the season after blowing a 17-point lead at Denver, and players called the problems 'correctable'. Jayson Tatum is questionable for rest and Derrick White with a new shoulder issue, with Golden State on Sunday. Sacramento are 0-9 at home and on a back-to-back after a narrow loss to the Lakers, and Doug Christie says his seat is 'hot always'. The angle leans towards Boston, but less so if the Celtics rest their stars.",
-   "sources": [
-    "https://www.bostonglobe.com/2026/11/20/sports/celtics-road-trip-sacramento-kings/",
-    "https://sports.yahoo.com/articles/celtics-injury-report-jayson-tatum-024024790.html",
-    "https://basketnews.com/news-259460-doug-christie-gets-brutally-honest-about-job-security-amid-kings-disastrous-start.html",
-    "https://www.si.com/nba/kings/onsi/3-takeaways-from-kings-heartbreaking-loss-to-lakers"
-   ],
-   "written_at": "2026-11-21T06:47:35Z"
-  },
   "401910029": {
-   "text": "Detroit lost to Toronto on the second night of a back-to-back and are missing Jalen Duren, Duncan Robinson and Ron Holland, though Cade Cunningham is back from knee soreness. J.B. Bickerstaff says he won't rush the injured players. Atlanta have won three straight but lost CJ McCollum for at least four weeks, and rookie Kingston Flemings has back tightness. The angle leans slightly towards Atlanta at home.",
+   "text": "Detroit lost at home to Toronto on Friday but get Cade Cunningham back (probable, knee), while Jalen Duren and Duncan Robinson stay out and Ron Holland is questionable. Atlanta have won three straight and eight of 11, and Jalen Johnson broke out of a shooting slump with 26 on Friday, but the Hawks are without CJ McCollum and rookie Kingston Flemings is questionable with a back issue. Both teams are banged up; the angle leans slightly towards Atlanta at home.",
    "sources": [
-    "https://sports.yahoo.com/articles/poor-defensive-start-costs-pistons-032438935.html",
-    "https://sports.yahoo.com/nba/breaking-news/article/hawks-cj-mccollum-out-at-least-4-weeks-with-calf-strain-putting-rookie-kingston-flemings-in-the-spotlight-220007263.html",
-    "https://www.si.com/nba/hawks/onsi/instant-takeaways-from-atlanta-s-111-97-win-over-the-charlotte-hornets-01m7xwwf0dkk"
+    "https://www.ktik.com/2026/11/21/pistons-hawks-both-banged-up-entering-clash-of-early-east-contenders/",
+    "https://heavy.com/sports/nba/detroit-pistons/injury-report-vs-hawks-november-22/"
    ],
-   "written_at": "2026-11-21T06:47:35Z"
+   "written_at": "2026-11-22T06:54:14Z"
   },
   "401910030": {
-   "text": "Miami have won six straight, and a team source says 'we want to win now'. Rival executives expect the Heat to add a guard. OKC are badly depleted, with Jalen Williams, Chet Holmgren and Cason Wallace out long-term and Alex Caruso hurt. This is their second road game in three nights after a comeback in New Orleans. The angle leans towards Miami.",
+   "text": "Shai Gilgeous-Alexander is questionable with a back bruise and neck strain after scoring 40 on Friday, and OKC are already without Caruso, Holmgren, Jalen Williams and Cason Wallace, with a back-to-back in Indiana on Monday. Miami have been off since Wednesday and have won six straight, but Giannis Antetokounmpo is questionable with groin tendinitis. If Shai sits the angle leans clearly towards Miami; if both stars play it is closer.",
    "sources": [
-    "https://www.hoopsrumors.com/2026/11/heat-notes-giannis-bam-herro-dame-klay-draymond.html",
-    "https://sports.yahoo.com/articles/sucks-shai-gilgeous-alexander-opens-114500705.html",
-    "https://www.espn.com/nba/recap/_/gameId/401909310"
+    "https://www.cbssports.com/fantasy/basketball/news/thunders-shai-gilgeous-alexander-questionable-to-play-sunday/",
+    "https://heavy.com/sports/nba/oklahoma-city-thunder/injury-report-vs-heat-november-22/",
+    "https://heavy.com/sports/nba/miami-heat/heat-reveal-giannis-antetokounmpo-injury-status-thunder-game/"
    ],
-   "written_at": "2026-11-21T06:47:35Z"
+   "written_at": "2026-11-22T06:54:14Z"
   },
   "401910031": {
-   "text": "Orlando come in on a high after Franz Wagner's game-winner against his brother's Nets, and they have a revenge motive after losing to Washington on Nov 2. Paolo Banchero is still out with what he calls a 'complex' ankle injury. Anthony Davis had 36 and 11 in Washington's win in Chicago, and he is playing for a contract after reports that a max extension is unlikely. The angle is close to neutral.",
+   "text": "Both teams arrive on a high: Franz Wagner beat Brooklyn with a late step-back and is averaging over 31 in his last seven, while Anthony Davis (36 and 11) led Washington's win in Chicago, and the Wizards chase their first three-game win streak of the season. Orlando are still without Paolo Banchero and also have a revenge motive from a Nov 2 loss to Washington. The angle is close to neutral, with a slight edge to Orlando's motivation.",
    "sources": [
-    "https://www.nba.com/magic/news/franz-wagner-hits-game-winner-to-propel-orlando-magic-past-brooklyn-nets-20261120",
-    "https://www.nba.com/magic/news/undermanned-orlando-magic-fall-short-against-washington-wizards-20261102",
-    "https://abcnews.com/Sports/wireStory/davis-dybantsa-wizards-knock-off-bulls-98-94-138337693",
-    "https://heavy.com/sports/nba/orlando-magic/injury-report-nets-game-november-20"
+    "https://www.ktik.com/2026/11/21/anthony-davis-wizards-seek-to-extend-streak-as-they-take-on-magic/",
+    "https://sports.yahoo.com/articles/wizards-vs-magic-preview-washington-231515414.html"
    ],
-   "written_at": "2026-11-21T06:47:35Z"
+   "written_at": "2026-11-22T06:54:14Z"
   },
   "401910032": {
-   "text": "Denver have won six of eight, including a 17-point comeback against Boston and a strong finish against Houston, and former Bull DeMar DeRozan returns to Chicago. The Bulls blew a 15-point lead to lose at home to Washington. Caleb Wilson is out until around Christmas, and Josh Giddey's hold on the starting job is being questioned after a fourth-quarter benching. The angle leans towards Denver.",
+   "text": "Chicago's mood is poor: Tiago Splitter pulled Josh Giddey and Matas Buzelis early in the second half on Friday, criticised their body language, and both looked upset. The Bulls have won one of six at home, Norman Powell is questionable with a hamstring strain, and they face Cleveland on a back-to-back Monday. Denver have won four of five and former Bull DeMar DeRozan returns. The angle leans towards Denver.",
    "sources": [
-    "https://www.clickondetroit.com/sports/2026/11/21/nikola-jokics-big-2nd-half-sends-the-nuggets-to-a-133-124-win-over-the-rockets/",
-    "https://sports.yahoo.com/articles/jamal-murray-praises-demar-derozan-140034878.html",
-    "https://www.espn.com/nba/recap?gameId=401909309",
-    "https://chicago.suntimes.com/bulls/2026/11/17/josh-giddey-playing-himself-out-bulls-starting-point-guard"
+    "https://chicago.suntimes.com/bulls/2026/11/21/third-quarter-woes-bulls-cost-them-against-wizards",
+    "https://www.hoopsrumors.com/2026/11/central-notes-herro-giddey-buzelis-powell-haliburton.html",
+    "https://www.nba.com/bulls/news/norman-powells-game-tying-shot-bounces-out-bulls-come-up-short-against-wizards"
    ],
-   "written_at": "2026-11-21T06:47:35Z"
+   "written_at": "2026-11-22T06:54:14Z"
   },
   "401910033": {
-   "text": "Dallas are framed as 'ahead of schedule' under first-year coach Dusty May, with Kyrie Irving back, but they play the second night of a back-to-back. Utah lost to Phoenix after briefly breaking a 12-game skid, with Lauri Markkanen and Jaren Jackson Jr. out without timelines. Rookie Darryn Peterson is being managed carefully. The owner says Will Hardy's job is safe. The angle leans slightly towards Dallas.",
+   "text": "Dallas beat the Clippers on Saturday behind Kyrie Irving's 25, so this is the second night of a back-to-back at altitude to open a three-game trip, and P.J. Washington missed Saturday ill. Utah are on a long losing run with Lauri Markkanen (hand) and Jaren Jackson Jr. (MCL) out for weeks. Fatigue narrows the gap, but the angle still leans towards Dallas.",
    "sources": [
-    "https://sports.yahoo.com/articles/3-thoughts-mavericks-face-another-000400677.html",
-    "https://www.deseret.com/sports/2026/11/20/darryn-peterson-posts-first-career-double-double-in-jazz-loss/",
-    "https://www.cbssports.com/betting/news/jazz-vs-clippers-nba-picks-tuesday-injury-ravaged-utah-could-tie-third-longest-losing-skid-in-team-history/"
+    "https://abcnews.com/Sports/wireStory/kyrie-irving-scores-25-cooper-flagg-22-mavericks-138353933",
+    "https://www.espn.com/nba/game/_/gameId/401910033/mavericks-jazz"
    ],
-   "written_at": "2026-11-21T06:47:35Z"
+   "written_at": "2026-11-22T06:54:14Z"
   },
   "401910034": {
-   "text": "Indiana keep losing guards: T.J. McConnell left Friday's loss with a hamstring issue, Tyrese Haliburton has no timetable, and the Pacers host OKC the next night. The Knicks are on a back-to-back. Mitchell Robinson is unhappy after a move to the bench, and Karl-Anthony Towns is reportedly using the stalled extension talks as motivation. The angle leans towards New York.",
+   "text": "The Knicks have won four straight, the last on Mikal Bridges' buzzer-beater against Portland on Saturday, but this is a back-to-back and Karl-Anthony Towns (illness) and OG Anunoby (calf) sat that game. Indiana have lost three straight, T.J. McConnell is out again with his hamstring and Pascal Siakam is questionable; Tyrese Haliburton is targeting a return before December. The angle leans towards New York on morale, even short-handed.",
    "sources": [
-    "https://www.cbssports.com/fantasy/basketball/news/pacers-t-j-mcconnell-exits-game-with-hamstring-issue/",
-    "https://roundtable.io/sports/nba/pacers/news/pacers-still-have-no-timeline-for-tyrese-haliburton-s-return",
-    "https://sports.yahoo.com/articles/knicks-bulletin-going-bittersweet-170000189.html",
-    "https://www.hoopsrumors.com/2026/11/knicks-notes-towns-bridges-shamet-brunson.html"
+    "https://abcnews.com/Sports/wireStory/brunson-scores-30-bridges-hits-3-buzzer-lifting-138353385",
+    "https://sports.yahoo.com/articles/pacers-more-bad-news-injury-223350334.html",
+    "https://www.hoopsrumors.com/2026/11/central-notes-herro-giddey-buzelis-powell-haliburton.html"
    ],
-   "written_at": "2026-11-21T06:47:35Z"
+   "written_at": "2026-11-22T06:54:14Z"
   },
   "401910035": {
-   "text": "Golden State came home from an 0-5 road trip. Steve Kerr says the team is 'wiped out with injuries': Stephen Curry (oblique), Jimmy Butler and Kristaps Porzingis are out, and Draymond Green has an elbow issue. Boston play the second night of a back-to-back after Sacramento, and Jayson Tatum and Derrick White were already questionable, so rest days are a real risk. The angle leans towards Boston on morale, depending on who plays.",
+   "text": "Boston lost by a point at 2-14 Sacramento on Saturday, their third straight loss, with Jayson Tatum resting and Derrick White (shoulder) and Mitchell Robinson (illness) out; this is the second night of that back-to-back. Golden State are 0-5 on their just-finished road trip but have won six straight at home, and Draymond Green is off the injury report, though Stephen Curry remains out. Boston's slide and fatigue make this closer than the records; the angle leans slightly towards Golden State at home.",
    "sources": [
-    "https://sports.yahoo.com/articles/grizzlies-roll-past-short-handed-035823108.html",
-    "https://www.nbcsportsbayarea.com/nba/golden-state-warriors/steph-curry-injury-yaxel-lendeborg-losing-streak/1981351/",
-    "https://sports.yahoo.com/articles/celtics-could-without-two-starters-020541383.html"
+    "https://www.espn.com/nba/game/_/gameId/401910028",
+    "https://www.boston.com/sports/boston-celtics/2026/11/21/3-celtics-including-jayson-tatum-ruled-out-ahead-of-matchup-with-kings/",
+    "https://www.nbcsports.com/fantasy/basketball/player-news/2026-11-21/draymond-green-elbow-removed-from-injury-report",
+    "https://www.nba.com/warriors/news/gameday-preview-20261122"
    ],
-   "written_at": "2026-11-21T06:47:35Z"
+   "written_at": "2026-11-22T06:54:14Z"
+  },
+  "401910036": {
+   "text": "Memphis had their five-game win streak and franchise-record eight-game road streak snapped in Minnesota on Saturday, playing without Cameron Boozer (ankle) and Jerami Grant (calf), whose Monday status is unclear. Charlotte have lost four straight, Kon Knueppel is out at least four more weeks after re-straining his hamstring, and local coverage already talks of the season slipping away. The angle leans towards Memphis.",
+   "sources": [
+    "https://abcnews.com/Sports/wireStory/jaden-mcdaniels-scores-25-timberwolves-top-short-handed-138353376",
+    "https://www.si.com/nba/hornets/onsi/hornets-season-is-already-slipping-away-after-brutal-start-to-2026-27-campaign",
+    "https://www.nba.com/hornets/news/hornets-strong-start-fizzles-out-in-2nd-half-against-atlanta"
+   ],
+   "written_at": "2026-11-22T06:54:14Z"
+  },
+  "401910037": {
+   "text": "Portland end a six-game road trip after a gutting buzzer-beater loss in New York, their third loss in four, and are still without Ja Morant (hamstring) and Shaedon Sharpe. Philadelphia beat Milwaukee on Saturday afternoon with Joel Embiid (26-17-9) and a returning Tyrese Maxey, and have no back-to-back, though Jaylen Brown is still out. The angle leans towards Philadelphia.",
+   "sources": [
+    "https://www.cbsnews.com/newyork/news/mikal-bridges-knicks-beat-trail-blazers/",
+    "https://heavy.com/sports/nba/portland-trail-blazers/injury-report-vs-knicks-november-21/",
+    "https://www.nbcsportsphiladelphia.com/nba/philadelphia-76ers/sixers-vs-bucks-analysis-tyrese-maxey-joel-embiid-lebron-james/768402/"
+   ],
+   "written_at": "2026-11-22T06:54:14Z"
+  },
+  "401910038": {
+   "text": "Both teams are on the second night of a back-to-back. OKC's availability hinges on Shai Gilgeous-Alexander's back and neck, with a long list of rotation players already out; Indiana have lost three straight, with Haliburton (at least two more weeks) and McConnell out and Pascal Siakam questionable with a hip issue. With so much uncertainty the angle is close to neutral, tilting to OKC only if Shai plays.",
+   "sources": [
+    "https://heavy.com/sports/nba/oklahoma-city-thunder/injury-report-vs-heat-november-22/",
+    "https://heavy.com/sports/nba/indiana-pacers/pascal-siakam-injury-knicks/"
+   ],
+   "written_at": "2026-11-22T06:54:14Z"
+  },
+  "401910039": {
+   "text": "Milwaukee have lost 13 straight, the latest after Tyler Herro's career-high 50 fell just short in Philadelphia, and the cloud of the league's Gary Trent Jr. investigation hangs over the club. Toronto snapped a six-game skid in Detroit on Scottie Barnes' late layup, but Kawhi Leonard (knee, end-of-November target) and RJ Barrett are still out. The angle leans towards Toronto.",
+   "sources": [
+    "https://www.wbay.com/2026/11/22/tyler-herro-scores-career-high-50-points-his-final-3-doesnt-beat-buzzer-bucks-lose/",
+    "https://finchannel.com/raptors-vs-pistons-barnes-late-layup-ends-torontos-six-game-skid/142587/sport/2026/11/",
+    "https://heavy.com/sports/nba/toronto-raptors/shams-charania-kawhi-leonard-return-timetable/"
+   ],
+   "written_at": "2026-11-22T06:54:14Z"
+  },
+  "401910040": {
+   "text": "Brooklyn have lost four straight, held two team meetings after the rout by Chicago, and Julius Randle called that game 'embarrassing'; Jordi Fernandez has shaken up the lineup and starting point guard Nolan Traore hurt his hamstring. Randle faces Minnesota, the team that traded him, and both he and Michael Porter Jr. are on the trade block. Minnesota have won three of four without Anthony Edwards. The angle leans towards Minnesota.",
+   "sources": [
+    "https://sports.yahoo.com/articles/nets-shake-everything-outcome-heartbreaking-034116642.html",
+    "https://sports.yahoo.com/articles/watch-julius-randle-goes-off-235657391.html",
+    "https://abcnews.com/Sports/wireStory/jaden-mcdaniels-scores-25-timberwolves-top-short-handed-138353376",
+    "https://www.mprnews.org/story/2026/11/20/anthony-edwards-works-through-rehab-waiting-for-his-right-knee-to-declare-hes-ready-to-return"
+   ],
+   "written_at": "2026-11-22T06:54:14Z"
+  },
+  "401910041": {
+   "text": "Chicago are on a back-to-back after hosting Denver, and the Giddey and Buzelis benchings plus trade calls about Tre Jones point to an unsettled group. Cleveland are 9-8 after a conference-finals run, with commentary putting Kenny Atkinson on notice, but James Harden is coming off 51 points and Evan Mobley is still out. The angle leans towards Cleveland.",
+   "sources": [
+    "https://sports.yahoo.com/articles/james-harden-boosts-cavaliers-memorable-110556334.html",
+    "https://sports.yahoo.com/articles/1-early-trade-cavs-must-230450378.html",
+    "https://www.hoopsrumors.com/2026/11/bulls-notes-jones-sellers-buzelis-giddey.html",
+    "https://chicago.suntimes.com/bulls/2026/11/21/third-quarter-woes-bulls-cost-them-against-wizards"
+   ],
+   "written_at": "2026-11-22T06:54:14Z"
+  },
+  "401910042": {
+   "text": "These teams have discussed a Jalen Green for Dejounte Murray swap that reportedly has zero traction, which adds an awkward edge to the night. Phoenix have won three straight and seven of nine; New Orleans have lost three straight, Zion Williamson was a late scratch on Saturday with a thigh contusion and Murray (trade request) is out. The angle leans towards Phoenix.",
+   "sources": [
+    "https://hoopswire.com/suns-pelicans-discussed-jalen-green-dejounte-murray-swap-but-zero-traction/",
+    "https://sports.yahoo.com/articles/game-recap-suns-survive-jazz-061458998.html",
+    "https://www.theticket.com/2026/11/21/victor-wembanyama-posts-50-points-19-rebounds-as-spurs-roll-pelicans/"
+   ],
+   "written_at": "2026-11-22T06:54:14Z"
+  },
+  "401910043": {
+   "text": "Brandon Ingram is expected to make his Clippers debut after missing the season with heel and Achilles problems, a lift for a 4-11 team that lost in Dallas on Saturday. Houston come off a loss in Denver where Ime Udoka called the defense 'as bad as I've seen it', with Alperen Sengun playing in goggles after his eye injury. Udoka's reaction and home court lean towards Houston, though Ingram's return adds a little uncertainty.",
+   "sources": [
+    "https://sports.yahoo.com/articles/brandon-ingram-officially-expected-clippers-212441295.html",
+    "https://www.espn.com/nba/recap?gameId=401909312",
+    "https://www.cbssports.com/nba/gametracker/boxscore/NBA_20261121_LAC@DAL/"
+   ],
+   "written_at": "2026-11-22T06:54:14Z"
+  },
+  "401910044": {
+   "text": "The Lakers have a revenge motive after losing to Utah on Nov 18, and former Jazz center Walker Kessler faces his old team again. Utah play the second night of a back-to-back after hosting Dallas, still without Markkanen and Jaren Jackson Jr. Luka Doncic is being monitored after an eye poke, and Austin Reaves could return Monday or Friday. The angle leans towards the Lakers.",
+   "sources": [
+    "https://sports.yahoo.com/nba/utah-jazz-los-angeles-lakers-2026111813/",
+    "https://basketnews.com/news-259955-luka-doncic-shares-critical-lakers-update-on-alarming-eye-injury.html",
+    "https://www.cbssports.com/fantasy/basketball/news/lakers-austin-reaves-expected-to-return-monday-or-friday/"
+   ],
+   "written_at": "2026-11-22T06:54:14Z"
+  },
+  "401910045": {
+   "text": "Victor Wembanyama is coming off a 50-and-19 night against New Orleans and San Antonio have won two straight since their 12-game streak ended, though Dylan Harper is out. Sacramento finally got their first home win, by a point over Boston, with rookie Darius Acuff Jr. scoring 21, but Domantas Sabonis's reported wish to leave and the Zach LaVine trade talk keep the mood fragile. The angle leans towards San Antonio, with De'Aaron Fox facing his former team.",
+   "sources": [
+    "https://www.theticket.com/2026/11/21/victor-wembanyama-posts-50-points-19-rebounds-as-spurs-roll-pelicans/",
+    "https://sportsradioservice.com/2026/11/21/kings-snap-nine-game-home-losing-streak-with-thrilling-97-96-win-over-celtics",
+    "https://basketnews.com/news-259565-two-teams-expected-to-pursue-domantas-sabonis-trade-revealed.html"
+   ],
+   "written_at": "2026-11-22T06:54:14Z"
   }
  }
 }
