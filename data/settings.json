@@ -1,1 +1,4 @@
-{"odds_api_alt": false}
+{
+ "odds_api_alt": true,
+ "odds_api_daily": 220
+}

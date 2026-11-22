@@ -144,6 +144,8 @@ def collect(upcoming, now=None):
         daily = int(float(env("ODDS_API_DAILY", "15")))
     except ValueError:
         daily = 15
+    # data/settings.json can raise the daily cap without a workflow edit (room for the alternate lines)
+    daily = max(daily, int((read_json(DATA / "settings.json", {}) or {}).get("odds_api_daily") or 0))
     books = env("ODDS_API_BOOKS", "winamax_fr,pinnacle")
     tips = sorted(datetime.fromisoformat(g["date"].replace("Z", "+00:00")) for g in upcoming if g.get("state") == "pre")
     soon = any(timedelta(0) <= t - now <= timedelta(minutes=75) for t in tips)
