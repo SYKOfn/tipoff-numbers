@@ -644,18 +644,43 @@ def package(name, why, legs, sims, games):
 # lifting legs pushed the books' favourites above AGREE_MAX and out of the tickets (438 vs 440 landed); lowering only
 # landed 459 tickets vs 440 (Feb-Apr, where the prices exist: 223 vs 205; Oct-Jan unchanged). Legs our model rated
 # 78%+ that the books priced 6+ points lower landed 70-75%.
-ALT_W = (0.2987, 0.5242, -0.0711)
+ALT_W = (0.2987, 0.5242, -0.0711)   # one set for every stat: per-stat weights scored worse month to month
+ALT_FAIR = (0.9336, -0.3629)       # the books' one-sided X+ price -> its fair chance, margin removed (2024-25 results)
+
+
+def alt_fair(imp):
+    """The books' fair chance for an X+ rung from its price (implied chance with the margin in it)."""
+    return sigmoid(ALT_FAIR[0] * logit(imp) + ALT_FAIR[1])
 
 
 def alt_lower(l, imp):
-    """Lower leg l's chance to the blend with the books' implied chance when that is lower; returns True if lowered."""
+    """Lower leg l's chance to the blend with the books' implied chance when that is lower (what picks the legs);
+    the blend itself, calibrated, is kept as p_books and becomes the stated chance once the tickets are built
+    (restate). Returns True if lowered."""
     b = sigmoid(ALT_W[0] * logit(l["p"]) + ALT_W[1] * logit(imp) + ALT_W[2])
     l["alt_book"] = round(imp, 3)
+    l["p_books"] = round(b, 4)
     if b < l["p"]:
         l["p_before_books"], l["p"] = l["p"], round(b, 4)
         l["note"] = (l.get("note") or "") + f"; the books' {l.get('line', 0) + 0.5:.0f}+ price says {round(100 * imp)}% (margin included), so the chance was lowered from {round(100 * l['p_before_books'])}%"
         return True
     return False
+
+
+def restate(pr):
+    """A ticket built on lowered-only chances, stated at the calibrated blend instead (lowering only, the legs are
+    chosen well but stated about 5% too low: 459 landed at a stated 435 in the 2024-25 replay)."""
+    r = 1.0
+    for l in pr.get("legs") or []:
+        if l.get("p_books") is not None and l.get("p"):
+            r *= l["p_books"] / l["p"]
+            l["p_chosen"], l["p"] = l["p"], l["p_books"]
+    if r != 1.0 and pr.get("p"):
+        pj = min(pr["p"] * r, 0.99)
+        fair = 1 / pj
+        pr.update(p=round(pj, 4), p_independent=round((pr.get("p_independent") or pj) * r, 4), fair=round(fair, 2),
+                  min_odds=round(fair * SAFETY, 2), winamax_est=round(1 + WINAMAX_PAYOUT * (fair - 1), 2))
+    return pr
 
 
 LEG_ADJUST = None  # replay-only hook (backtest/tickets.py): changes a candidate leg's chance before picking; None live
@@ -845,6 +870,8 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None,
         pk["game"] = gid
         pk["scenarios"] = scenarios(best[1], sims[gid], pk["p"])
         out["game_tickets"].append(pk)
+    for pr in out["parlays"] + out["game_tickets"]:
+        restate(pr)
     out["game_tickets"].sort(key=lambda t: -t["p"])
     return out, cands
 
@@ -867,6 +894,8 @@ def ladder_odds(l):
     passed off as Winamax's: other books pay more than Winamax does."""
     if l.get("wmx") and l.get("wmx_real"):
         return float(l["wmx"]), True
+    if l.get("alt_book") is not None:  # the books' own price for this exact X+ rung, margin removed
+        return round(wmx_odds(alt_fair(float(l["alt_book"]))), 2), False
     if l.get("book") and l.get("market") is not None:
         return round(wmx_odds(float(l["market"])), 2), False
     if l.get("wmx"):
@@ -921,7 +950,7 @@ def ladder_pick(cands, games, gctx):
         # from the season average is not a real offer: when a player's role has grown the books move the line, so
         # "over his old average at 2.0" never exists (the replay without real lines picked exactly those, and they
         # "landed" 80% at a stated 54%). Those are used only when there is no market price at all.
-        (priced if (l.get("wmx_real") or l.get("book")) else loose).append((l, o, real))
+        (priced if (l.get("wmx_real") or l.get("book") or l.get("alt_book") is not None) else loose).append((l, o, real))
     pool = priced or loose
     if not pool:
         return None
@@ -940,8 +969,9 @@ def ladder_pick(cands, games, gctx):
     if not priced:
         note = (note + " " if note else "") + "No market price was available, so the odds are only an estimate."
     leg = {k: v for k, v in l.items() if not k.startswith("_") and k != "sim"}
-    return {"leg": leg, "odds": round(o, 2), "odds_real": real, "p": round(l["p"], 4), "fair": round(1 / l["p"], 2),
-            "min_odds": round(LADDER_SAFETY / l["p"], 2), "ev": round(l["p"] * o - 1, 4), "game": l["game"], "tip": l.get("tip"),
+    p = l.get("p_books") or l["p"]  # stated at the calibrated blend when the books priced it (picked on the cautious one)
+    return {"leg": leg, "odds": round(o, 2), "odds_real": real, "p": round(p, 4), "fair": round(1 / p, 2),
+            "min_odds": round(LADDER_SAFETY / p, 2), "ev": round(p * o - 1, 4), "game": l["game"], "tip": l.get("tip"),
             "tier": tier, "note": note, "why": ladder_why(l, o, gctx.get(l["game"])), "options": len(pool)}
 
 

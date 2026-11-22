@@ -33,3 +33,22 @@ def test_books_only_ever_lower_a_leg():
     lo = {"p": 0.80, "line": 4.5, "note": "x"}
     assert not parlay.alt_lower(lo, 0.97)                # the books say more: left alone, never lifted
     assert lo["p"] == 0.80 and lo["alt_book"] == 0.97
+
+
+def test_tickets_are_stated_at_the_calibrated_blend():
+    a = {"p": 0.80, "line": 4.5}
+    parlay.alt_lower(a, 0.97)                     # the books like it more: chosen at 0.80, stated at the blend
+    b = {"p": 0.85, "line": 9.5}
+    parlay.alt_lower(b, 0.80)                     # the books like it less: lowered and stated at the blend
+    t = parlay.restate({"p": 0.70, "p_independent": 0.68, "legs": [dict(a), dict(b), {"p": 0.9}]})
+    ratio = (a["p_books"] / 0.80) * (b["p_books"] / b["p"])
+    assert abs(t["p"] - round(0.70 * ratio, 4)) < 1e-4
+    assert t["legs"][0]["p"] == a["p_books"] and t["legs"][0]["p_chosen"] == 0.80
+    assert abs(t["fair"] - 1 / t["p"]) < 0.011 and abs(t["min_odds"] - parlay.SAFETY / t["p"]) < 0.011
+    assert t["legs"][2]["p"] == 0.9               # a leg without a books price keeps its chance
+
+
+def test_the_ladder_prices_an_exact_rung_from_the_books():
+    l = {"p": 0.55, "alt_book": 0.52, "book": "pinnacle", "market": 0.40}
+    o, real = parlay.ladder_odds(l)
+    assert not real and o == round(parlay.wmx_odds(parlay.alt_fair(0.52)), 2)

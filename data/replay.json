@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-22",
+ "updated": "2026-11-23",
  "note": "The current model and build rules replayed over two past seasons, with every input as it was before each game. Payouts assume 1 unit on every ticket.",
  "seasons": [
   {
@@ -95,12 +95,16 @@
   [
    "Lifting legs the books rate higher",
    "pushed the books' favourites out of the tickets' 86% window: 438 vs 440"
+  ],
+  [
+   "Separate model-books weights per stat",
+   "scored worse month to month (0.4943 vs 0.4937): one set for every stat"
   ]
  ],
  "kept": [
   [
-   "Bookmakers' \"X+\" ladder prices lower the ticket legs they rate below us (needs alternate lines from The Odds API)",
-   "tickets 440 -> 459 on 2024-25 (Feb-Apr 205 -> 223, where the prices exist); legs the books rated 6+ points lower landed 70-75% at a stated 80-89%"
+   "Bookmakers' \"X+\" ladder prices: legs they rate below us are lowered (chosen on the cautious chance, stated at the calibrated blend)",
+   "tickets 440 -> 460 on 2024-25 (Feb-Apr 205 -> 219+), stated 453 vs 460 landed; legs the books rated 6+ points lower landed 70-75%"
   ],
   [
    "Key players on the second night of a back-to-back",
@@ -114,12 +118,12 @@
  "ladder": {
   "season": "2024-25 replay",
   "bets": 158,
-  "won": 80,
-  "expected": 83.8,
-  "best": 6,
-  "restarts": 40,
-  "profit": -4.0,
-  "note": "158 nights, one bet each, priced from ESPN BET's real player lines and turned into the odds Winamax is expected to pay. Figures at the closing lines (the last price before tip-off); there were no Winamax match-winner prices to replay.",
-  "verdict": "At the closing lines the bets landed 80 of 158 (51%), close to the model's 53%: about break-even. At the opening lines, when the price is first posted, the same picks landed 105 of 158 (66%, +45.8 units, best climb 13): the market moves towards the model during the day. The Ladder locks three hours before the first tip-off, between the two, so the earlier you can place it at 2.00-2.10, the better."
+  "won": 84,
+  "expected": 83.5,
+  "best": 11,
+  "restarts": 35,
+  "profit": 9.2,
+  "note": "158 nights, one bet each, priced from the books' real X+ rung prices (ESPN BET closing lines, margin removed) and turned into the odds Winamax is expected to pay.",
+  "verdict": "The bets landed 84 of 158 (53%) against 83.5 stated: honest chances, +9.2 units at 1 unit a night, best climb 11 levels. Priced from the exact rung, twice as many picks fell inside 2.00-2.10 as when the price was carried from the main line (which was about break-even, -4.0)."
  }
 }

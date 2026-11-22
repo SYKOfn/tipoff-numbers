@@ -77,8 +77,10 @@ def main(season, d0=None, d1=None, rules=("base",)):
             i = imp.get((str(l["game"]), str(l.get("player")), l.get("stat"), float(l.get("line") or -1)))
             if i:
                 b = 1 / (1 + math.exp(-(wa * lgt(l["p"]) + wb * lgt(i) + wc)))
-                mode = os.environ.get("ALT_MODE", "blend")
-                if mode == "blend":
+                mode = os.environ.get("ALT_MODE", "live")
+                if mode == "live":             # exactly the live code: lower only, stated at the blend (parlay.alt_lower)
+                    parlay.alt_lower(l, i)
+                elif mode == "blend":
                     l["p"] = b
                 elif mode == "lower":          # only ever lower a leg, never lift it out of the builder's window
                     l["p"] = min(l["p"], b)
