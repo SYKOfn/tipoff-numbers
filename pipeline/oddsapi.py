@@ -4,7 +4,8 @@ ODDS_API_KEY        the key (free plan: 500 credits a month)
 ODDS_API_BOOKS      bookmakers for game odds, default "winamax_fr,pinnacle"
                     (Winamax = the prices you bet at; Pinnacle = the sharpest closing line, for CLV)
 ODDS_API_DAILY      credits the site may spend per day, default 15 (fits the free plan)
-ODDS_API_PROPS      "1" to also record player-prop lines (5 credits per game per snapshot)
+ODDS_API_PROPS      "1" to also record player-prop lines (5 credits per game per snapshot: ~12 h before tip-off,
+                    in the hour before the Ladder and the ticket locks, and at the close)
 ODDS_API_ALT        "1" (or "odds_api_alt": true in data/settings.json) to fetch each game's alternate player lines ("X+" ladders: points, rebounds, assists,
                     threes) twice: about 7 hours before tip-off and in the hour before the tickets lock (about 4 credits a time). Ticket legs the
                     bookmakers price clearly below the model are lowered (model/parlay.py ALT_W).
@@ -183,7 +184,14 @@ def collect(upcoming, now=None):
                 continue
             t = datetime.fromisoformat(g["date"].replace("Z", "+00:00"))
             left = t - now
-            phase = "close" if left <= timedelta(minutes=75) else "open" if left <= timedelta(hours=12) else None
+            # also a snapshot in the hour before each lock (the Ladder LADDER_LOCK_HOURS, the tickets LOCK_HOURS
+            # before the day's first tip-off), so both are picked on current lines
+            first_ = min((datetime.fromisoformat(x["date"].replace("Z", "+00:00")) for x in upcoming
+                          if x.get("day") == g.get("day") and x.get("state") == "pre"), default=t)
+            locks = {"lock_ladder": float(os.environ.get("LADDER_LOCK_HOURS", "6")), "lock_tickets": float(os.environ.get("LOCK_HOURS", "3"))}
+            at_lock = [k for k, h in locks.items() if timedelta(0) <= first_ - timedelta(hours=h) - now <= timedelta(minutes=60)]
+            phase = ("close" if left <= timedelta(minutes=75) else
+                     next((k for k in at_lock if k not in done.get(g["game_id"], [])), None) or ("open" if left <= timedelta(hours=12) else None))
             if not phase or phase in done.get(g["game_id"], []) or st["spent"] + 5 > daily:
                 continue
             data, used, _ = _get(f"/events/{snap[g['game_id']]['event_id']}/odds",
