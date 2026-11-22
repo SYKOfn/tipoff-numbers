@@ -6,9 +6,9 @@ ODDS_API_BOOKS      bookmakers for game odds, default "winamax_fr,pinnacle"
 ODDS_API_DAILY      credits the site may spend per day, default 15 (fits the free plan)
 ODDS_API_PROPS      "1" to also record player-prop lines (5 credits per game per snapshot)
 ODDS_API_ALT        "1" (or "odds_api_alt": true in data/settings.json) to fetch each game's alternate player lines ("X+" ladders: points, rebounds, assists,
-                    threes) once, about 7 hours before tip-off: about 4 credits per game. Ticket legs the
+                    threes) twice: about 7 hours before tip-off and in the hour before the tickets lock (about 4 credits a time). Ticket legs the
                     bookmakers price clearly below the model are lowered (model/parlay.py ALT_W).
-ODDS_API_ALT_BOOKS  books for the alternate lines, default "draftkings,fanduel,betmgm" (up to 10 = one region)
+ODDS_API_ALT_BOOKS  books for the alternate lines, default eight US books (up to 10 = one region, same cost)
 ODDS_API_PROPS_BOOKS  books for player props, default Pinnacle plus eight US books. Pinnacle is the sharpest
                     yardstick and is always preferred; the US books only fill in players Pinnacle has no line
                     for (9 Nov 2026: Pinnacle 70 player lines, all books together 399). Up to 10 books count as
@@ -43,7 +43,7 @@ STAT_OF = {"player_points": "pts", "player_rebounds": "reb", "player_assists": "
            "player_assists_alternate": "ast", "player_threes_alternate": "tpm",
            "player_points_rebounds_assists_alternate": "pra"}
 ALT_MARKETS = ("player_points_alternate", "player_rebounds_alternate", "player_assists_alternate", "player_threes_alternate")
-ALT_BOOKS = "draftkings,fanduel,betmgm"
+ALT_BOOKS = "draftkings,fanduel,betmgm,williamhill_us,betrivers,fanatics,bovada,betonlineag"  # up to 10 books = one region: no extra cost
 ALT_JSON = DATA / "props" / "alt_latest.json"
 ALT_HOURS = 7
 PROPS_COLS = ["fetched_at", "game_id", "day", "player", "stat", "line", "over", "under", "book", "phase"]
@@ -197,17 +197,28 @@ def collect(upcoming, now=None):
     if env("ODDS_API_ALT", "0") == "1" or (read_json(DATA / "settings.json", {}) or {}).get("odds_api_alt"):
         done = st.setdefault("props_done", {})
         alt = read_json(ALT_JSON, {}) or {}
+        # twice per game: ~7 h before its tip-off (for the Ladder, locked 6 h before the first tip) and again in the
+        # hour before the tickets lock (LOCK_HOURS before the day's first tip), after the evening injury news
+        lock_h = float(os.environ.get("LOCK_HOURS", "3"))
+        first = {}
+        for g in upcoming:
+            if g.get("state") == "pre":
+                t_ = datetime.fromisoformat(g["date"].replace("Z", "+00:00"))
+                first[g["day"]] = min(first.get(g["day"], t_), t_)
         for g in upcoming:
             gid = g["game_id"]
-            if g.get("state") != "pre" or gid not in snap or "alt" in done.get(gid, []):
+            if g.get("state") != "pre" or gid not in snap:
                 continue
             left = datetime.fromisoformat(g["date"].replace("Z", "+00:00")) - now
-            if not timedelta(0) <= left <= timedelta(hours=ALT_HOURS) or st["spent"] + len(ALT_MARKETS) > daily:
+            to_lock = first.get(g["day"], now) - timedelta(hours=lock_h) - now
+            phase = ("alt_lock" if timedelta(0) <= to_lock <= timedelta(minutes=60) and "alt_lock" not in done.get(gid, [])
+                     else "alt" if "alt" not in done.get(gid, []) and timedelta(0) <= left <= timedelta(hours=ALT_HOURS) else None)
+            if not phase or st["spent"] + len(ALT_MARKETS) > daily:
                 continue
             data, used, _ = _get(f"/events/{snap[gid]['event_id']}/odds", {"bookmakers": env("ODDS_API_ALT_BOOKS", ALT_BOOKS),
                                                                             "markets": ",".join(ALT_MARKETS), "oddsFormat": "decimal"})
             st["spent"] += used or len(ALT_MARKETS)
-            done.setdefault(gid, []).append("alt")
+            done.setdefault(gid, []).append(phase)
             if isinstance(data, dict) and data.get("bookmakers"):
                 alt[gid] = {"at": now.isoformat(), "rows": parse_alt(data)}
         cutoff = (now - timedelta(days=3)).isoformat()
