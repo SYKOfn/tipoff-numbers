@@ -42,7 +42,11 @@ class Context:
 SRAPM_MODE = os.environ.get("SRAPM_MODE", "add")  # stint ratings: "off", "add" (a fourth player feature), "replace"
 
 
-def build_context(games, players, upcoming, tuned=None, effects_until=None, stints=None):
+def build_context(games, players, upcoming, tuned=None, effects_until=None, stints=None, lock=None):
+    """lock (replay research, backtest/tickets.py LOCK_STATUS=1): {"st": statuses by (day, team), "days": days with
+    a report, "season": replayed season, "play": {status: chance he plays}}. For that season's games it also keeps
+    the injury-report version of the inputs that live only knows from the report: c.miss_lock (share of the team
+    missing, weighted like pipeline/injury_log) and c.lock_rat (player ratings before the game, for lock_lfeat)."""
     tuned = {**DEFAULT, **(tuned or {})}
     fin = games.sort_values(["date", "game_id"]).reset_index(drop=True)
     base = ratings.walk_forward(fin, half_life=tuned["half_life"], lam=tuned["lam"], carry=tuned["carry"])
@@ -65,12 +69,21 @@ def build_context(games, players, upcoming, tuned=None, effects_until=None, stin
                      for d, h, a, gid in zip(fin["day"], fin["home"], fin["away"], fin["game_id"])]
                     + [{"day": g["day"], "home": g["home"], "away": g["away"], "game_id": g["game_id"]} for g in upcoming])
     ctxs, rows, meta = {}, [], {}
+    miss_lock, lock_rat = {}, {}
     for g in fin.to_dict("records"):
         gid = str(g["game_id"])
         box = pg.get(gid)
         played = None
         if box and g["home"] in box and g["away"] in box:
             played = {t: {pid for pid, v in box[t].items() if v[0] > 0} for t in (g["home"], g["away"])}
+        on_lock = lock is not None and int(g["season"]) == lock["season"] and g["day"] in lock["days"]
+        if on_lock:
+            ml = {}
+            for side in ("home", "away"):
+                sts = (lock["st"].get((g["day"], g[side])) or {}).get("st") or {}
+                inj = [{"player_id": pid, "weight": 1.0 - lock["play"].get(s_, 1.0), "status": s_} for pid, s_ in sts.items()]
+                ml[side] = round(tr.missing(g[side], None, [i for i in inj if i["weight"] > 0])[0], 3)
+            miss_lock[gid] = ml
         ctx = tr.pre_game(g, played=played)
         for side in ("home", "away"):
             ctx[side]["luck"] = round(sty.team_luck(g[side]), 3)
@@ -95,6 +108,13 @@ def build_context(games, players, upcoming, tuned=None, effects_until=None, stin
             srh = sra = None
             if sr is not None:
                 sr.maybe_refit(g["day"])
+            if on_lock:  # ratings of everyone who could play, before the game
+                cand = {pid for t in (g["home"], g["away"]) for b_ in tr.rot[t] for pid in b_} | \
+                       {r["player_id"] for t in (g["home"], g["away"]) for r in rows_[t]}
+                lock_rat[gid] = ({pid: lt.rating(pid) for pid in cand},
+                                 ({pid: rp.r.get(str(pid), rp.default) for pid in cand}, rp.default) if rp.r else None,
+                                 ({pid: sr.r.get(str(pid), sr.default) for pid in cand}, sr.default) if (sr is not None and sr.r) else None)
+            if sr is not None:
                 srh = sr.strength([(r["player_id"], lt.exp_minutes(r["player_id"])) for r in rows_[g["home"]] if r["min"] > 0])
                 sra = sr.strength([(r["player_id"], lt.exp_minutes(r["player_id"])) for r in rows_[g["away"]] if r["min"] > 0])
             if sh and sa and rh is not None and ra is not None:
@@ -131,8 +151,35 @@ def build_context(games, players, upcoming, tuned=None, effects_until=None, stin
         sr.fit(fin["day"].max())
     c.lineup, c.lfeat, c.stack, c.rows_raw, c.style, c.rapm, c.officials = lt, lfeat, stack, rows_raw, sty, rp, otr
     c.srapm = sr
+    c.miss_lock, c.lock_rat = miss_lock, lock_rat
     c.stints = stints  # play-by-play lineups, also read by player_engine.walk (rotation habits)
     return c
+
+
+def lock_lfeat(c, gid, home, away):
+    """Lineup features for a replayed game from the lock-time projections, the way pipeline/run.py builds them live:
+    home/away = [(pid, expected minutes)] (projected minutes x chance he plays)."""
+    snap = c.lock_rat.get(gid)
+    if not snap or not home or not away:
+        return None
+    lt_, rp_, sr_ = snap
+
+    def gs_pm(pl):
+        tot = sum(m for _, m in pl) or 1.0
+        rs = [lt_.get(pid) or c.lineup.rating("") for pid, _ in pl]
+        return (sum(m * 240.0 / tot * r[0] for (_, m), r in zip(pl, rs)), sum(m * 240.0 / tot * r[1] for (_, m), r in zip(pl, rs)))
+
+    def ap(s_, pl):
+        if s_ is None:
+            return None
+        tot = sum(m for _, m in pl) or 1.0
+        return sum(s_[0].get(pid, s_[1]) * 5 * m / tot for pid, m in pl)
+    sh, sa = gs_pm(home), gs_pm(away)
+    rh, ra = ap(rp_, home), ap(rp_, away)
+    if rh is None or ra is None:
+        return None
+    s1, s2 = ap(sr_, home), ap(sr_, away)
+    return player_features((sh[0] - sa[0], sh[1] - sa[1], rh - ra), None if c.srapm is None or s1 is None or s2 is None else s1 - s2)
 
 
 def player_features(base3, stint_gap):

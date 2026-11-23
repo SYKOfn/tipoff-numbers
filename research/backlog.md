@@ -4,15 +4,18 @@ The research team's single queue. Every agent reads it before starting and updat
 The research-director keeps it ranked. Nothing here ships until it passes the replay (see the model-researcher) and the skeptic.
 
 **Score = expected tickets gained × chance it works ÷ cost (replay hours, credits, data work).**
-Baselines (2024-25 with books): tickets 460 landed (453 stated), legs 4,897/5,940. 2025-26 with books (dated run, `base` rule): tickets 436 (stated 429.6), legs 4,857/5,915.
-Ladder 2024-25: 84/158 (83.5 stated), +9.2 units, best climb 11.
+Baselines, leak-free (23 Nov 2026: X+ prices, REPLAY_ML=1, LOCK_STATUS=1 = who plays from the NBA injury report at the 16:00 ET lock):
+2024-25 tickets 439 landed (444.5 stated), legs 4,766/5,845 (4,782.5); 2025-26 tickets 411 (439.6 stated), legs 4,708/5,867 (4,791.6).
+Ladder 2024-25: 87/164 (85.9 stated), +12.9 units. Every new replay runs with LOCK_STATUS=1 and compares against these.
+(The old box-based replay, which knew who actually played, gave 467 and 434 with REPLAY_ML=1.)
 
 ## Open (ranked)
 
 | # | Idea | Why we think it might work | Cost | Status |
 |---|------|----------------------------|------|--------|
 | 1 | Season-opener star over-projection | Stars' PRA is 6-14% below projection in their first game (~100 games a year). Untested. | 2 replays | open |
-| 2 | Close the replay leak | The walk knows who actually played, so edges vs opening lines are inflated. An honest replay needs "expected to play at lock" (prior-game status + injury report history). Makes every future verdict trustworthy. | data search + 1 day | needs data (data-scout) |
+| 2 | Close the replay leak | Done 2026-11-23: LOCK_STATUS=1 (see Done). | - | done |
+| 2b | Live minutes normaliser over-projects the rotation | project_game scales the rotation to 240 minutes (expected minutes = projection x p_play) and leaves nothing for players outside it (deep bench, call-ups, newcomers, garbage time), so every rotation player is scaled up. The leak-free replay mirrors it: the same player-games are projected +1.6 / +1.5 min higher than in the box-based walk (2024-25 / 2025-26, legs with no surprise sitter +1.7 / +1.6), leak-free ticket legs end +2.0 min over actual minutes in both seasons (box-based walk: -0.2 / -0.1), and 2025-26 legs land 84 below stated (2024-25: 17 below). Test: reserve the measured non-rotation minutes before scaling (or count them the way the walk's "12 per newcomer" did), replay both seasons with LOCK_STATUS=1. | 2 replays | open (needs a mechanism check: minutes share of non-rotation players per team-game) |
 | 3 | Star rest: which game of a back-to-back | Stars skipping a b2b night pick the home / national-TV game ~66%. Not in rest.chance_sits. Low ticket value (Winamax voids sitters), but sharper minutes for teammates. | 2 replays | open |
 | 4 | Refit the X+ blend on live prices | ALT_W was fitted on ESPN BET 2024-25. Refit on our own live alt rungs once ~500 have settled. | 30 min | waiting for data (~mid-December 2026) |
 | 5 | Projection + market blend for every leg | pipeline/vsmarket.py tracks our projections vs Pinnacle closing lines. Decide at ~150 games. | 1 hour | waiting for data |
@@ -29,7 +32,7 @@ Source: the NBA's official injury report PDFs, static files, no login, plain GET
 - Cost for everything: one PDF per game day at the lock time (plus one at 13:00 ET for the Ladder if wanted): about 1,000 days from 2018-12-18 to now at 35-90 KB each, around 60-80 MB for the lock report, 0.3 s polite pause each = about 6 minutes of fetching and a few minutes of parsing per pass. Not downloaded yet beyond the 82-PDF sample.
 - Other sources tested: ESPN core and site injuries endpoints (`.../teams/{id}/injuries`, `site.api.espn.com/.../nba/injuries`) hold only the current status (season 2027, no history). `data/history/injury_log.csv` is our own live log from ESPN, only from November 2026. Kaggle ghopkins nba-injuries 2010-2018 has injury events, not game statuses, and ends before our data. Not usable: official.nba.com season pages (blocked by bot protection, untouched). Wayback Machine pages for Rotowire/CBS not tested, not needed.
 
-Next step for the model-researcher (needs a small build first, 1 day total):
+Result (model-researcher, 2026-11-23): built and replayed, see Done. Original plan, for reference:
 1. Build `backtest/injury_reports.py`: fetch the lock-time PDF per game day (cache under `~/.cache/tipoff_injury`), parse, match to player ids by name + team of that game, write `data/history/injury_status.csv.gz` (game_id, player_id, status, report_stamp, lock_used). Keep one row per player listed; unlisted = no row.
 2. In `model/player_engine.walk`, replace "absent = rotation - played" and the `r["min"] <= 0` skip by status: Out and Doubtful = 0 minutes (never played in the sample), Questionable = 0.5 availability (enter as an expected-minutes weight, not a coin flip), Probable 0.9, Available/unlisted 0.96 (the walk should still use who played to LEARN minutes after the game, but must not use it to decide who is in the projection). Redistribute the absent players' minutes the way the live path does from the same statuses.
 3. Do the same in `engine.build_context`/`lfeat`: lineup features from the pre-game status rather than the box.
@@ -38,6 +41,7 @@ Next step for the model-researcher (needs a small build first, 1 day total):
 
 
 ## Done (kept)
+- Leak-free replay, LOCK_STATUS=1 (2026-11-23, a measurement fix, new baselines). backtest/injury_reports.py fetches the official report at or before 16:00 ET for every game day (2018-12-18 to 2026-06, 426/426 days in 2024-26), data/history/injury_status.csv.gz; names match 96.7% of non-G-League rows, the misses being players out all season with no box score. Play rates of rotation players by lock status, fitted 2022-24: Out 0.2%, Doubtful 3.9%, Questionable 55.2%, Probable 96.5%, unlisted 97.7% (2024-26 within 0.03). In the replay the walk still learns from box scores as live does; the logged projections, the game model's "missing" share and lineup features come from the report, mirroring pipeline/run.py (Out/Doubtful absent, p_play = recent participation x play rate, listed players get no prop legs, minutes scaled to 240 by expected minutes). Players expected who then sat have their legs voided (100 and 68 legs). Tickets: 2024-25 467 (454.9 stated) -> 439 (444.5), flips miss->land 134, land->miss 162; 2025-26 434 (431.2) -> 411 (439.6), flips 137 / 161. Legs 4,902/5,940 (4,880.8) -> 4,766/5,845 (4,782.5) and 4,859/5,920 (4,817.4) -> 4,708/5,867 (4,791.6). Leak-free tickets land below stated mostly in the 0.3-0.5 bands (2025-26: 0.3+ 215/636 vs 230.7, 0.4+ 163/423 vs 177.9); legs at 0.80-0.90 are 1-2% overstated in 2025-26. Ladder: 2024-25 85/164 (85.6), +8.9 -> 87/164 (85.9), +12.9; 2025-26 112/165 -> 112/162, both far above stated (no X+ prices for 2025-26). Legs with a 20+ min regular who was unlisted at the lock and sat: 399/495 (404.9 stated) and 363/452 (370.1), close to the rest. Questionable key teammate (26+ min): 1,292/1,569 (1,280.2) and 1,043/1,312 (1,065.8), no worse than other legs, so live handling of Questionable (play rate, no lineup change) is not the problem. The gap is minutes: see open item 2b.
 - Back-to-back for key players (B2B_KEY): 2024-25 tickets 450 → 446, 2025-26 429 → 439; legs +13/+15.
 - X+ prices lower over-optimistic legs (alt_lower): 440 → 459.
 - Tickets stated at the blended chance (restate): 460 landed vs 453 stated.

@@ -48,10 +48,33 @@ def main(season, d0=None, d1=None, rules=("base",)):
     for k_ in ("AFTER_BLOW", "LAST_FORM"):  # replay with these inputs on (1) or off (0)
         if os.environ.get(k_):
             setattr(P, k_, os.environ[k_] == "1")
+    # LOCK_STATUS=1: leak-free replay. Who is in a projection (player_engine.walk) and in the game model's lineup and
+    # "missing" inputs comes from the NBA's injury report at the 16:00 ET lock (data/history/injury_status.csv.gz,
+    # backtest/injury_reports.py) instead of who actually got minutes; Out/Doubtful are out, the others carry the
+    # live p_play and injury status. LOCK_STATUS=0 computes the same but only records it in the leg details.
+    lock_mode = os.environ.get("LOCK_STATUS")
+    lock = None
+    if lock_mode:
+        from backtest import injury_reports
+        st_, days_ = injury_reports.load()
+        lock = {"st": st_, "days": days_, "season": season, "play": PE.LOCK_PLAY}
+        PE.LOCK = (st_, days_)
+        print(f"lock statuses ({'used' if lock_mode == '1' else 'recorded only'}): {len(days_)} report days", flush=True)
     games, players = load_games(), load_players()
     c = engine.build_context(games, players, [], {"half_life": 90, "lam": 3.0, "carry": 0.6, "lam_effects": 40.0},
-                             stints=load_stints())
+                             stints=load_stints(), lock=lock)
     pt, pe, pdisp, plogs, ptrack, byg = PE.walk(c, players, {}, season)
+    lrows = getattr(pt, "lock_rows", {})
+    lfeat_lock, plock = {}, {}
+    for (gid_, side_), lst_ in lrows.items():
+        for r_ in lst_:
+            plock[(gid_, r_["id"])] = r_["proj"]
+        if side_ == "home" and (gid_, "away") in lrows:
+            em_ = lambda lst: [(r_["id"], r_["proj"]["min"] * r_["p_play"]) for r_ in lst]
+            lfeat_lock[gid_] = engine.lock_lfeat(c, gid_, em_(lst_), em_(lrows[(gid_, "away")]))
+    use_lock = lock_mode == "1"
+    if lrows:
+        print(f"lock projections: {len(lrows) // 2} games, lineup features {sum(v is not None for v in lfeat_lock.values())}", flush=True)
     day_of = {gid: g["day"] for gid, g in c.meta.items()}
     # REAL_PROPS=close|open: give the ticket builder real posted player lines (ESPN's book, backtest/espn_props.py)
     # the way the live site gets them from The Odds API, with the prop calibration fitted monthly on earlier games
@@ -145,7 +168,13 @@ def main(season, d0=None, d1=None, rules=("base",)):
         for gid, g in c.meta.items():
             if g["day"] != day or gid not in c.base or gid not in byg:
                 continue
-            est = engine.predict(c, g, c.ctxs[gid], {}, eff=c.eff, base_override=c.base[gid], lineup_feat=c.lfeat.get(gid))
+            on_l = use_lock and (gid, "home") in lrows
+            if on_l:  # the game model's pre-game inputs from the report: share missing and lineup strength
+                ctx_ = {**c.ctxs[gid], **{sd: {**c.ctxs[gid][sd], "missing": c.miss_lock.get(gid, {}).get(sd, c.ctxs[gid][sd]["missing"])}
+                                         for sd in ("home", "away")}}
+                est = engine.predict(c, g, ctx_, {}, eff=c.eff, base_override=c.base[gid], lineup_feat=lfeat_lock.get(gid))
+            else:
+                est = engine.predict(c, g, c.ctxs[gid], {}, eff=c.eff, base_override=c.base[gid], lineup_feat=c.lfeat.get(gid))
             godds = None
             qf = ml_fair.get(gid)
             if qf:
@@ -158,6 +187,11 @@ def main(season, d0=None, d1=None, rules=("base",)):
             side_rows = {}
             for side in ("home", "away"):
                 rows = []
+                if on_l:  # everyone expected at the lock; those who then sit have their legs voided, as on Winamax
+                    side_rows[side] = [{"id": r_["id"], "name": r_["name"], "out": False, "p_play": r_["p_play"], "status": r_["status"],
+                                        "disp": {k: round(v, 3) for k, v in P.player_disp({"dsp": r_["dsp"]}, pdisp).items()}, **r_["proj"]}
+                                       for r_ in lrows[(gid, side)]]
+                    continue
                 for r in byg[gid].get(g[side], []):
                     pid = str(r["player_id"])
                     pr = plogs.get((gid, pid))
@@ -171,8 +205,9 @@ def main(season, d0=None, d1=None, rules=("base",)):
             slate.append(({"odds": godds}, pay))
         if not slate:
             continue
+        plg = {**plogs, **plock} if use_lock else plogs
         for rname in rules:
-            parlay.TICKET_FILTER = rule(rname, ests, plogs)
+            parlay.TICKET_FILTER = rule(rname, ests, plg)
             w0 = dict(parlay.LEG_W)
             if rname == "nofix":  # the leg chance before the game-script correction
                 parlay.LEG_W.update(dog=0.0, min_hi=0.0)
@@ -194,7 +229,8 @@ def main(season, d0=None, d1=None, rules=("base",)):
                 gm = c.meta[gid]
                 detail = [{"p": l["p"], "res": x, "kind": l.get("kind"), "stat": l.get("stat"), "team": l.get("team"), "line": l.get("line"),
                            "starter": int((rows.get(str(l.get("player"))) or {}).get("starter") or 0),
-                           "pmin": (plogs.get((gid, str(l.get("player")))) or {}).get("min"), "amin": (rows.get(str(l.get("player"))) or {}).get("min")}
+                           "pmin": (plg.get((gid, str(l.get("player")))) or {}).get("min"), "amin": (rows.get(str(l.get("player"))) or {}).get("min"),
+                           "player": l.get("player")}
                           for l, x in zip(tk["legs"], res)]
                 for dd, l in zip(detail, tk["legs"]):  # inputs known before the game, for testing new leg factors
                     side = "home" if l.get("team") == gm["home"] else "away"
@@ -203,6 +239,16 @@ def main(season, d0=None, d1=None, rules=("base",)):
                               t34=cx.get("three_in_four"), km=cx.get("km"), miss=cx.get("missing"), omiss=ox.get("missing"),
                               opp_b2b=ox.get("b2b"), proj=l.get("proj"), avg=l.get("avg"), l5=l.get("last5"),
                               voices=l.get("voices"), sd=(l.get("dist") or {}).get("sd"))
+                    if lrows.get((gid, side)) is not None:  # teammates at the lock: expected but sat, and Questionable
+                        lst_ = lrows[(gid, side)]
+                        sts_ = (PE.LOCK[0].get((day, l.get("team") or gm[side])) or {}).get("st") or {}
+                        me = str(l.get("player"))
+                        dd.update(lk_st=sts_.get(me),
+                                  lk_sur=[(x["proj"]["min"], x["p_play"]) for x in lst_ if x["id"] != me and x["status"] is None
+                                          and (rows.get(x["id"]) or {}).get("min", 0) <= 0],
+                                  lk_q=[(x["proj"]["min"], (rows.get(x["id"]) or {}).get("min", 0) > 0) for x in lst_
+                                        if x["id"] != me and x["status"] == "Questionable"],
+                                  lk_out=[pid_ for pid_, s_ in sts_.items() if s_ in ("Out", "Doubtful")])
                     if l.get("kind") == "prop":
                         h = hist.get(str(l.get("player")))
                         if h is not None and len(h):

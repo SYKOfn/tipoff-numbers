@@ -1,28 +1,28 @@
 {
  "updated": "2026-11-23",
- "note": "The current model and build rules replayed over two past seasons, with every input as it was before each game. Payouts assume 1 unit on every ticket.",
+ "note": "The current model and build rules replayed over two past seasons, with every input as it was before each game: who plays comes from the NBA's official injury report at the 16:00 ET lock, not from the box score. Payouts assume 1 unit on every ticket.",
  "seasons": [
   {
    "season": "2024-25",
-   "tickets": 1188,
-   "landed": 446,
-   "expected": 439.4,
-   "legs": 5940,
-   "legs_landed": 4893,
-   "legs_expected": 4847.7,
-   "fair": 16.9,
-   "winamax": -362.7
+   "tickets": 1189,
+   "landed": 439,
+   "expected": 444.5,
+   "legs": 5845,
+   "legs_landed": 4766,
+   "legs_expected": 4782.5,
+   "fair": -3.6,
+   "winamax": -376.9
   },
   {
    "season": "2025-26",
-   "tickets": 1183,
-   "landed": 439,
-   "expected": 429.4,
-   "legs": 5915,
-   "legs_landed": 4853,
-   "legs_expected": 4809.8,
-   "fair": 13.3,
-   "winamax": -365.4
+   "tickets": 1187,
+   "landed": 411,
+   "expected": 439.6,
+   "legs": 5867,
+   "legs_landed": 4708,
+   "legs_expected": 4791.6,
+   "fair": -68.5,
+   "winamax": -422.3
   }
  ],
  "market": {
@@ -117,17 +117,21 @@
   [
    "Honest ticket chance (leg chance with game script)",
    "tickets 408→429 and 413→450"
+  ],
+  [
+   "Leak-free replay: who plays comes from the NBA injury report at the lock (a measurement fix, not a model change)",
+   "the old replay knew who actually played: 467 and 434 tickets; with the lock report 439 (444.5 stated) and 411 (439.6 stated), legs 4,766/5,845 and 4,708/5,867"
   ]
  ],
  "ladder": {
   "season": "2024-25 replay",
-  "bets": 158,
-  "won": 82,
-  "expected": 83.1,
-  "best": 8,
-  "restarts": 35,
-  "profit": 8.1,
-  "note": "158 nights, one bet each, priced from the books' real X+ rung prices (ESPN BET closing lines, margin removed) and turned into the odds Winamax is expected to pay.",
-  "verdict": "The bets landed 82 of 158 (52%) against 83.1 stated: honest chances, +8.1 units at 1 unit a night, best climb 8 levels. On nights with nothing at 2.00-2.10 it takes the best-value bet near 2.0, never just the closest odds."
+  "bets": 164,
+  "won": 87,
+  "expected": 85.9,
+  "best": 7,
+  "restarts": 37,
+  "profit": 12.9,
+  "note": "164 nights, one bet each, priced from the books' real X+ rung prices (ESPN BET closing lines, margin removed) and turned into the odds Winamax is expected to pay; players chosen from the injury report at the lock.",
+  "verdict": "The bets landed 87 of 164 (53%) against 85.9 stated: honest chances, +12.9 units at 1 unit a night, best climb 7 levels. On nights with nothing at 2.00-2.10 it takes the best-value bet near 2.0, never just the closest odds."
  }
 }

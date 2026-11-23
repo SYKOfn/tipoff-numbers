@@ -96,9 +96,49 @@ def team_minutes_scale(total, lo=0.85, hi=1.15):
     return max(lo, min(hi, MIN_TEAM / total)) if total > 0 else 1.0
 
 
+# Replay research (backtest/tickets.py, LOCK_STATUS=1): for the replayed season, who is in a projection comes from the
+# NBA's injury report at the ticket lock (backtest/injury_reports.py) instead of who actually got minutes.
+# LOCK = (statuses {(day, team): {"st": {pid: status}, "unsub": bool}}, days with a report). The walk still learns
+# from the box score exactly as live does; only the logged pre-game projections change.
+LOCK = None
+# chance a rotation player plays and his minutes if he does, by status at the 16:00 ET report
+# (rotation players, 2022-23 and 2023-24, backtest/injury_reports.py fit_rates; n = 3,174 Out, 280 Doubtful,
+# 2,443 Questionable, 952 Probable; 2024-26 gives the same within 0.03). weight = 1 - play, out when >= 0.5, and
+# minutes scaled when the ratio is below 1, as pipeline/injury_log.apply does for the live list
+LOCK_PLAY = {"Out": 0.002, "Doubtful": 0.039, "Questionable": 0.552, "Probable": 0.965}
+LOCK_MIN_RATIO = {"Questionable": 0.98}
+LOCK_LISTED = ("Doubtful", "Questionable", "Probable")  # live these carry an injury status (no prop legs)
+
+
+def lock_side(pt, team, opp, is_home, b2b, missing, notes, sts, exp_margin=None):
+    """A team's projections as project_game makes them at the lock from the report statuses {pid: status}
+    (no news, posted fives or effects, which the walk's logged projections never had)."""
+    rot = pt.rotation(team)
+    absent = {pid for pid in rot if 1.0 - LOCK_PLAY.get(sts.get(pid), 1.0) >= 0.5}
+    recent = list(pt.team_hist[team])[-5:]
+    lst = []
+    for pid in sorted(rot, key=lambda k: -rot[k]):
+        if pid in absent:
+            continue
+        proj, x = pt.project(pid, team, opp, is_home, b2b, absent - {pid}, missing, notes.get(pid), exp_margin=exp_margin)
+        s = sts.get(pid)
+        if LOCK_MIN_RATIO.get(s):
+            proj = {k: v * LOCK_MIN_RATIO[s] for k, v in proj.items()}
+        if proj["min"] < 6:
+            continue
+        seen = (sum(pid in s_ for s_ in recent) / len(recent)) if recent else 1.0
+        lst.append({"id": pid, "name": pt.p[pid]["name"], "proj": proj, "status": s if s in LOCK_LISTED else None,
+                    "p_play": round(max(0.05, seen) * LOCK_PLAY.get(s, 1.0), 3)})
+    k = team_minutes_scale(sum(r["proj"]["min"] * r["p_play"] for r in lst))
+    for r, kp in zip(lst, capped_factors([r["proj"]["min"] for r in lst], k)):
+        r["proj"] = {kk: v * kp for kk, v in r["proj"].items()}
+    return lst, absent
+
+
 def walk(c, players_df, notes, cur, use_mm=True, ev=None, opp_mode="team", norm=True):
     """ev: optional dict filled with out-of-sample errors per season and stat (for model tests)."""
     pt = P.PlayerTracker()
+    pt.lock_rows = {}
     pt.use_mm = use_mm
     pt.opp_mode = opp_mode
     pt.pbp = rotation_pbp(getattr(c, "stints", None)) if P.ROT_PBP else {}
@@ -118,6 +158,16 @@ def walk(c, players_df, notes, cur, use_mm=True, ev=None, opp_mode="team", norm=
         b = c.base.get(gid)
         em = (b[0] - b[1]) if b else None
         done, mrows, wo_upd, dsp_upd = [], [], [], []
+        if LOCK is not None and int(g["season"]) == cur and g["day"] in LOCK[1]:
+            ml = getattr(c, "miss_lock", {}).get(gid) or {}
+            for team, opp, side in ((g["home"], g["away"], "home"), (g["away"], g["home"], "away")):
+                e = LOCK[0].get((g["day"], team)) or {"st": {}}
+                lst, _ = lock_side(pt, team, opp, side == "home", ctx[side]["b2b"] if ctx else 0,
+                                   ml.get(side, ctx[side]["missing"] if ctx else 0.0), notes, e["st"], exp_margin=em)
+                for r_ in lst:
+                    r_["proj"] = {k: round(v, 1) for k, v in r_["proj"].items() if k in ("min", "pts", "reb", "ast", "tpm", "pra")}
+                    r_["dsp"] = dict(pt.p[r_["id"]].get("dsp") or {})  # his own spread before the game
+                pt.lock_rows[(gid, side)] = lst
         for team, opp, side in ((g["home"], g["away"], "home"), (g["away"], g["home"], "away")):
             trs = rows.get(team, [])
             played = {r["player_id"] for r in trs if r["min"] > 0}
