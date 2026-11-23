@@ -26,12 +26,20 @@ Read with care: tickets land below stated in 8 of 9 seasons (2,958 landed vs 3,0
 |---|------|----------------------------|------|--------|
 | 1 | Season-opener star over-projection | Stars' PRA is 6-14% below projection in their first game (~100 games a year). Untested. | 2 replays | open |
 | 2 | Close the replay leak | Done 2026-11-23: LOCK_STATUS=1 (see Done). | - | done |
-| 2b | Live minutes normaliser over-projects the rotation | 1.02 passes every season it was not fitted on; the pre-registered 1.05 was rejected on its Ladder rule (see Done). Skeptic to give the final verdict on 1.02. Live change: model/player_engine.py `SCALE_HI = 1.15` -> `1.02`. | - | awaiting skeptic |
+| 2b | Live minutes normaliser over-projects the rotation | 1.02 passes every season it was not fitted on; the pre-registered 1.05 was rejected on its Ladder rule (see Done). Final decision rule pre-registered below (2b rule). Live change if a candidate passes: model/player_engine.py `SCALE_HI = 1.15` -> the winner. | replays on 2020-21 to 2023-24 | running (2b rule) |
 | 2c | Calibrate p_play | p_play = recent participation (last 5 team games) x report play rate undercounts who plays: unlisted players with p_play < 1 average 0.49 and play 64%, Probable players with low recent participation (mean 0.54) play 92%, Questionable 0.37 vs 50% (2024-26 leak-free lists). p_play also drops prop legs below 0.6 and weights the lineup features, so a measured p_play (by status x participation, fitted 2020-24) may change which legs are picked. | offline fit + 2 replays | open |
 | 3 | Star rest: which game of a back-to-back | Stars skipping a b2b night pick the home / national-TV game ~66%. Not in rest.chance_sits. Low ticket value (Winamax voids sitters), but sharper minutes for teammates. | 2 replays | open |
 | 4 | Refit the X+ blend on live prices | ALT_W was fitted on ESPN BET 2024-25. Refit on our own live alt rungs once ~500 have settled. | 30 min | waiting for data (~mid-December 2026) |
 | 5 | Projection + market blend for every leg | pipeline/vsmarket.py tracks our projections vs Pinnacle closing lines. Decide at ~150 games. | 1 hour | waiting for data |
 | 6 | Prop-line movement | Lines that move toward us between open and lock. Needs ~2 months of data/props/lines.csv. | 2 replays | waiting for data (mid-January 2027) |
+
+### 2b: final SCALE_HI decision rule (pre-registered 2026-11-23, owner-approved, written before any new run)
+Candidates: SCALE_HI 1.02 and 1.05, each against live 1.15. No other values will be tried. A candidate passes only if all four hold:
+- (a) the pooled paired ticket sign test (tickets that went miss->land vs land->miss) over all 9 leak-free seasons, 2018-19 to 2026-27, has p < 0.01;
+- (b) tickets are not below 1.15 by more than 3 in any season;
+- (c) the Ladder, judged only on seasons with real player prices (2022-23, 2023-24, 2024-25), loses no more than 3 hits in total against 1.15 and has no lower profit in units. 2024-25 uses the ESPN BET X+ rows; 2022-23 and 2023-24 use whatever ESPN's books posted (fetched for this test), priced the way the live code would;
+- (d) the live lock-snapshot minutes bias for 24+ minute players is between -0.5 and +0.5 (the measure in the skeptic's SCALE_HI question below: +1.09 at 1.15, -0.15 at 1.05, -0.90 at 1.02, 2026-11-09 to 11-22; refreshed with any newer snapshots).
+If both pass, pick the one with live bias closer to 0. If neither passes, SCALE_HI stays 1.15 and the idea is rejected for good. Seasons 2019-20 to 2023-24 were in the 1.02 fit, so (a) over 9 seasons is not a clean holdout for 1.02; the rule is fixed anyway.
 
 ### Replay leak: data found (data-scout, 2026-11-23)
 Source: the NBA's official injury report PDFs, static files, no login, plain GET with a normal User-Agent (the nba.com pages and official.nba.com block bots, so use only the ak-static host and do not fight the rest). `https://ak-static.cms.nba.com/referee/injury/Injury-Report_YYYY-MM-DD_HHPM.pdf` (hour of the report stamp, which is :30 past; e.g. `_03PM` = stamped 03:30 PM ET). A missing file answers 403 (AccessDenied XML), not 404.
