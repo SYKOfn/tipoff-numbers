@@ -137,6 +137,10 @@
   [
    "Minutes scale cap 1.05 (passed its final rule; live only once the skeptic agrees)",
    "tickets 3,158 -> 3,325 over 9 leak-free seasons (+703/-534 flips, p = 2e-6), up in every season; Ladder on seasons with real prices +8 hits, +7.1 units; live minutes bias for 24+ minute players -0.15"
+  ],
+  [
+   "Ticket size 3/4/5 legs and pure-chance cross-game tickets (measurement, owner's choice, not live)",
+   "9 leak-free seasons: game tickets land 56.2% (3 legs, stated 57.9%), 44.8% (4, 46.8%), 35.5% (5, 37.1%); cross-game tickets with EDGE_W 0: 2,024 vs 2,034 landed (stated 2,167), flips +52/-62, p = 0.40, no measurable cost"
   ]
  ],
  "ladder": {
