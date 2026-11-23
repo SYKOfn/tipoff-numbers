@@ -3,7 +3,7 @@
  "players": {
   "Tyler Herro": {
    "contract_year": true,
-   "note": "Career-high 50 for Milwaukee in a 3-point loss at Philadelphia; one year left on his deal, no extension."
+   "note": "Career-high 50 in a 3-point loss at Philadelphia; Milwaukee have lost 13 straight. One year left on his deal, no extension."
   },
   "Jaime Jaquez Jr.": {
    "contract_year": true
@@ -20,8 +20,7 @@
    "note": "$40.8M expiring deal; Brooklyn listening to calls; shooting slump (1-of-7 vs Chicago)."
   },
   "Draymond Green": {
-   "contract_year": true,
-   "note": "Elbow; removed from the injury report for Nov 22."
+   "contract_year": true
   },
   "Anthony Black": {
    "contract_year": true
@@ -39,9 +38,6 @@
   "De'Andre Hunter": {
    "contract_year": true
   },
-  "Giannis Antetokounmpo": {
-   "note": "Questionable for Nov 22 vs OKC with right groin tendinitis; had 27-14-9 against former team Milwaukee."
-  },
   "Jaylen Brown": {
    "note": "Hamstring; individual workouts only, no timetable."
   },
@@ -50,7 +46,7 @@
    "contract_year": true
   },
   "Brandon Ingram": {
-   "note": "Clippers debut expected Nov 23 vs Houston after heel and partial Achilles injuries."
+   "note": "Cleared for his Clippers debut on Nov 23 vs Houston after May surgery for a partially torn Achilles."
   },
   "Darryn Peterson": {
    "note": "Five straight 20-point games for the 1-12 Jazz."
@@ -107,19 +103,20 @@
   },
   "RJ Barrett": {
    "contract_year": true,
-   "note": "New hamstring injury; missed Nov 18 vs Washington."
+   "note": "Out at least two weeks with a right hamstring injury; possible return around Dec 3."
   },
   "Paul Reed": {
    "contract_year": true
   },
   "Moussa Diabate": {
-   "contract_year": true
+   "contract_year": true,
+   "note": "Contract year; double-digit rebounds in four straight games."
   },
   "Stephen Curry": {
    "note": "Oblique tear; re-evaluated Nov 25."
   },
   "James Harden": {
-   "note": "51 points vs Indiana, his 26th career 50-point game."
+   "note": "51 points vs Indiana on Nov 20, his 26th career 50-point game (passed Kobe for third all-time)."
   },
   "Franz Wagner": {
    "note": "Game-winner at Brooklyn; averaging over 31 points in his last seven."
@@ -147,7 +144,7 @@
    "note": "Sprained right big toe; out at least another 7-10 days (from Nov 16)."
   },
   "Dejounte Murray": {
-   "note": "Requested a trade on Nov 13; a swap for Jalen Green reportedly has zero traction; out with an ankle injury."
+   "note": "Requested a trade on Nov 13; out with a left ankle sprain."
   },
   "Mikal Bridges": {
    "note": "Hit the buzzer-beating three to beat Portland on Nov 21 after a long slump."
@@ -200,7 +197,7 @@
    "note": "Missed 12 games with a 'complex' ankle sprain; hopes to return in the next few weeks."
   },
   "Austin Reaves": {
-   "note": "Heel bruise; Redick expects him back Nov 23 vs Utah or Nov 27."
+   "note": "Left heel bruise; out a fifth straight game Nov 23, targeting a return this week."
   },
   "Dylan Harper": {
    "note": "Left hip strain; out 1-3 weeks (from Nov 19)."
@@ -223,7 +220,7 @@
   },
   "Julius Randle": {
    "contract_year": true,
-   "note": "Called the loss to Chicago 'embarrassing'; faces Minnesota, the team that traded him; on the trade block."
+   "note": "First game back in Minnesota since being traded to Brooklyn; leads the Nets at 21.1 ppg."
   },
   "CJ McCollum": {
    "note": "Out at least four weeks with a calf strain; had already lost his starting job to Kingston Flemings."
@@ -289,7 +286,7 @@
    "note": "Knee tendinopathy; upgraded to questionable after missing six games."
   },
   "Shai Gilgeous-Alexander": {
-   "note": "Questionable for Nov 22 at Miami (low back bruise, neck strain) after scoring 40 vs New Orleans; OKC on a back-to-back Monday."
+   "note": "Out Nov 23 at Indiana with a back injury; missed his first game of the season Nov 22."
   },
   "DeMar DeRozan": {
    "note": "Former Bull returning to Chicago on a one-year deal with Denver.",
@@ -348,7 +345,19 @@
    "note": "Right ankle sprain; out Nov 21, being evaluated."
   },
   "De'Aaron Fox": {
-   "note": "Faces his former team Sacramento; only 9 shots in two games since Harper's injury."
+   "note": "Questionable (shin) for his return to Sacramento; shooting a career-low 26.5% from three."
+  },
+  "Dereck Lively II": {
+   "contract_year": true
+  },
+  "Marcus Sasser": {
+   "contract_year": true
+  },
+  "Julian Strawther": {
+   "contract_year": true
+  },
+  "Quentin Grimes": {
+   "note": "Career-high 47 vs Charlotte while starting for the injured Austin Reaves."
   }
  }
 }
