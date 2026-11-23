@@ -57,3 +57,11 @@ def test_another_books_price_is_converted_to_winamax_and_never_called_checked():
     l["market"] = 0.47                                      # the book's no-margin chance at its real line
     o, real = parlay.ladder_odds(l)
     assert not real and o == round(parlay.wmx_odds(0.47), 2) and o < 2.30
+
+
+def test_winning_level_ten_completes_the_ladder():
+    days = [(f"d{i:02d}", _pick("hit", odds=2.0)) for i in range(1, 11)] + [("d11", _pick("hit", odds=2.0))]
+    s = ladder.state(days)
+    assert len(s["trophies"]) == 1 and s["trophies"][0]["from"] == "d01" and s["trophies"][0]["to"] == "d10"
+    assert s["trophies"][0]["bank"] == round(10 * 2.0 ** 10, 2)
+    assert s["level"] == 2 and s["bank"] == 20.0          # a new ladder: d11 won its level 1

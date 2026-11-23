@@ -652,6 +652,7 @@ async function ladderPage() {
     <div>${ladderBet(lp, today, level)}
       <div class="rec-tiles lt">
         <div class="tile"><p class="k">${fx(run.start, 0)} € rolled over</p><p class="v num">${fx(run.bank, 2)} €</p><p class="s">${run.climb.length ? `after ${run.climb.length} win${run.climb.length === 1 ? "" : "s"} in a row` : "back at the start"}</p></div>
+        <div class="tile"><p class="k">Ladders completed</p><p class="v num">${(run.trophies || []).length}</p><p class="s">${(run.trophies || []).length ? (run.trophies.map(t => `${h(day(t.from))} to ${h(day(t.to))}: ${fx(t.bank, 0)}&nbsp;€`).join("<br>")) : `ten wins in a row: about one ladder every 8 seasons`}</p></div>
         <div class="tile"><p class="k">Best climb</p><p class="v num">${run.best}</p><p class="s">${run.best_days ? `${h(day(run.best_days[0]))} to ${h(day(run.best_days[1]))}` : "levels in a row"}</p></div>
         <div class="tile"><p class="k">Bets landed</p><p class="v num">${run.bets ? `${run.won}/${run.bets}` : "–"}</p><p class="s">${run.bets ? `the chances said ${fx(run.expected, 1)}` : "the first one is tonight"}</p></div>
         <div class="tile"><p class="k">1 unit a day</p><p class="v num ${run.profit >= 0 ? "up" : "down"}">${run.bets ? sgn(run.profit, 2) : "–"}</p><p class="s">${run.restarts} restart${run.restarts === 1 ? "" : "s"} so far</p></div>
@@ -672,6 +673,7 @@ async function ladderPage() {
     <li><b>Always a bet when there are games, at odds of 2.00-2.10 at Winamax.</b> A match winner at Winamax's real price comes first, then a player or team bet whose price comes from a bookmaker's real line (check Winamax shows 2.00-2.10 before placing).</li>
     <li><b>The model should rate it at least 5% above break-even</b> (about 51% at 2.05). On a night where nothing does, the Ladder still bets the most likely one at 2.00-2.10 and says so; if nothing is priced 2.00-2.10 at all, it bets the closest.</li>
     <li><b>Win: up one level. Miss: back to level 1.</b> A void bet (the player sat) keeps the level.</li>
-    <li>At 2.05 a bet the model rates 55% lands about 11 days in 20; ten in a row happens roughly once in 400 tries. It is a game: stake only what you are happy to lose.</li></ul></div></section>
+    <li><b>Level 10 is the finish line.</b> Win the level-10 bet and the ladder is complete: ${fx(run.start, 0)}&nbsp;€ rolled over ten times at about 2.05 is roughly ${Math.round(run.start * Math.pow(2.05, run.goal)).toLocaleString("en-GB")}&nbsp;€. It counts as a trophy and a new ladder starts at level 1.</li>
+    <li>At 2.05 a bet the model rates 53% lands a little more than half the time; ten in a row happens about once in 570 tries, roughly one completed ladder every 8 seasons. It is a game: stake only what you are happy to lose.</li></ul></div></section>
   </div>`;
 }
