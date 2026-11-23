@@ -9,6 +9,7 @@ estimate's factor sizes are fitted on the whole history.
     python -m backtest.tickets [SEASON] [FIRST_DAY LAST_DAY]
 """
 import json
+import math
 import sys
 import os
 from collections import defaultdict
@@ -62,6 +63,28 @@ def main(season, d0=None, d1=None, rules=("base",)):
         print(f"real prop lines ({real_mode}): {len(real)}", flush=True)
     if os.environ.get("MARKET_W"):
         parlay.MARKET_W["w"] = float(os.environ["MARKET_W"])
+    if os.environ.get("ML_MKT_W"):  # market weight when a winner leg meets the book's price (live 0.5)
+        parlay.ML_MKT_W = float(os.environ["ML_MKT_W"])
+    # REPLAY_ML=1: price winner legs like live. The game's win chance becomes the live model+Pinnacle blend
+    # (pipeline/run.py, BLEND_W) and team_legs gets the book's moneyline (Winamax-like prices around the fair
+    # chance, parlay.wmx_odds), so the leg is blended again and its edge filter applies. Fair chance: Pinnacle's
+    # pre-game price (data/odds/pinnacle_history.csv, 2025-26 on), else ESPN's partner book close
+    # (data/odds/espn_ml_{season}.csv, backtest/espn_props.py fetch_ml). REPLAY_ML_SRC=espn|pinnacle forces one.
+    ml_fair = {}
+    if os.environ.get("REPLAY_ML") == "1":
+        import csv as _csv
+        from backtest.run import load_pinnacle
+        from pipeline.run import BLEND_W
+        src = os.environ.get("REPLAY_ML_SRC", "auto")
+        ef = os.path.join("data", "odds", f"espn_ml_{season}.csv")
+        if src in ("auto", "espn") and os.path.exists(ef):
+            for r in _csv.DictReader(open(ef)):
+                q = parlay.novig(r["ml_home"], r["ml_away"])
+                if q:
+                    ml_fair[r["game_id"]] = q
+        if src in ("auto", "pinnacle"):
+            ml_fair.update(load_pinnacle())
+        print(f"moneyline prices on ({src}): {len(ml_fair)} games, leg market weight {parlay.ML_MKT_W}", flush=True)
     calib_cache = {}
     # ALT_BLEND="a,b,c": blend each player leg's chance with the book's milestone price at the same line
     # (rows from the research script alt.py): p' = sigmoid(a logit p + b logit implied + c)
@@ -123,6 +146,13 @@ def main(season, d0=None, d1=None, rules=("base",)):
             if g["day"] != day or gid not in c.base or gid not in byg:
                 continue
             est = engine.predict(c, g, c.ctxs[gid], {}, eff=c.eff, base_override=c.base[gid], lineup_feat=c.lfeat.get(gid))
+            godds = None
+            qf = ml_fair.get(gid)
+            if qf:
+                lo = lambda x: math.log(max(x, 1e-6) / max(1 - x, 1e-6))
+                est["win_home_model"], est["win_home_market"] = est["win_home"], qf
+                est["win_home"] = 1 / (1 + math.exp(-(BLEND_W * lo(est["win_home"]) + (1 - BLEND_W) * lo(qf))))
+                godds = {"provider": "replay", "ml_home": round(parlay.wmx_odds(qf), 2), "ml_away": round(parlay.wmx_odds(1 - qf), 2)}
             ests[gid] = est["margin"]
             ests_t[gid] = est["total"]
             side_rows = {}
@@ -138,7 +168,7 @@ def main(season, d0=None, d1=None, rules=("base",)):
                 side_rows[side] = rows
             pay = {"id": gid, "home": {"abbr": g["home"]}, "away": {"abbr": g["away"]}, "tip": g["date"], "est": est,
                    "players": side_rows, "gauge": {}}
-            slate.append(({"odds": None}, pay))
+            slate.append(({"odds": godds}, pay))
         if not slate:
             continue
         for rname in rules:

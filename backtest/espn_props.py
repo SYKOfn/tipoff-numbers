@@ -181,5 +181,44 @@ def parse_all(season):
     print(f"{out}: {n} line pairs")
 
 
+def _ml_row(gid):
+    od = _get(f"{B}/{gid}/competitions/{gid}/odds") or {}
+    for it in od.get("items", []):
+        name = it["provider"]["name"]
+        if "Live" in name:
+            continue
+        h, a = it.get("homeTeamOdds") or {}, it.get("awayTeamOdds") or {}
+        dec = lambda o, k: (((o.get(k) or {}).get("moneyLine") or {}).get("decimal"))
+        hc, ac = dec(h, "close") or dec(h, "current"), dec(a, "close") or dec(a, "current")
+        if hc and ac:
+            return [name, dec(h, "open"), dec(a, "open"), hc, ac]
+    return None
+
+
+def fetch_ml(season):
+    """Each game's pre-game moneyline (open and close, decimal) from ESPN's partner book ->
+    data/odds/espn_ml_{season}.csv. Used by the replay (REPLAY_ML=1) to price winner legs like live."""
+    from concurrent.futures import ThreadPoolExecutor
+    g = load_games()
+    g = g[(g.season == season)].sort_values("date")
+    out = ROOT / "data" / "odds" / f"espn_ml_{season}.csv"
+    have = set()
+    if out.exists():
+        with open(out) as f:
+            have = {r["game_id"] for r in csv.DictReader(f)}
+    todo = [(gid, d) for gid, d in zip(g.game_id.astype(str), g.date.astype(str)) if gid not in have]
+    new = not out.exists()
+    with open(out, "a", newline="") as f, ThreadPoolExecutor(6) as ex:
+        w = csv.writer(f)
+        if new:
+            w.writerow(["game_id", "date", "book", "ml_home_open", "ml_away_open", "ml_home", "ml_away"])
+        for i, ((gid, d), r) in enumerate(zip(todo, ex.map(lambda x: _ml_row(x[0]), todo))):
+            if r:
+                w.writerow([gid, d] + r)
+            if i % 100 == 0:
+                f.flush()
+                print(f"{i}/{len(todo)} {gid}", flush=True)
+
+
 if __name__ == "__main__":
-    {"fetch": fetch, "parse": parse, "parse_all": parse_all}[sys.argv[1]](int(sys.argv[2]))
+    {"fetch": fetch, "parse": parse, "parse_all": parse_all, "fetch_ml": fetch_ml}[sys.argv[1]](int(sys.argv[2]))

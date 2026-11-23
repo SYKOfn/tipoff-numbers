@@ -20,6 +20,7 @@ import numpy as np
 from .effects import norm_cdf
 
 SIMS = 20000
+ML_MKT_W = 0.5  # market weight when a winner leg's chance (already a model+Pinnacle blend) meets the book's no-margin price
 MARKET_W = {"w": 0.5, "measured": False}  # model weight against a posted player line; set from the settled-lines test
 P_MIN, P_MAX = 0.55, 0.86
 PROP_MAX = 0.80          # alternate prop lines beyond this are priced too short to carry value
@@ -224,7 +225,7 @@ def team_legs(game, est, odds, mind_gap):
     if odds and odds.get("ml_home") and odds.get("ml_away"):
         ih, ia = 1 / odds["ml_home"], 1 / odds["ml_away"]
         mk = ih / (ih + ia)
-        pc = sigmoid(0.5 * logit(ph) + 0.5 * logit(mk))
+        pc = sigmoid((1 - ML_MKT_W) * logit(ph) + ML_MKT_W * logit(mk))
         src = "blended 50/50 with the market's no-margin price"
     else:
         mk, pc = None, sigmoid(0.8 * logit(ph))
@@ -400,7 +401,7 @@ def book_legs(game, est, players, odds, offers, calib, disp, mind_gap):
     note = f"{book} price, blended 50/50 with the book's own chance"
 
     def add(kind, desc, pm, pb, price, **kw):
-        pc = _blend(pm, pb)
+        pc = sigmoid((1 - ML_MKT_W) * logit(pm) + ML_MKT_W * logit(pb)) if kind == "ml" else _blend(pm, pb)
         legs.append(_leg(game, kind, desc, pm, pc, round(price, 2), book=book, market=round(pb, 3), note=note, **kw))
 
     if odds and odds.get("ml_home") and odds.get("ml_away"):
