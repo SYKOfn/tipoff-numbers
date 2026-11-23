@@ -107,6 +107,10 @@
   [
    "Reserving bench minutes before scaling the rotation to 240 (BENCH_RESERVE)",
    "players outside the pre-game rotation get only 1.7 min per team-game (2019-24); reserving them cut the ticket-leg minutes bias only from +2.00 to +1.84. The bias comes from p_play undercounting who plays; capping the scale at 1.02 removes it (see the backlog)"
+  ],
+  [
+   "Minutes scale cap 1.05 (pre-registered milder cap)",
+   "tickets 439->479, 411->420, 64->67 against the live 1.15, but the Ladder fell 3, 7 and 2 picks, failing the rule fixed in advance"
   ]
  ],
  "kept": [

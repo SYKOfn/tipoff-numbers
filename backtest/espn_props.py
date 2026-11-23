@@ -192,7 +192,19 @@ def _ml_row(gid):
         hc, ac = dec(h, "close") or dec(h, "current"), dec(a, "close") or dec(a, "current")
         if hc and ac:
             return [name, dec(h, "open"), dec(a, "open"), hc, ac]
+    for it in od.get("items", []):  # before 2023-24 the books only give American odds (the latest line)
+        name = it["provider"]["name"]
+        if "Live" in name or name in ("accuscore", "numberfire", "teamrankings"):
+            continue
+        h, a = (it.get("homeTeamOdds") or {}).get("moneyLine"), (it.get("awayTeamOdds") or {}).get("moneyLine")
+        if h and a:
+            return [name, None, None, round(_us(h), 3), round(_us(a), 3)]
     return None
+
+
+def _us(x):
+    x = float(x)
+    return 1 + (x / 100 if x > 0 else 100 / -x)
 
 
 def fetch_ml(season):

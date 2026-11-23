@@ -12,9 +12,10 @@ No change to how legs, tickets, singles or the Ladder are chosen goes live unles
 ## How to test
 - Python: `/tmp/tipoff_venv/bin/python`. If it is missing: `/usr/bin/python3 -m venv /tmp/tipoff_venv && /tmp/tipoff_venv/bin/pip install -q -r requirements.txt pytest playwright==1.47.0`.
 - Put the idea behind a module switch (as `players.B2B_KEY`, `players.ROT_PBP`), and an env override in `backtest/tickets.py` (see how `B2B_KEY`, `ROT_PBP`, `REAL_PROPS` are read).
-- Replay: `TAG=_x ENVSWITCH=1 python -m backtest.tickets 2025` and `... 2026` (about 25 min each). Run several at once only with `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1` and `nohup ... &`, or they slow each other down 10x.
+- **Standard test (from 23 Nov 2026): every season at once, leak-free.** `backtest/multi.sh _x "ENVSWITCH=1"` replays 2018-19 to 2026-27 with `LOCK_STATUS=1` (who plays comes from the NBA injury report at the lock), `REPLAY_ML=1` and the books env, 6 at a time (about 1.5 hours); then `python -m backtest.multi_report _lf _x` prints each season against the baseline (`_lf`, results kept in ~/.cache/tipoff_replays) and the pooled paired sign test. Baselines per season: the table in `research/backlog.md`. Say which seasons the idea was fitted on: those are not tests.
+- Single replay: `TAG=_x ENVSWITCH=1 LOCK_STATUS=1 python -m backtest.tickets 2025` and `... 2026` (about 25 min each). Run several at once only with `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1` and `nohup ... &`, or they slow each other down 10x.
 - `REAL_PROPS=close|open` replays with real ESPN BET player lines (2024-25 full season, data/props/espn_2025.csv); `backtest/espn_props.py` fetches more.
-- Current baselines (23 Nov 2026, with books' X+ prices): tickets landed 460 of 1,188 (stated 453) on 2024-25 and 439 on 2025-26; legs 4,897/5,940 on 2024-25. Ladder 2024-25: 84/158 (stated 83.5), +9.2 units.
+- Current baselines: the leak-free table in `research/backlog.md` (2024-25: 439 tickets, 444.5 stated; 2025-26: 411, 439.6). The older box-based numbers (460/439) knew who played and are retired.
 - Take your brief from `research/backlog.md` (the research-director ranks it). Report paired flip counts (tickets that went miss→land and land→miss), because the skeptic will ask for them.
 - A cheap first check: the replay writes every leg's pre-game inputs to `/tmp/tickets_{season}{TAG}.json`; analyse those before a 25-minute run when you can.
 
