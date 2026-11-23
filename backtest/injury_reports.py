@@ -25,7 +25,8 @@ URL = "https://ak-static.cms.nba.com/referee/injury/Injury-Report_%s_%s.pdf"
 UA = "Mozilla/5.0 (compatible; research-replay/1.0; personal non-commercial use)"
 OUT = Path(__file__).resolve().parent.parent / "data" / "history" / "injury_status.csv.gz"
 FIRST = "2018-12-18"   # no reports before this day
-NEW_ERA = "2025-12-22"  # file names become _HH_MMPM (every 15 minutes)
+NEW_ERA = "2025-12-22"
+PREV_FALLBACK_FROM = "2026-08-01"  # last season's names as a fallback (added for 2026-27; earlier rows kept as built)  # file names become _HH_MMPM (every 15 minutes)
 STATUSES = ("Out", "Doubtful", "Questionable", "Probable", "Available")
 ST = re.compile(r"\b(Out|Doubtful|Questionable|Probable|Available)\b")
 DROP = {"jr", "sr", "ii", "iii", "iv"}
@@ -181,7 +182,7 @@ def game_days(d0=FIRST, d1="2099-12-31"):
 def build(d0=FIRST, d1="2099-12-31"):
     days = game_days(d0, d1)
     pats = team_patterns()
-    ros, allp = rosters(sorted({season_of(d) for d in days}))
+    ros, allp = rosters(sorted({season_of(d) + k for d in days for k in (-1, 0)}))
     rows, miss_days, stats = [], [], Counter()
     unmatched = Counter()
     for i, (day, teams) in enumerate(days.items()):
@@ -206,6 +207,8 @@ def build(d0=FIRST, d1="2099-12-31"):
             if gd not in (None, day) or t not in teams:
                 continue
             hit = match(last, first, ros.get((s, t), {})) or match(last, first, allp.get(s, {}))
+            if not hit and d0 >= PREV_FALLBACK_FROM:  # not yet in this season's box scores: last season's names
+                hit = match(last, first, ros.get((s - 1, t), {})) or match(last, first, allp.get(s - 1, {}))
             stats["rows"] += 1
             if not gl:
                 stats["nongl"] += 1
@@ -217,6 +220,9 @@ def build(d0=FIRST, d1="2099-12-31"):
         if i % 50 == 0:
             print(day, len(rows), dict(stats), flush=True)
     OUT.parent.mkdir(parents=True, exist_ok=True)
+    if OUT.exists():  # keep the days outside this run
+        with gzip.open(OUT, "rt") as fh:
+            rows += [r for r in csv.DictReader(fh) if not (d0 <= r["date"] <= d1)]
     rows.sort(key=lambda r: (r["date"], r["team"], r["name"]))
     with gzip.open(OUT, "wt", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=["date", "team", "player_id", "name", "status", "report_time", "note"])

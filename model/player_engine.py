@@ -110,6 +110,7 @@ SCALE_HI = 1.15
 # from the box score exactly as live does; only the logged pre-game projections change.
 LOCK = None
 LOCK_SEASONS = None  # research: seasons that get lock projections (default: the replayed one)
+PRE_HOOK = None  # research: called as PRE_HOOK(pt, g, ctx, exp_margin) before each game is learned
 # chance a rotation player plays and his minutes if he does, by status at the 16:00 ET report
 # (rotation players, 2022-23 and 2023-24, backtest/injury_reports.py fit_rates; n = 3,174 Out, 280 Doubtful,
 # 2,443 Questionable, 952 Probable; 2024-26 gives the same within 0.03). weight = 1 - play, out when >= 0.5, and
@@ -167,6 +168,8 @@ def walk(c, players_df, notes, cur, use_mm=True, ev=None, opp_mode="team", norm=
         b = c.base.get(gid)
         em = (b[0] - b[1]) if b else None
         done, mrows, wo_upd, dsp_upd = [], [], [], []
+        if PRE_HOOK is not None:
+            PRE_HOOK(pt, g, ctx, em)
         if LOCK is not None and int(g["season"]) in (LOCK_SEASONS or {cur}) and g["day"] in LOCK[1]:
             ml = getattr(c, "miss_lock", {}).get(gid) or {}
             for team, opp, side in ((g["home"], g["away"], "home"), (g["away"], g["home"], "away")):
