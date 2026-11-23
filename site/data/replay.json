@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-23",
+ "updated": "2026-11-24",
  "note": "The current model and build rules replayed over two past seasons, with every input as it was before each game: who plays comes from the NBA's official injury report at the 16:00 ET lock, not from the box score. Payouts assume 1 unit on every ticket.",
  "seasons": [
   {
@@ -109,8 +109,12 @@
    "players outside the pre-game rotation get only 1.7 min per team-game (2019-24); reserving them cut the ticket-leg minutes bias only from +2.00 to +1.84. The bias comes from p_play undercounting who plays; capping the scale at 1.02 removes it (see the backlog)"
   ],
   [
-   "Minutes scale cap 1.05 (pre-registered milder cap)",
-   "tickets 439->479, 411->420, 64->67 against the live 1.15, but the Ladder fell 3, 7 and 2 picks, failing the rule fixed in advance"
+   "Minutes scale cap 1.02",
+   "more tickets in all 9 seasons (+978/-718 flips) and a better priced Ladder, but the live lineup-time minutes for 24+ minute players come out 0.9 min too low, failing the rule fixed in advance"
+  ],
+  [
+   "Ticket chance calibration at the 1.05 minutes cap",
+   "with the 1.05 cap tickets already land as stated (3,325 vs 3,314 over 9 seasons; 1,414 vs 1,397.5 on the held-out seasons) and no calibration lowers the log loss; kept only as a switch, off"
   ]
  ],
  "kept": [
@@ -129,6 +133,10 @@
   [
    "Leak-free replay: who plays comes from the NBA injury report at the lock (a measurement fix, not a model change)",
    "the old replay knew who actually played: 467 and 434 tickets; with the lock report 439 (444.5 stated) and 411 (439.6 stated), legs 4,766/5,845 and 4,708/5,867"
+  ],
+  [
+   "Minutes scale cap 1.05 (passed its final rule; live only once the skeptic agrees)",
+   "tickets 3,158 -> 3,325 over 9 leak-free seasons (+703/-534 flips, p = 2e-6), up in every season; Ladder on seasons with real prices +8 hits, +7.1 units; live minutes bias for 24+ minute players -0.15"
   ]
  ],
  "ladder": {
