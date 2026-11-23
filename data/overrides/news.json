@@ -1,12 +1,12 @@
 {
   "_about": "Written each morning by the analyst task. Facts about tonight's players stated by a reputable source, nothing else: rest (sits tonight), min_cap (minutes limit), start / bench (lineup change), returning (back from an absence). Each entry applies only to games on its 'day' (US date). See pipeline/news.py.",
   "players": {
-    "Kingston Flemings": {
-      "day": "2026-11-22",
-      "team": "ATL",
+    "Brandon Ingram": {
+      "day": "2026-11-23",
+      "team": "LAC",
       "returning": true,
-      "quote": "Available Sunday vs Pistons, returning from a three-game absence (back), per Hawks' official site.",
-      "source": "https://www.rotowire.com/basketball/headlines/kingston-flemings-news-set-to-return-sunday-540490"
+      "quote": "Expected to make his season and Clippers debut vs Rockets after heel/Achilles injury, per ESPN.",
+      "source": "https://www.espn.com/fantasy/basketball/story/_/id/50573843/fantasy-basketball-tips-nba-betting-picks-today"
     }
   }
 }
