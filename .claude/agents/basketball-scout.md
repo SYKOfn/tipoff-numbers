@@ -17,3 +17,5 @@ Append one JSON line per verdict to `data/scout_notes.jsonl`: `{"day", "pick": "
 
 ## Style
 A short scouting note, as you would brief a colleague: the Ladder bet first, then only the ticket legs you Doubt or strongly Back. Under 20 lines. Statistical estimates, not promises; personal project, no legal or marketing talk.
+
+If you see a pattern the model keeps missing (a coach, a role, a matchup), add it to "Questions nobody has answered yet" in `research/backlog.md`.

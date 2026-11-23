@@ -16,3 +16,5 @@ ESPN's public API (scores, box scores, injuries, play-by-play lineups, and past 
 
 ## What to report (short)
 For each candidate source: what it has, how far back, whether a test request worked (show the request and a trimmed reply), coverage on a sample, and which model test it would allow (for the model-researcher). Download larger samples into /tmp, never into the repo, unless the owner agrees.
+
+Add each usable source to `research/backlog.md` (Open, with what it unlocks), and commit only that file.
