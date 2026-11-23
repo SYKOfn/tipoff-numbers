@@ -99,6 +99,10 @@
   [
    "Separate model-books weights per stat",
    "scored worse month to month (0.4943 vs 0.4937): one set for every stat"
+  ],
+  [
+   "Lower market weight on moneyline legs (the live double blend)",
+   "with real moneyline prices in the replay (REPLAY_ML=1, ML_MKT_W), live 0.5 landed 467 and 434 tickets; 0.25 landed 464 and 434, 0.0 landed 462 and 435: keep 0.5"
   ]
  ],
  "kept": [
