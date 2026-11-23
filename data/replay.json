@@ -103,6 +103,10 @@
   [
    "Lower market weight on moneyline legs (the live double blend)",
    "with real moneyline prices in the replay (REPLAY_ML=1, ML_MKT_W), live 0.5 landed 467 and 434 tickets; 0.25 landed 464 and 434, 0.0 landed 462 and 435: keep 0.5"
+  ],
+  [
+   "Reserving bench minutes before scaling the rotation to 240 (BENCH_RESERVE)",
+   "players outside the pre-game rotation get only 1.7 min per team-game (2019-24); reserving them cut the ticket-leg minutes bias only from +2.00 to +1.84. The bias comes from p_play undercounting who plays; capping the scale at 1.02 removes it (see the backlog)"
   ]
  ],
  "kept": [

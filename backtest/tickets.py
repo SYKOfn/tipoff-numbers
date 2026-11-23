@@ -52,6 +52,8 @@ def main(season, d0=None, d1=None, rules=("base",)):
     # "missing" inputs comes from the NBA's injury report at the 16:00 ET lock (data/history/injury_status.csv.gz,
     # backtest/injury_reports.py) instead of who actually got minutes; Out/Doubtful are out, the others carry the
     # live p_play and injury status. LOCK_STATUS=0 computes the same but only records it in the leg details.
+    if os.environ.get("MIN_SCALE_HI"):  # most the pre-game list's minutes are scaled up (live 1.15)
+        PE.SCALE_HI = float(os.environ["MIN_SCALE_HI"])
     lock_mode = os.environ.get("LOCK_STATUS")
     lock = None
     if lock_mode:

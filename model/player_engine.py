@@ -96,11 +96,20 @@ def team_minutes_scale(total, lo=0.85, hi=1.15):
     return max(lo, min(hi, MIN_TEAM / total)) if total > 0 else 1.0
 
 
+# SCALE_HI: the most the pre-game list's minutes are scaled up to fill the team's 240 (project_game, lock_side).
+# The list's expected minutes weight each player by p_play (recent participation x report), which undercounts who
+# plays (players back from an absence, Probable, Questionable), so the scale sat at its 1.15 limit for 35% of teams
+# and players who played were projected +1.4 min too high (2020-24, leak-free lists). Research switch:
+# backtest/tickets.py MIN_SCALE_HI; 1.02 fitted on 2020-24 (minutes RMSE 6.55 -> 6.31). Live default unchanged.
+SCALE_HI = 1.15
+
+
 # Replay research (backtest/tickets.py, LOCK_STATUS=1): for the replayed season, who is in a projection comes from the
 # NBA's injury report at the ticket lock (backtest/injury_reports.py) instead of who actually got minutes.
 # LOCK = (statuses {(day, team): {"st": {pid: status}, "unsub": bool}}, days with a report). The walk still learns
 # from the box score exactly as live does; only the logged pre-game projections change.
 LOCK = None
+LOCK_SEASONS = None  # research: seasons that get lock projections (default: the replayed one)
 # chance a rotation player plays and his minutes if he does, by status at the 16:00 ET report
 # (rotation players, 2022-23 and 2023-24, backtest/injury_reports.py fit_rates; n = 3,174 Out, 280 Doubtful,
 # 2,443 Questionable, 952 Probable; 2024-26 gives the same within 0.03). weight = 1 - play, out when >= 0.5, and
@@ -128,8 +137,8 @@ def lock_side(pt, team, opp, is_home, b2b, missing, notes, sts, exp_margin=None)
             continue
         seen = (sum(pid in s_ for s_ in recent) / len(recent)) if recent else 1.0
         lst.append({"id": pid, "name": pt.p[pid]["name"], "proj": proj, "status": s if s in LOCK_LISTED else None,
-                    "p_play": round(max(0.05, seen) * LOCK_PLAY.get(s, 1.0), 3)})
-    k = team_minutes_scale(sum(r["proj"]["min"] * r["p_play"] for r in lst))
+                    "p_play": round(max(0.05, seen) * LOCK_PLAY.get(s, 1.0), 3), "raw_min": proj["min"], "seen": seen})
+    k = team_minutes_scale(sum(r["proj"]["min"] * r["p_play"] for r in lst), hi=SCALE_HI)
     for r, kp in zip(lst, capped_factors([r["proj"]["min"] for r in lst], k)):
         r["proj"] = {kk: v * kp for kk, v in r["proj"].items()}
     return lst, absent
@@ -158,7 +167,7 @@ def walk(c, players_df, notes, cur, use_mm=True, ev=None, opp_mode="team", norm=
         b = c.base.get(gid)
         em = (b[0] - b[1]) if b else None
         done, mrows, wo_upd, dsp_upd = [], [], [], []
-        if LOCK is not None and int(g["season"]) == cur and g["day"] in LOCK[1]:
+        if LOCK is not None and int(g["season"]) in (LOCK_SEASONS or {cur}) and g["day"] in LOCK[1]:
             ml = getattr(c, "miss_lock", {}).get(gid) or {}
             for team, opp, side in ((g["home"], g["away"], "home"), (g["away"], g["home"], "away")):
                 e = LOCK[0].get((g["day"], team)) or {"st": {}}
@@ -374,7 +383,7 @@ def project_game(pt, pe, disp, g, ctx, injuries, notes, news=True, exp_margin=No
             row["p_play"] = round(max(0.05, seen if pid not in five else 1.0) * (row["play"] if row["play"] is not None else 1.0), 3)
             lst.append(row)
         # the team has 240 minutes: scale projections so expected minutes add up (tested: better on every stat)
-        k = team_minutes_scale(sum(r["min"] * r["p_play"] for r in lst if not r["out"]))
+        k = team_minutes_scale(sum(r["min"] * r["p_play"] for r in lst if not r["out"]), hi=SCALE_HI)
         live = [r for r in lst if not r["out"]]
         caps = {i: float(r["news"]["min_cap"]) for i, r in enumerate(live) if (r.get("news") or {}).get("min_cap")}
         for r, kp in zip(live, capped_factors([r["min"] for r in live], k, caps=caps)):

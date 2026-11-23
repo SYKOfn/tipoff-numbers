@@ -76,7 +76,7 @@ def build_context(games, players, upcoming, tuned=None, effects_until=None, stin
         played = None
         if box and g["home"] in box and g["away"] in box:
             played = {t: {pid for pid, v in box[t].items() if v[0] > 0} for t in (g["home"], g["away"])}
-        on_lock = lock is not None and int(g["season"]) == lock["season"] and g["day"] in lock["days"]
+        on_lock = lock is not None and int(g["season"]) in lock.get("seasons", (lock["season"],)) and g["day"] in lock["days"]
         if on_lock:
             ml = {}
             for side in ("home", "away"):
