@@ -7,7 +7,8 @@ ODDS_API_DAILY      credits the site may spend per day, default 15 (fits the fre
 ODDS_API_PROPS      "1" to also record player-prop lines (5 credits per game per snapshot: ~12 h before tip-off,
                     in the hour before the Ladder and the ticket locks, and at the close)
 ODDS_API_ALT        "1" (or "odds_api_alt": true in data/settings.json) to fetch each game's alternate player lines ("X+" ladders: points, rebounds, assists,
-                    threes) twice: about 7 hours before tip-off and in the hour before the tickets lock (about 4 credits a time). Ticket legs the
+                    threes): in the hour before the Ladder locks (every game of the night), about 7 hours before a later
+                    tip-off if not yet fetched, and in the hour before the tickets lock (about 4 credits a time). Ticket legs the
                     bookmakers price clearly below the model are lowered (model/parlay.py ALT_W).
 ODDS_API_ALT_BOOKS  books for the alternate lines, default eight US books (up to 10 = one region, same cost)
 ODDS_API_PROPS_BOOKS  books for player props, default Pinnacle plus eight US books. Pinnacle is the sharpest
@@ -219,8 +220,11 @@ def collect(upcoming, now=None):
                 continue
             left = datetime.fromisoformat(g["date"].replace("Z", "+00:00")) - now
             to_lock = first.get(g["day"], now) - timedelta(hours=lock_h) - now
+            to_ladder = first.get(g["day"], now) - timedelta(hours=float(os.environ.get("LADDER_LOCK_HOURS", "6"))) - now
             phase = ("alt_lock" if timedelta(0) <= to_lock <= timedelta(minutes=60) and "alt_lock" not in done.get(gid, [])
-                     else "alt" if "alt" not in done.get(gid, []) and timedelta(0) <= left <= timedelta(hours=ALT_HOURS) else None)
+                     # every game of the night in the hour before the Ladder locks, late tip-offs included
+                     else "alt_ladder" if timedelta(0) <= to_ladder <= timedelta(minutes=60) and "alt_ladder" not in done.get(gid, [])
+                     else "alt" if not {"alt", "alt_ladder"} & set(done.get(gid, [])) and timedelta(0) <= left <= timedelta(hours=ALT_HOURS) else None)
             if not phase or st["spent"] + len(ALT_MARKETS) > daily:
                 continue
             data, used, _ = _get(f"/events/{snap[gid]['event_id']}/odds", {"bookmakers": env("ODDS_API_ALT_BOOKS", ALT_BOOKS),
