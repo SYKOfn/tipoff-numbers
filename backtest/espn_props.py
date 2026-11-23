@@ -3,7 +3,8 @@
 ESPN keeps each game's player props from the book it partners with: ESPN BET for 2024-25 and October-November
 2025, DraftKings from 2026-27. Every prop has its opening and its latest (closing) line and both prices.
 
-    python -m backtest.espn_props fetch 2025        # raw replies cached in /tmp/espn_props/
+    python -m backtest.espn_props fetch 2025        # raw replies cached in ~/.cache/tipoff_espn/
+    python -m backtest.espn_props fetch 2024 40,47,45,31,58   # 2022-24: DraftKings, else MGM, Caesars, ESPN BET
     python -m backtest.espn_props parse 2025        # -> data/props/espn_{season}.csv
 
 Rows: game_id, player_id, player, stat, line, over, under, book, phase (open/close). The main line is the pair
@@ -40,35 +41,46 @@ def _get(url):
     return None
 
 
-def fetch(season):
+def fetch(season, prefer=None):
+    """prefer: provider ids to try first, in order (e.g. "40,47,45,31" = DraftKings, MGM, Caesars for 2022-24,
+    where ESPN lists several books and the first in its own order may have no props)."""
+    order = [x for x in str(prefer or "").split(",") if x]
     g = load_games()
     gids = g[(g.season == season) & (g.stype == 2)].sort_values("date").game_id.astype(str).tolist()
     CACHE.mkdir(parents=True, exist_ok=True)
-    for i, gid in enumerate(gids):
-        f = CACHE / f"{gid}.json"
-        if f.exists():
+    todo = [gid for gid in gids if not (CACHE / f"{gid}.json").exists()]
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(6) as ex:  # six at a time, like fetch_ml
+        for i, (gid, out) in enumerate(zip(todo, ex.map(lambda x: _fetch_game(x, order), todo))):
+            if i % 50 == 0:
+                print(f"{i}/{len(todo)} {gid} {out['provider']} {len(out['items'])}", flush=True)
+
+
+def _fetch_game(gid, order):
+    f = CACHE / f"{gid}.json"
+    od = _get(f"{B}/{gid}/competitions/{gid}/odds") or {}
+    time.sleep(PAUSE)
+    out = {"provider": None, "items": []}
+    provs = sorted(od.get("items", []), key=lambda it: order.index(it["provider"]["id"]) if it["provider"]["id"] in order else len(order))
+    for it in provs:
+        pid, name = it["provider"]["id"], it["provider"]["name"]
+        if "Live" in name or (order and pid not in order):
             continue
-        od = _get(f"{B}/{gid}/competitions/{gid}/odds") or {}
-        time.sleep(PAUSE)
-        out = {"provider": None, "items": []}
-        for it in od.get("items", []):
-            pid, name = it["provider"]["id"], it["provider"]["name"]
-            if "Live" in name:
-                continue
-            items, page = [], 1
-            while True:
-                pb = _get(f"{B}/{gid}/competitions/{gid}/odds/{pid}/propBets?limit=1000&page={page}") or {}
-                time.sleep(PAUSE)
-                items += pb.get("items", [])
-                if page >= (pb.get("pageCount") or 1):
-                    break
-                page += 1
-            if items:
-                out = {"provider": name, "items": items}
+        items, page = [], 1
+        while True:
+            pb = _get(f"{B}/{gid}/competitions/{gid}/odds/{pid}/propBets?limit=1000&page={page}") or {}
+            time.sleep(PAUSE)
+            items += pb.get("items", [])
+            if page >= (pb.get("pageCount") or 1):
                 break
-        f.write_text(json.dumps(out))
-        if i % 50 == 0:
-            print(f"{i}/{len(gids)} {gid} {out['provider']} {len(out['items'])}", flush=True)
+            page += 1
+        if items:
+            out = {"provider": name, "items": items}
+            break
+    tmp = f.with_suffix(".part")
+    tmp.write_text(json.dumps(out))
+    tmp.rename(f)  # whole files only, so an interrupted fetch resumes cleanly
+    return out
 
 
 def _dec(x):
@@ -233,4 +245,4 @@ def fetch_ml(season):
 
 
 if __name__ == "__main__":
-    {"fetch": fetch, "parse": parse, "parse_all": parse_all, "fetch_ml": fetch_ml}[sys.argv[1]](int(sys.argv[2]))
+    {"fetch": fetch, "parse": parse, "parse_all": parse_all, "fetch_ml": fetch_ml}[sys.argv[1]](int(sys.argv[2]), *sys.argv[3:])

@@ -26,6 +26,8 @@ P_MIN, P_MAX = 0.55, 0.86
 PROP_MAX = 0.80          # alternate prop lines beyond this are priced too short to carry value
 PROP_SIDES = ("over",)   # Winamax lists player markets as "over" only (X+ points etc.): no player unders
 EDGE_W = 3.0             # how much a measured price edge is worth against chance when ranking tickets
+# (EDGE_W is used by the leg board's order, the cross-game tickets' tie-break between legs of equal chance and the
+# late swap's choice of replacement leg. EDGE_W = 0: nothing is ever ranked by a bookmaker price, chance only.)
 EST_EDGE_W, EST_EDGE_CAP = 1.0, 0.12   # edges against an estimated line count less, and are capped
 WINAMAX_PAYOUT = 0.5      # Winamax's combined odds pay about half the fair winnings (Pepe's experience, Nov 2026)
 SAFETY = 1.05            # ask 5% more than fair odds before calling a leg worth taking
@@ -609,6 +611,7 @@ def search(cands, k, sims, games, max_per_game=2, min_games=None, beam=60, max_p
 
 
 GAME_LEGS, GAME_POOL, GAME_P = 5, 24, 0.60
+GAME_SIZES = ()  # replay-only (backtest/tickets_x.py): also build each game's best ticket of these sizes; () live
 
 
 def scenarios(legs, sim, p_cal):
@@ -666,6 +669,23 @@ def alt_lower(l, imp):
         l["note"] = (l.get("note") or "") + f"; the books' {l.get('line', 0) + 0.5:.0f}+ price says {round(100 * imp)}% (margin included), so the chance was lowered from {round(100 * l['p_before_books'])}%"
         return True
     return False
+
+
+# Honest ticket chance (research/backlog.md step 3, default off): the stated chance of a built ticket mapped through
+# a logit line fitted on settled leak-free replay tickets, p' = sigmoid(a + b logit p). Monotone, so the legs and the
+# order of the tickets are unchanged; only the shown chance, fair odds, minimum odds and Winamax estimate move.
+TICKET_CAL = None  # (a, b); None live
+
+
+def calibrate_ticket(pr):
+    if not TICKET_CAL or not pr.get("p"):
+        return pr
+    a, b = TICKET_CAL
+    pj = min(max(sigmoid(a + b * logit(pr["p"])), 1e-4), 0.99)
+    fair = 1 / pj
+    pr.update(p_uncal=pr["p"], p=round(pj, 4), fair=round(fair, 2), min_odds=round(fair * SAFETY, 2),
+              winamax_est=round(1 + WINAMAX_PAYOUT * (fair - 1), 2))
+    return pr
 
 
 def restate(pr):
@@ -770,7 +790,7 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None,
         cand = free(pool if src is None else src)
         if band:
             cand = [l for l in cand if band[0] <= l["p"] <= band[1]]
-        for l in sorted(cand, key=lambda l: (-l["p"], -(l.get("edge") or 0))):
+        for l in sorted(cand, key=lambda l: (-l["p"], -(l.get("edge") or 0) * (EDGE_W > 0))):
             if len(chosen) == k:
                 break
             if any(_conflict(l, c) or exposure(l) == exposure(c) for c in chosen):
@@ -840,10 +860,10 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None,
     # together are counted as such. They may repeat bets from the singles and the other tickets (Pepe, Nov 2026).
     out["game_tickets"] = []
     for gid, game in games.items():
-        def best_ticket(pool_g):
+        def best_ticket(pool_g, n=GAME_LEGS):
             # beam search: grow the ticket one leg at a time, keeping the 40 most likely partial tickets
             states = [((), 1.0)]
-            for _ in range(GAME_LEGS):
+            for _ in range(n):
                 nxt = {}
                 for legs, _p in states:
                     for c in pool_g:
@@ -856,14 +876,20 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None,
                 states = sorted(nxt.values(), key=lambda s_: -s_[1])[:40]
                 if not states:
                     return None
-            return (states[0][1], states[0][0]) if len(states[0][0]) == GAME_LEGS else None
+            return (states[0][1], states[0][0]) if len(states[0][0]) == n else None
         mine = [l for l in cands if l["game"] == gid and combinable(l) and l["mind_flag"] != "against"
                 and (TICKET_FILTER is None or TICKET_FILTER(l, game))]
         strict = sorted([l for l in mine if GAME_P <= l["p"] <= AGREE_MAX and (l["kind"] != "prop" or l.get("agree"))],
                         key=lambda l: -l["p"])[:GAME_POOL]
-        best = best_ticket(strict)
-        if not best:  # not enough agreed legs: every rated leg of the game from 50% up, so each game gets its ticket
-            best = best_ticket(sorted([l for l in mine if 0.50 <= l["p"] <= 0.92], key=lambda l: -l["p"])[:GAME_POOL])
+        wide = sorted([l for l in mine if 0.50 <= l["p"] <= 0.92], key=lambda l: -l["p"])[:GAME_POOL]
+        # not enough agreed legs: every rated leg of the game from 50% up, so each game gets its ticket
+        best = best_ticket(strict) or best_ticket(wide)
+        for n_ in GAME_SIZES:  # replay only: the same ticket at other sizes
+            b_ = best_ticket(strict, n_) or best_ticket(wide, n_)
+            if b_:
+                pk_ = package(f"{game['away']} at {game['home']}", "", list(b_[1]), sims, games)
+                pk_["game"] = gid
+                out.setdefault("game_tickets_n", {}).setdefault(n_, []).append(restate(pk_))
         if not best:
             continue
         pk = package(f"{game['away']} at {game['home']}", "This game's five legs most likely to land together, "
@@ -873,6 +899,7 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None,
         out["game_tickets"].append(pk)
     for pr in out["parlays"] + out["game_tickets"]:
         restate(pr)
+        calibrate_ticket(pr)
     out["game_tickets"].sort(key=lambda t: -t["p"])
     return out, cands
 
@@ -1181,7 +1208,7 @@ def late_check(parlays, cands, players_now, started):
                     and c.get("p", 0) >= min(l.get("p", 0), 0.9) - 0.02]
             pool = [c for c in pool if not (c.get("kind") == "prop" and (players_now.get(str(c.get("player"))) or {}).get("status"))]
             if pool:
-                b = max(pool, key=lambda c: (c.get("edge") or 0) + c.get("p", 0))
+                b = max(pool, key=lambda c: (c.get("edge") or 0) * (EDGE_W > 0) + c.get("p", 0))
                 used.add(b["id"])
                 l["swap"] = {k_: b.get(k_) for k_ in ("id", "desc", "matchup", "p", "price", "min_odds", "game", "tip")}
     return parlays

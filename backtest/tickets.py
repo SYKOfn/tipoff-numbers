@@ -54,6 +54,8 @@ def main(season, d0=None, d1=None, rules=("base",)):
     # live p_play and injury status. LOCK_STATUS=0 computes the same but only records it in the leg details.
     if os.environ.get("MIN_SCALE_HI"):  # most the pre-game list's minutes are scaled up (live 1.15)
         PE.SCALE_HI = float(os.environ["MIN_SCALE_HI"])
+    if os.environ.get("TICKET_CAL"):  # "a,b": honest ticket chance, sigmoid(a + b logit p) (parlay.TICKET_CAL; display only)
+        parlay.TICKET_CAL = tuple(map(float, os.environ["TICKET_CAL"].split(",")))
     lock_mode = os.environ.get("LOCK_STATUS")
     lock = None
     if lock_mode:
@@ -116,7 +118,7 @@ def main(season, d0=None, d1=None, rules=("base",)):
     if os.environ.get("ALT_BLEND"):
         import pickle, math
         wa, wb, wc = map(float, os.environ["ALT_BLEND"].split(","))
-        AR = pickle.load(open(os.environ.get("ALT_ROWS", "/tmp/alt_rows.pkl"), "rb"))
+        AR = pickle.load(open(os.environ.get("ALT_ROWS", os.path.expanduser("~/.cache/tipoff_alt/alt_rows_2025.pkl")), "rb"))
         imp = {(r.gid, r.pid, r.stat, float(r.line)): r.imp for r in AR.itertuples()}
         lgt = lambda q: math.log(min(max(q, 1e-4), 1 - 1e-4) / (1 - min(max(q, 1e-4), 1 - 1e-4)))
         def adjust(l):
@@ -137,6 +139,47 @@ def main(season, d0=None, d1=None, rules=("base",)):
                         l["p"] = b
         parlay.LEG_ADJUST = adjust
         print(f"milestone blend on: {len(imp)} book prices", flush=True)
+    # LADDER_MAIN=close|open: price the Ladder only (tickets and singles untouched) with the books' main player lines
+    # (data/props/espn_{season}.csv), as live's ladder_odds tier "book line with a market chance": a leg at the main
+    # line gets the no-margin chance; when that line is not one of Winamax's, the lines one below / one above get the
+    # chance carried from it, and the leg's chance becomes live's real-line blend of projection and market
+    # (parlay.prop_legs: MARKET_W, the stat's temperature fitted monthly on earlier games; outside 0.5-PROP_MAX live
+    # makes no book leg, so the leg stays unpriced). For 2022-24, where ESPN's books (DraftKings, MGM, Caesars) posted
+    # main lines only and no X+ rungs.
+    if os.environ.get("LADDER_MAIN"):
+        import csv as _csv2
+        mf = os.path.join("data", "props", f"espn_{season}.csv")
+        main_l = {(r["game_id"], r["player_id"], r["stat"]): r for r in _csv2.DictReader(open(mf)) if r["phase"] == os.environ["LADDER_MAIN"]}
+        _pick = parlay.ladder_pick
+        lcal = {}
+
+        def ladder_cal(day):  # live's prop temperature per stat, fitted on the player-games before this month
+            m = day[:7]
+            if m not in lcal:
+                past = {k: v for k, v in plogs.items() if day_of.get(k[0], "9") < m + "-01"}
+                lcal[m] = parlay.fit_prop_calibration(past, byg, pdisp, pt.dsp_log) if past else {}
+            return lcal[m]
+
+        def ladder_main(cands, games, gctx):
+            out_c = []
+            for l in cands:
+                r = main_l.get((str(l.get("game")), str(l.get("player")), l.get("stat"))) if l.get("kind") == "prop" else None
+                if r and not l.get("book") and l.get("alt_book") is None and l.get("line") is not None:
+                    st, L, L0 = l["stat"], float(l["line"]), float(r["line"])
+                    pm = parlay.novig(r["over"], r["under"])
+                    lines = [L0] if L0 in P.ladder(st) else P.near_lines(st, L0, 1, 1)
+                    if pm and L in lines and l.get("proj") is not None:
+                        dp = {st: (l.get("dist") or {}).get("d", 1.5)}
+                        mk = pm if L == L0 else P.over_prob(st, L, P.mu_for_over(st, L0, pm, dp), dp)
+                        t = (ladder_cal(day_of.get(l["game"]) or day_of.get(str(l["game"])) or "9").get(st) or {}).get("t", 0.75)
+                        po = P.over_prob(st, L, l["proj"], dp)
+                        pc = parlay.sigmoid(parlay.MARKET_W["w"] * t * parlay.logit(po) + (1 - parlay.MARKET_W["w"]) * parlay.logit(mk))
+                        if 0.5 <= pc <= parlay.PROP_MAX:
+                            l = {**l, "p": round(pc, 4), "p_agreed": l["p"], "book": r["book"] + " main line", "market": round(mk, 3)}
+                out_c.append(l)
+            return _pick(out_c, games, gctx)
+        parlay.ladder_pick = ladder_main
+        print(f"ladder main-line prices on: {len(main_l)} lines ({mf})", flush=True)
 
     def calib_for(day):
         if not real_mode:
