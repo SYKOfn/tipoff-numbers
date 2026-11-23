@@ -928,7 +928,11 @@ def ladder_why(l, odds, g):
         out += [x for x in (g or {}).get("why", [])[:2]]
     if l.get("note") and l["kind"] != "prop":
         out.append(l["note"][0].upper() + l["note"][1:] + ("" if l["note"].endswith(".") else "."))
-    out.append(f"The model gives it {round(l['p'] * 100)}%; at {odds:.2f} it is worth taking from {1.05 / l['p']:.2f} (fair {1 / l['p']:.2f}).")
+    p_ = l.get("p_books") or l["p"]
+    out.append(f"The model gives it {round(p_ * 100)}% (fair odds {1 / p_:.2f}); " + (
+        f"at {odds:.2f} that is value: worth taking from {1.05 / p_:.2f}." if odds * p_ >= 1.05 else
+        f"at {odds:.2f} the edge is thin: it needs {1.05 / p_:.2f} to clear the 5% margin." if odds * p_ >= 1.0 else
+        f"at {odds:.2f} Winamax pays less than it is worth: no edge."))
     return " ".join(x for x in out if x)
 
 
@@ -936,8 +940,9 @@ def ladder_pick(cands, games, gctx):
     """The day's single bet, always one when there are games (Pepe, Nov 2026). In order of preference:
       1. a match winner at Winamax's real price of 2.00-2.10 that the model rates 5%+ above break-even;
       2. a bet with a market-set price of 2.00-2.10 (a bookmaker's real line) rated 5%+ above break-even;
-      3. the bet at 2.00-2.10 the model rates most likely, even without that margin ("no edge today");
-      4. the market-priced bet closest to 2.05, then the most likely ("closest to 2.0 today").
+      3. the best-value bet at 2.00-2.10 (chance x odds), even without that margin ("no edge today");
+      4. the best-value bet priced 1.80-2.40 (Nov 2026: "closest to 2.05" picked Portland at 1.98 with a 44.5%
+         chance, worth 2.25: about -12% a bet; value, not closeness, decides).
     Within a step: a real Winamax price first, then the higher chance."""
     priced, loose = [], []
     for l in cands:
@@ -957,15 +962,20 @@ def ladder_pick(cands, games, gctx):
     inwin = lambda x: LADDER_ODDS[0] <= x[1] <= LADDER_ODDS[1]
     worth = lambda x: x[0]["p"] * x[1] >= LADDER_SAFETY
     key = lambda x: (x[2], round(x[0]["p"], 2), x[0]["p"] * x[1])
-    tiers = [(1, [x for x in pool if x[2] and inwin(x) and worth(x)]), (2, [x for x in pool if inwin(x) and worth(x)]),
-             (3, [x for x in pool if inwin(x)])]
-    tier, best = next(((t, max(c, key=key)) for t, c in tiers if c), (4, None))
+    value = lambda x: (x[0].get("p_books") or x[0]["p"]) * x[1]
+    tiers = [(1, [x for x in pool if x[2] and inwin(x) and worth(x)]), (2, [x for x in pool if inwin(x) and worth(x)])]
+    tier, best = next(((t, max(c, key=key)) for t, c in tiers if c), (None, None))
     if best is None:
-        best = min(pool, key=lambda x: (abs(x[1] - 2.05), -x[0]["p"]))
+        near = [x for x in pool if inwin(x)]
+        tier, near = (3, near) if near else (4, [x for x in pool if 1.80 <= x[1] <= 2.40] or pool)
+        best = max(near, key=lambda x: (value(x), x[2]))
     l, o, real = best
+    ev_ = value(best) - 1
+    edge = (f"the model rates it {round(100 * ev_):+d}% in value" if ev_ >= 0 else
+            f"no edge today: Winamax pays less than it is worth (about {round(-100 * ev_)}% against you on average)")
     note = {1: None, 2: None,
-            3: "No bet at 2.00-2.10 clears the 5% safety margin today: this is the most likely one, with little or no edge.",
-            4: f"Nothing is priced 2.00-2.10 today: this is the closest, at {o:.2f}."}[tier]
+            3: f"No bet at 2.00-2.10 clears the 5% safety margin today: this is the best value of them; {edge}.",
+            4: f"Nothing is priced 2.00-2.10 today: this is the best value near 2.0, at {o:.2f}; {edge}."}[tier]
     if not priced:
         note = (note + " " if note else "") + "No market price was available, so the odds are only an estimate."
     leg = {k: v for k, v in l.items() if not k.startswith("_") and k != "sim"}

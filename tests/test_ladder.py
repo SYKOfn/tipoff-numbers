@@ -39,14 +39,14 @@ def test_pick_falls_back_to_the_most_likely_estimated_bet():
     cands = [_leg("a", "prop", 0.55, price=2.02), _leg("b", "prop", 0.58, price=2.08), _leg("c", "prop", 0.62, price=1.70)]
     lp = parlay.ladder_pick(cands, {}, {})
     assert lp["leg"]["id"] == "b" and not lp["odds_real"]
-    alone = parlay.ladder_pick([_leg("c", "prop", 0.62, price=1.70)], {}, {})        # nothing at 2.00-2.10: the closest
-    assert alone["tier"] == 4 and "closest" in alone["note"]
+    alone = parlay.ladder_pick([_leg("c", "prop", 0.62, price=1.70)], {}, {})        # nothing at 2.00-2.10: best value near
+    assert alone["tier"] == 4 and "best value" in alone["note"]
 
 
 def test_market_prices_beat_season_average_estimates_and_there_is_always_a_bet():
     cands = [_leg("est", "prop", 0.70, price=2.05, book=None), _leg("mkt", "prop", 0.49, price=2.06)]
     lp = parlay.ladder_pick(cands, {}, {})
-    assert lp["leg"]["id"] == "mkt" and lp["tier"] == 3 and "little or no edge" in lp["note"]
+    assert lp["leg"]["id"] == "mkt" and lp["tier"] == 3 and "safety margin" in lp["note"]
     only_est = parlay.ladder_pick([_leg("est", "prop", 0.70, price=2.05, book=None)], {}, {})
     assert only_est["leg"]["id"] == "est" and "only an estimate" in only_est["note"]
     assert parlay.ladder_pick([], {}, {}) is None                                     # no games, no bet
@@ -65,3 +65,13 @@ def test_winning_level_ten_completes_the_ladder():
     assert len(s["trophies"]) == 1 and s["trophies"][0]["from"] == "d01" and s["trophies"][0]["to"] == "d10"
     assert s["trophies"][0]["bank"] == round(10 * 2.0 ** 10, 2)
     assert s["level"] == 2 and s["bank"] == 20.0          # a new ladder: d11 won its level 1
+
+
+
+def test_fallback_picks_value_not_the_closest_odds():
+    # nothing in 2.00-2.10; Portland-like 44.5% at 1.98 (-12%) must lose to 52% at 2.25 (+17%)
+    cands = [_leg("por", "ml", 0.445, wmx=1.98, real=True), _leg("val", "prop", 0.52, price=2.25)]
+    lp = parlay.ladder_pick(cands, {}, {})
+    assert lp["leg"]["id"] == "val" and lp["tier"] == 4 and "+17%" in lp["note"]
+    lp2 = parlay.ladder_pick([_leg("por", "ml", 0.445, wmx=1.98, real=True)], {}, {})
+    assert "no edge today" in lp2["note"] and "no edge" in lp2["why"]

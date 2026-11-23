@@ -118,12 +118,12 @@
  "ladder": {
   "season": "2024-25 replay",
   "bets": 158,
-  "won": 84,
-  "expected": 83.5,
-  "best": 11,
+  "won": 82,
+  "expected": 83.1,
+  "best": 8,
   "restarts": 35,
-  "profit": 9.2,
+  "profit": 8.1,
   "note": "158 nights, one bet each, priced from the books' real X+ rung prices (ESPN BET closing lines, margin removed) and turned into the odds Winamax is expected to pay.",
-  "verdict": "The bets landed 84 of 158 (53%) against 83.5 stated: honest chances, +9.2 units at 1 unit a night, best climb 11 levels. Priced from the exact rung, twice as many picks fell inside 2.00-2.10 as when the price was carried from the main line (which was about break-even, -4.0)."
+  "verdict": "The bets landed 82 of 158 (52%) against 83.1 stated: honest chances, +8.1 units at 1 unit a night, best climb 8 levels. On nights with nothing at 2.00-2.10 it takes the best-value bet near 2.0, never just the closest odds."
  }
 }
