@@ -115,6 +115,10 @@
   [
    "Ticket chance calibration at the 1.05 minutes cap",
    "with the 1.05 cap tickets already land as stated (3,325 vs 3,314 over 9 seasons; 1,414 vs 1,397.5 on the held-out seasons) and no calibration lowers the log loss; kept only as a switch, off"
+  ],
+  [
+   "Ladder: more weight on the bookmaker's main line (MARKET_W 0.05 and 0.0 vs 0.5)",
+   "2022-24 priced at real main lines: units -15.0/-13.2 at 0.5, -11.5/-7.4 at 0.05, -14.5/-9.6 at 0.0, but only because the Ladder stops betting 2.00-2.10 (most picks below 1.80); no proven Ladder edge at real main-line prices"
   ]
  ],
  "kept": [
@@ -141,6 +145,10 @@
   [
    "Ticket size 3/4/5 legs and pure-chance cross-game tickets (measurement, owner's choice, not live)",
    "9 leak-free seasons: game tickets land 56.2% (3 legs, stated 57.9%), 44.8% (4, 46.8%), 35.5% (5, 37.1%); cross-game tickets with EDGE_W 0: 2,024 vs 2,034 landed (stated 2,167), flips +52/-62, p = 0.40, no measurable cost"
+  ],
+  [
+   "Live settings together: minutes cap 1.05, 3-leg game tickets, chance-only picking",
+   "9 leak-free seasons: game tickets 5,205/8,893 landed vs 5,162 stated (5,002 at 1.15, flips +887/-684); cross-game Value 2/Core 3/daily 6 1,813 vs 1,857 stated (within noise)"
   ]
  ],
  "ladder": {
