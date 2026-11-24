@@ -7,7 +7,7 @@ import argparse
 import math
 import os
 import shutil
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta, timezone
 
 import numpy as np
@@ -791,6 +791,12 @@ def main(demo=False, now=None, collect_data=True):
                     # tickets are accumulators: a void leg counts at 1.00 and the rest settle.
                     if id(pr) in gt_ids and len(live_legs) < len(pr["legs"]):
                         pr["result"] = "void"
+                    # Winamax rules: legs from one game inside an accumulator form a MyMatch, and an accumulator
+                    # using a MyMatch is cancelled in full as soon as one of that MyMatch's legs is cancelled.
+                    elif id(pr) not in gt_ids:
+                        gm = Counter(l["game"] for l in pr["legs"])
+                        if any(l["result"] == "void" and gm[l["game"]] > 1 for l in pr["legs"]):
+                            pr["result"] = "void"
                 for l in pj.get("singles", []) + pj.get("board", []):
                     if l["game"] in fin_rows:
                         sc(l)
