@@ -26,6 +26,8 @@ the model it overrules. This is the honest test of the desk; no replay can measu
    3. the highest chance after the news. Keep the model's pick unless there is a sourced reason to change it. A hunch is
       not a reason;
    4. tie-break: better value (p x odds), then a real Winamax price.
+   5. only bets Winamax offers in that exact form. Winamax handicaps are "Team wins by at least X: Yes/No" with no push,
+      so a whole-number spread such as "ORL +2.0" cannot be placed as stated; prefer another option.
 4. Skeptic check, in two sentences: the strongest concrete case against the chosen bet. If it holds, take the next option.
 5. Write `data/overrides/ladder.json`:
    `{"day": "<day>", "id": "<option id>", "desc": "...", "reason": "<one or two plain sentences for the owner: why this
