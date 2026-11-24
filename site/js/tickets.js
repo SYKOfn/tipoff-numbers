@@ -335,7 +335,7 @@ async function parlayPage() {
   <div class="wrap">${demoBanner()}
     <nav class="segs" aria-label="Tickets page sections">${[["tickets", "Game tickets", "Tickets"], ["singles", "Singles", "Singles"], ["value", "Value", "Value"], ["build", "Build your own", "Build"], ["record", "Record & method", "Method"]].map(([k, v, sh]) => `<button type="button" data-seg="${k}" aria-label="${v}"><span class="seg-l">${v}</span><span class="seg-s" aria-hidden="true">${sh}</span></button>`).join("")}</nav>
     <p class="note small" data-pane="tickets">Tickets are chosen and shown by chance of landing only: every leg is the most likely to land, and fair odds are simply 1 ÷ chance. Statistical estimates, not advice; 18+.</p>
-    <section class="section" data-pane="tickets"><h2>One ticket per game <span class="sub">the main picks: each game's five legs most likely to land together</span></h2>
+    <section class="section" data-pane="tickets"><h2>One ticket per game <span class="sub">the main picks: each game's three legs most likely to land together</span></h2>
       <p class="sub small">Each game is simulated 20,000 times, so legs that win and lose together are counted together. Bookmakers pay well below fair odds on combined bets, so a ticket is a prediction, not a profitable bet.</p>
       ${t && t.game_tickets && t.game_tickets.length ? `<div class="slips">${t.game_tickets.map(gameTicket).join("")}</div>` : t && t.locked === false ? `<p class="sub">Chosen at ${tip(t.lock_at)}, with the singles.</p>` : `<p class="sub">No game ticket today.</p>`}</section>
     <section class="section" data-pane="singles"><h2>Tonight's singles <span class="sub">each bet on its own, Winamax's margin paid once</span></h2>

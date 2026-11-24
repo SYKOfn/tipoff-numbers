@@ -101,7 +101,7 @@ def team_minutes_scale(total, lo=0.85, hi=1.15):
 # plays (players back from an absence, Probable, Questionable), so the scale sat at its 1.15 limit for 35% of teams
 # and players who played were projected +1.4 min too high (2020-24, leak-free lists). Research switch:
 # backtest/tickets.py MIN_SCALE_HI; 1.02 fitted on 2020-24 (minutes RMSE 6.55 -> 6.31). Live default unchanged.
-SCALE_HI = 1.15
+SCALE_HI = 1.05  # Nov 2026: was 1.15; leak-free 9-season replay, pre-registered rule, skeptic: ship (starters' minutes ran ~2 min high)
 
 
 # Replay research (backtest/tickets.py, LOCK_STATUS=1): for the replayed season, who is in a projection comes from the

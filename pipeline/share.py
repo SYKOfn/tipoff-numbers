@@ -1,5 +1,5 @@
 """Share previews: one small page and one 1200x630 picture per game ticket, so a ticket forwarded on WhatsApp,
-Telegram or X shows up as the slip itself (title, chance, the five legs, the odds to place it at) instead of a
+Telegram or X shows up as the slip itself (title, chance, the legs, the odds to place it at) instead of a
 bare link. Pages live at site/t/<day>-<game>.html and send a visitor straight on to the site's Tickets page.
 
 Written each run for the day's game tickets; a picture is redrawn only when its ticket changed (a result came

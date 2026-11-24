@@ -25,10 +25,10 @@ MARKET_W = {"w": 0.5, "measured": False}  # model weight against a posted player
 P_MIN, P_MAX = 0.55, 0.86
 PROP_MAX = 0.80          # alternate prop lines beyond this are priced too short to carry value
 PROP_SIDES = ("over",)   # Winamax lists player markets as "over" only (X+ points etc.): no player unders
-EDGE_W = 3.0             # how much a measured price edge is worth against chance when ranking tickets
+EDGE_W = 0.0             # how much a measured price edge is worth against chance when ranking tickets
 # (EDGE_W is used by the leg board's order, the cross-game tickets' tie-break between legs of equal chance and the
 # late swap's choice of replacement leg. EDGE_W = 0: nothing is ever ranked by a bookmaker price, chance only.)
-EST_EDGE_W, EST_EDGE_CAP = 1.0, 0.12   # edges against an estimated line count less, and are capped
+EST_EDGE_W, EST_EDGE_CAP = 0.0, 0.12   # edges against an estimated line count less, and are capped
 WINAMAX_PAYOUT = 0.5      # Winamax's combined odds pay about half the fair winnings (Pepe's experience, Nov 2026)
 SAFETY = 1.05            # ask 5% more than fair odds before calling a leg worth taking
 # player legs without a posted line: the projection blended with the season average, then a confidence per stat.
@@ -610,7 +610,7 @@ def search(cands, k, sims, games, max_per_game=2, min_games=None, beam=60, max_p
     return states[0][0] if states else None
 
 
-GAME_LEGS, GAME_POOL, GAME_P = 5, 24, 0.60
+GAME_LEGS, GAME_POOL, GAME_P = 3, 24, 0.60  # owner's choice Nov 2026: 3 legs land ~56% (9 seasons), 5 legs ~35%
 GAME_SIZES = ()  # replay-only (backtest/tickets_x.py): also build each game's best ticket of these sizes; () live
 
 
@@ -855,7 +855,7 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None,
         per_g[l["game"]] += 1
     out["singles"] = [{k: v for k, v in l.items() if not k.startswith("_") and k != "sim"} for l in singles]
     out["ladder"] = ladder_pick(cands, games, gctx)
-    # One ticket per game (Pepe, Nov 2026): the game's 5 legs most likely to land together, priced on the game's
+    # One ticket per game (Pepe, Nov 2026): the game's legs most likely to land together, priced on the game's
     # 20,000 simulated versions (minutes, blowouts, overtime, teammates sharing points), so legs that win and lose
     # together are counted as such. They may repeat bets from the singles and the other tickets (Pepe, Nov 2026).
     out["game_tickets"] = []
@@ -892,7 +892,7 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None,
                 out.setdefault("game_tickets_n", {}).setdefault(n_, []).append(restate(pk_))
         if not best:
             continue
-        pk = package(f"{game['away']} at {game['home']}", "This game's five legs most likely to land together, "
+        pk = package(f"{game['away']} at {game['home']}", f"This game's {GAME_LEGS} legs most likely to land together, "
                      "priced on 20,000 simulated versions of the game.", list(best[1]), sims, games)
         pk["game"] = gid
         pk["scenarios"] = scenarios(best[1], sims[gid], pk["p"])
