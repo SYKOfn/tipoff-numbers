@@ -1,12 +1,12 @@
 {
   "_about": "Written each morning by the analyst task. Facts about tonight's players stated by a reputable source, nothing else: rest (sits tonight), min_cap (minutes limit), start / bench (lineup change), returning (back from an absence). Each entry applies only to games on its 'day' (US date). See pipeline/news.py.",
   "players": {
-    "Brandon Ingram": {
-      "day": "2026-11-23",
-      "team": "LAC",
+    "Julian Strawther": {
+      "day": "2026-11-24",
+      "team": "DEN",
       "returning": true,
-      "quote": "Expected to make his season debut vs Rockets after heel/Achilles injury, per Shams Charania report.",
-      "source": "https://clutchpoints.com/nba/los-angeles-clippers/clippers-news-brandon-ingram-la-debut-rockets-kawhi-leonard-trade-injury-report"
+      "quote": "Off the injury report vs Dallas and set to return after missing the whole season so far.",
+      "source": "https://nugglove.com/julian-strawthers-return-puts-tyus-jones-on-thin-ice-nuggets-rotation"
     }
   }
 }
