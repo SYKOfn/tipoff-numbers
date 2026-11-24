@@ -88,6 +88,8 @@ def main(season, d0=None, d1=None, rules=("base",)):
         from backtest import espn_props
         real = espn_props.load(season, real_mode)
         print(f"real prop lines ({real_mode}): {len(real)}", flush=True)
+    if os.environ.get("LADDER_CONV"):  # b|c: the Ladder by conviction level (parlay.LADDER_CONV, research/backlog.md item 9)
+        parlay.LADDER_CONV = os.environ["LADDER_CONV"]
     if os.environ.get("MARKET_W"):
         parlay.MARKET_W["w"] = float(os.environ["MARKET_W"])
     if os.environ.get("ML_MKT_W"):  # market weight when a winner leg meets the book's price (live 0.5)
@@ -233,7 +235,7 @@ def main(season, d0=None, d1=None, rules=("base",)):
             for side in ("home", "away"):
                 rows = []
                 if on_l:  # everyone expected at the lock; those who then sit have their legs voided, as on Winamax
-                    side_rows[side] = [{"id": r_["id"], "name": r_["name"], "out": False, "p_play": r_["p_play"], "status": r_["status"],
+                    side_rows[side] = [{"id": r_["id"], "name": r_["name"], "out": False, "p_play": r_["p_play"], "status": r_["status"], "back3": r_.get("back3"),
                                         "disp": {k: round(v, 3) for k, v in P.player_disp({"dsp": r_["dsp"]}, pdisp).items()}, **r_["proj"]}
                                        for r_ in lrows[(gid, side)]]
                     continue
@@ -247,6 +249,8 @@ def main(season, d0=None, d1=None, rules=("base",)):
                 side_rows[side] = rows
             pay = {"id": gid, "home": {"abbr": g["home"]}, "away": {"abbr": g["away"]}, "tip": g["date"], "est": est,
                    "players": side_rows, "gauge": {}}
+            if on_l:
+                pay["starters_q"] = {g[sd]: getattr(pt, "lock_sq", {}).get((gid, sd)) for sd in ("home", "away")}
             slate.append(({"odds": godds}, pay))
         if not slate:
             continue

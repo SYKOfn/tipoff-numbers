@@ -119,6 +119,10 @@
   [
    "Ladder: more weight on the bookmaker's main line (MARKET_W 0.05 and 0.0 vs 0.5)",
    "2022-24 priced at real main lines: units -15.0/-13.2 at 0.5, -11.5/-7.4 at 0.05, -14.5/-9.6 at 0.0, but only because the Ladder stops betting 2.00-2.10 (most picks below 1.80); no proven Ladder edge at real main-line prices"
+  ],
+  [
+   "Conviction levels Low/Medium/High (Ladder and 3-leg game tickets, pre-registered)",
+   "tickets 2023-27: High 84/79.0 stated (1.06) but z vs Low 0.94 (<2) and ordered in 2 of 4 seasons; Ladder (b) -24.0 vs -23.3 units, beats (a) 1 of 3 seasons; (c) no High day ever in the replay (L3 impossible without real Winamax prices)"
   ]
  ],
  "kept": [

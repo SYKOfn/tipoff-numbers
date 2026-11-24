@@ -138,7 +138,8 @@ def lock_side(pt, team, opp, is_home, b2b, missing, notes, sts, exp_margin=None)
             continue
         seen = (sum(pid in s_ for s_ in recent) / len(recent)) if recent else 1.0
         lst.append({"id": pid, "name": pt.p[pid]["name"], "proj": proj, "status": s if s in LOCK_LISTED else None,
-                    "p_play": round(max(0.05, seen) * LOCK_PLAY.get(s, 1.0), 3), "raw_min": proj["min"], "seen": seen})
+                    "p_play": round(max(0.05, seen) * LOCK_PLAY.get(s, 1.0), 3), "raw_min": proj["min"], "seen": seen,
+                    "back3": pt.first3_back(pid, team)})
     k = team_minutes_scale(sum(r["proj"]["min"] * r["p_play"] for r in lst), hi=SCALE_HI)
     for r, kp in zip(lst, capped_factors([r["proj"]["min"] for r in lst], k)):
         r["proj"] = {kk: v * kp for kk, v in r["proj"].items()}
@@ -149,6 +150,7 @@ def walk(c, players_df, notes, cur, use_mm=True, ev=None, opp_mode="team", norm=
     """ev: optional dict filled with out-of-sample errors per season and stat (for model tests)."""
     pt = P.PlayerTracker()
     pt.lock_rows = {}
+    pt.lock_sq = {}
     pt.use_mm = use_mm
     pt.opp_mode = opp_mode
     pt.pbp = rotation_pbp(getattr(c, "stints", None)) if P.ROT_PBP else {}
@@ -180,6 +182,9 @@ def walk(c, players_df, notes, cur, use_mm=True, ev=None, opp_mode="team", norm=
                     r_["proj"] = {k: round(v, 1) for k, v in r_["proj"].items() if k in ("min", "pts", "reb", "ast", "tpm", "pra")}
                     r_["dsp"] = dict(pt.p[r_["id"]].get("dsp") or {})  # his own spread before the game
                 pt.lock_rows[(gid, side)] = lst
+                # starters (started their last game) of the rotation Questionable or worse at the lock: conviction L4
+                pt.lock_sq[(gid, side)] = sum(1 for pid in pt.rotation(team) if pt.p[pid].get("started")
+                                              and e["st"].get(pid) in ("Questionable", "Doubtful", "Out"))
         for team, opp, side in ((g["home"], g["away"], "home"), (g["away"], g["home"], "away")):
             trs = rows.get(team, [])
             played = {r["player_id"] for r in trs if r["min"] > 0}

@@ -226,6 +226,14 @@ class PlayerTracker:
             return None
         return 1.0 + 0.5 * ((a[0] / a[1]) / (l[0] / l[1]) - 1.0)
 
+    def first3_back(self, pid, team):
+        """Is tonight among his first 3 games back after missing 3+ team games? (conviction test L4; label only)"""
+        q = self.p.get(pid)
+        if q is None:
+            return None
+        gap0 = self.team_games[team] - q["last_team_game"].get(team, self.team_games[team])
+        return bool(gap0 >= 3 or q.get("b3", 0) > 0)
+
     def rotation(self, team):
         """Players currently on the team with recent minutes."""
         out = {}
@@ -377,6 +385,7 @@ class PlayerTracker:
                     q["back_left"] = BACK_GAMES - 1
                 elif q["back_left"] > 0:
                     q["back_left"] -= 1
+                q["b3"] = 2 if gap >= 3 else max(q.get("b3", 0) - 1, 0)  # conviction L4: games back after missing 3+
                 q["last_team_game"][team] = self.team_games[team]
                 q["gp"] += 1
                 ew_add(q["ew_min"], "m", mn, MIN_HL)

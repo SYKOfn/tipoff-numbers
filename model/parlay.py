@@ -728,7 +728,13 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None,
         else:
             legs = team_legs(game, est, g.get("odds"), gap) + prop_legs(game, players, calib, avg or {}, disp, real_props, m_home=est.get("margin"))
         games[game["id"]] = game
-        gctx[game["id"]] = {"est": est, "why": list(pay.get("reasoning") or [])[:2]}
+        gctx[game["id"]] = {"est": est, "why": list(pay.get("reasoning") or [])[:2],
+                            # for the Ladder's conviction label (L4): players at the lock, starters Questionable or worse
+                            "players": {str(r.get("id")): r for side in ("home", "away") for r in players.get(side) or []},
+                            "starters_q": pay.get("starters_q") or {
+                                game[side]: sum(1 for r in players.get(side) or [] if r.get("started") and
+                                                (r.get("out") or r.get("status") in ("Questionable", "Doubtful", "Out")))
+                                for side in ("home", "away")}}
         books_of[game["id"]] = g.get("odds_books") or {}
         sims[game["id"]] = simulate(game, est, players, disp, rng)
         for l in legs:
@@ -964,6 +970,34 @@ def ladder_why(l, odds, g):
     return " ".join(x for x in out if x)
 
 
+# Conviction (research/backlog.md item 9, pre-registered 2026-11-24): a label next to the stated chance, never a new
+# chance. L1 real price, L2 p x odds >= 1.05, L3 the market's no-margin chance x odds >= 1.00, L4 minutes certain.
+# High = all four; Medium = L1, L4 and one of L2/L3; Low = the rest. LADDER_CONV (research switch, None live):
+# "b" always a bet, highest conviction first, then the live order; "c" High only, no bet on days without one.
+LADDER_CONV = None
+CONV_RANK = {"High": 2, "Medium": 1, "Low": 0}
+
+
+def ladder_conv(l, o, gctx):
+    """(label, tests) for one Ladder candidate at Winamax odds o. A test that cannot be checked counts as failed."""
+    g = (gctx or {}).get(l.get("game")) or {}
+    t1 = bool(l.get("wmx_real") or l.get("book") or l.get("alt_book") is not None)
+    t2 = l["p"] * o >= LADDER_SAFETY
+    k = l.get("kind")
+    pm = alt_fair(float(l["alt_book"])) if l.get("alt_book") is not None else l.get("market") if k in ("ml", "prop") else None
+    t3 = pm is not None and pm * o >= 1.0
+    if k == "prop":
+        r = (g.get("players") or {}).get(str(l.get("player"))) or {}
+        t4 = bool(r) and r.get("status") in (None, "Probable", "Available") and not r.get("out") \
+            and (r.get("min") or 0) >= 24 and r.get("back3") is False
+    elif k == "ml":
+        t4 = (g.get("starters_q") or {}).get(l.get("team")) == 0
+    else:
+        t4 = False  # L4 is defined for player props and match winners only
+    lab = "High" if t1 and t2 and t3 and t4 else "Medium" if t1 and t4 and (t2 or t3) else "Low"
+    return lab, {"L1": t1, "L2": bool(t2), "L3": bool(t3), "L4": bool(t4)}
+
+
 def ladder_pick(cands, games, gctx):
     """The day's single bet, always one when there are games (Pepe, Nov 2026). In order of preference:
       1. a match winner at Winamax's real price of 2.00-2.10 that the model rates 5%+ above break-even;
@@ -987,6 +1021,15 @@ def ladder_pick(cands, games, gctx):
     pool = priced or loose
     if not pool:
         return None
+    conv = {id(x[0]): ladder_conv(x[0], x[1], gctx) for x in pool}
+    n_high = sum(v[0] == "High" for v in conv.values())
+    if LADDER_CONV == "b":    # research: highest conviction first, then the live order
+        top = max(CONV_RANK[v[0]] for v in conv.values())
+        pool = [x for x in pool if CONV_RANK[conv[id(x[0])][0]] == top]
+    elif LADDER_CONV == "c":  # research: High only, no bet without one
+        pool = [x for x in pool if conv[id(x[0])][0] == "High"]
+        if not pool:
+            return None
     inwin = lambda x: LADDER_ODDS[0] <= x[1] <= LADDER_ODDS[1]
     worth = lambda x: x[0]["p"] * x[1] >= LADDER_SAFETY
     key = lambda x: (x[2], round(x[0]["p"], 2), x[0]["p"] * x[1])
@@ -1010,7 +1053,8 @@ def ladder_pick(cands, games, gctx):
     p = l.get("p_books") or l["p"]  # stated at the calibrated blend when the books priced it (picked on the cautious one)
     return {"leg": leg, "odds": round(o, 2), "odds_real": real, "p": round(p, 4), "fair": round(1 / p, 2),
             "min_odds": round(LADDER_SAFETY / p, 2), "ev": round(p * o - 1, 4), "game": l["game"], "tip": l.get("tip"),
-            "tier": tier, "note": note, "why": ladder_why(l, o, gctx.get(l["game"])), "options": len(pool)}
+            "tier": tier, "note": note, "why": ladder_why(l, o, gctx.get(l["game"])), "options": len(pool),
+            "conviction": conv[id(l)][0], "conv_tests": conv[id(l)][1], "conv_high_options": n_high}
 
 
 def board(cands, n=60):
