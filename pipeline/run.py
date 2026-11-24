@@ -701,7 +701,10 @@ def main(demo=False, now=None, collect_data=True):
             full_menu = any((g.get("offers") or {}).get("offers") for g, _ in pre2)
             bet_book = oddsapi.env("ODDS_API_BET_BOOK", "winamax_fr") if (oddsapi.key() and full_menu) else None
             alt = oddsapi.alt_latest() if oddsapi.key() else {}  # the books' "X+" prices (ODDS_API_ALT=1)
-            built, cands = parlay.build(pre2, pdisp, calib, avg, real_props=real, book_only=bet_book, alt_props=alt)
+            team_ = read_json(OVR / "ladder.json", {}) or {}  # the Ladder desk's choice for today, if any
+            team_ = team_ if team_.get("day") == sday else None
+            built, cands = parlay.build(pre2, pdisp, calib, avg, real_props=real, book_only=bet_book, alt_props=alt,
+                                        team_pick=team_)
             from model import story
             story.annotate(built["parlays"], built.get("singles"), pre2)  # why each ticket, in plain words
             bl, lifts = parlay.board(cands)
@@ -736,6 +739,7 @@ def main(demo=False, now=None, collect_data=True):
             today_parlay["ladder_lock_at"] = ladder_lock_at.isoformat()
             if old and old.get("ladder_locked"):
                 today_parlay["ladder"], today_parlay["ladder_locked_at"] = old.get("ladder"), old.get("ladder_locked_at")
+                today_parlay["ladder_model"], today_parlay["ladder_options"] = old.get("ladder_model"), old.get("ladder_options")
                 today_parlay["ladder_locked"] = True
             elif now >= ladder_lock_at and today_parlay.get("ladder"):
                 today_parlay["ladder_locked"], today_parlay["ladder_locked_at"] = True, now.isoformat()
@@ -788,6 +792,9 @@ def main(demo=False, now=None, collect_data=True):
                 if pj.get("ladder"):  # the day's 2.00-2.10 single: landed, missed or void (he sat)
                     sc(pj["ladder"]["leg"])
                     pj["ladder"]["result"] = pj["ladder"]["leg"]["result"]
+                if pj.get("ladder_model") and pj["ladder_model"]["leg"]["game"] in fin_rows:  # the model's own pick
+                    sc(pj["ladder_model"]["leg"])
+                    pj["ladder_model"]["result"] = pj["ladder_model"]["leg"].get("result")
                 for v in pj.get("value", []):  # Winamax vs Pinnacle: result, and Pinnacle's closing view
                     gr = fin_rows.get(v["game"])
                     if gr is None:

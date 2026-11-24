@@ -617,6 +617,14 @@ function ladderRungs(level, goal, climb) {
   }
   return `<ol class="lrungs" aria-label="Ladder levels, level ${level} of ${goal}">${rows.join("")}</ol>`;
 }
+// The Ladder desk may overrule the model; its own pick stays visible and is scored, so the team is measured against it.
+function ladderModelLine(lp, today) {
+  const m = today && today.ladder_model;
+  if (!lp.team || !m || m.leg.id === lp.leg.id) return "";
+  const r = m.result ? ` · ${m.result === "hit" ? "landed" : m.result === "miss" ? "missed" : "void"}` : "";
+  return `<p class="lb-model">The model alone would have bet ${h(legDesc(m.leg))} at ${fx(m.odds, 2)} (${pct(m.p)})${r}.</p>`;
+}
+
 function ladderBet(lp, today, level) {
   if (!lp) return `<div class="panel lb-none"><h2>No games today</h2><p>The ladder waits at level ${level} for the next night with games.</p></div>`;
   const l = lp.leg, draft = today && today.ladder_locked === false, res = lp.result;
@@ -631,7 +639,7 @@ function ladderBet(lp, today, level) {
       <div class="slip-chance">${ring(lp.p, 74, "big")}<div><b>${pct(lp.p)}</b><span>chance</span></div></div>
       ${res ? `<span class="slip-stamp ${res === "hit" ? "up" : res === "miss" ? "down" : ""}">${res === "hit" ? "Landed" : res === "miss" ? "Missed" : "Void"}</span>` : ""}</header>
     <div class="perf" aria-hidden="true"></div>
-    <div class="lb-why">${lp.note ? `<p class="lb-note">${h(lp.note)}</p>` : ""}<p>${h(lp.why)}</p></div>
+    <div class="lb-why">${lp.team ? `<p class="lb-note"><b>The team's pick.</b> ${h(lp.team.reason || "")}</p>` : lp.note ? `<p class="lb-note">${h(lp.note)}</p>` : ""}<p>${h(lp.why)}</p>${ladderModelLine(lp, today)}</div>
     <div class="perf" aria-hidden="true"></div>
     <footer class="slip-foot"><div class="slip-figs"><div><span>Winamax odds</span><b>${fx(lp.odds, 2)}</b></div><div><span>Fair odds</span><b>${fx(lp.fair, 2)}</b></div><div class="go"><span>Worth it from</span><b>${fx(lp.min_odds, 2)}</b></div></div>${odds}</footer>
   </article>`;

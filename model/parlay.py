@@ -708,7 +708,7 @@ LEG_ADJUST = None  # replay-only hook (backtest/tickets.py): changes a candidate
 TICKET_FILTER = None  # replay-only hook (backtest/tickets.py) for testing ticket rules; None live, so live rules are unchanged
 
 
-def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None, alt_props=None):
+def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None, alt_props=None, team_pick=None):
     """slate: list of (game dict, payload). Returns the day's parlays and the full leg board."""
     rng = np.random.default_rng(seed)
     games, sims, cands, books_of = {}, {}, [], {}
@@ -861,6 +861,16 @@ def build(slate, disp, calib, avg=None, seed=5, real_props=None, book_only=None,
         per_g[l["game"]] += 1
     out["singles"] = [{k: v for k, v in l.items() if not k.startswith("_") and k != "sim"} for l in singles]
     out["ladder"] = ladder_pick(cands, games, gctx)
+    # The Ladder desk (owner, Nov 2026): the team studies the shortlist each day and may choose the bet. The model's
+    # own pick is kept as ladder_model and scored too, so the team is measured against the model it overrules.
+    out["ladder_model"] = out["ladder"]
+    out["ladder_options"] = ladder_options(cands, games, gctx)
+    if team_pick and team_pick.get("id"):
+        tp = ladder_pick(cands, games, gctx, only=team_pick["id"])
+        if tp:
+            tp["team"] = {k: team_pick.get(k) for k in ("reason", "voices", "chosen_at")}
+            tp["note"] = None
+            out["ladder"] = tp
     # One ticket per game (Pepe, Nov 2026): the game's legs most likely to land together, priced on the game's
     # 20,000 simulated versions (minutes, blowouts, overtime, teammates sharing points), so legs that win and lose
     # together are counted as such. They may repeat bets from the singles and the other tickets (Pepe, Nov 2026).
@@ -998,16 +1008,18 @@ def ladder_conv(l, o, gctx):
     return lab, {"L1": t1, "L2": bool(t2), "L3": bool(t3), "L4": bool(t4)}
 
 
-def ladder_pick(cands, games, gctx):
+def ladder_pick(cands, games, gctx, only=None):
     """The day's single bet, always one when there are games (Pepe, Nov 2026). In order of preference:
       1. a match winner at Winamax's real price of 2.00-2.10 that the model rates 5%+ above break-even;
       2. a bet with a market-set price of 2.00-2.10 (a bookmaker's real line) rated 5%+ above break-even;
       3. the best-value bet at 2.00-2.10 (chance x odds), even without that margin ("no edge today");
       4. the best-value bet priced 1.80-2.40 (Nov 2026: "closest to 2.05" picked Portland at 1.98 with a 44.5%
          chance, worth 2.25: about -12% a bet; value, not closeness, decides).
-    Within a step: a real Winamax price first, then the higher chance."""
+    Within a step: a real Winamax price first, then the higher chance.
+    only: a leg id the Ladder desk (the research team, data/overrides/ladder.json) chose; the pick is built for that
+    leg alone, or None when it is not among today's priced options."""
     priced, loose = [], []
-    for l in cands:
+    for l in (cands if only is None else [l for l in cands if l.get("id") == only]):
         if l.get("mind_flag") == "against" or not 0.30 <= l.get("p", 0) <= 0.80:
             continue
         o, real = ladder_odds(l)
@@ -1055,6 +1067,26 @@ def ladder_pick(cands, games, gctx):
             "min_odds": round(LADDER_SAFETY / p, 2), "ev": round(p * o - 1, 4), "game": l["game"], "tip": l.get("tip"),
             "tier": tier, "note": note, "why": ladder_why(l, o, gctx.get(l["game"])), "options": len(pool),
             "conviction": conv[id(l)][0], "conv_tests": conv[id(l)][1], "conv_high_options": n_high}
+
+
+def ladder_options(cands, games, gctx, n=10):
+    """The Ladder desk's shortlist: every priced option at 1.80-2.40, best value first, with its conviction tests."""
+    rows = []
+    for l in cands:
+        if l.get("mind_flag") == "against" or not 0.30 <= l.get("p", 0) <= 0.80:
+            continue
+        o, real = ladder_odds(l)
+        if o is None or not 1.80 <= o <= 2.40:
+            continue
+        lab, tests = ladder_conv(l, o, gctx)
+        p = l.get("p_books") or l["p"]
+        rows.append({"id": l["id"], "desc": l["desc"], "matchup": l.get("matchup"), "game": l["game"], "tip": l.get("tip"),
+                     "kind": l.get("kind"), "odds": round(o, 2), "odds_real": real, "p": round(p, 4),
+                     "market": l.get("market"), "value": round(p * o, 3), "in_window": LADDER_ODDS[0] <= o <= LADDER_ODDS[1],
+                     "priced": bool(l.get("wmx_real") or l.get("book") or l.get("alt_book") is not None),
+                     "conviction": lab, "conv_tests": tests})
+    rows.sort(key=lambda r: (r["priced"], r["in_window"], r["value"]), reverse=True)
+    return rows[:n]
 
 
 def board(cands, n=60):
