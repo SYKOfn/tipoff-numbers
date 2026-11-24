@@ -3,7 +3,7 @@
  "players": {
   "Tyler Herro": {
    "contract_year": true,
-   "note": "Career-high 50 in a 3-point loss at Philadelphia; Milwaukee have lost 13 straight. One year left on his deal, no extension."
+   "note": "50 at Philadelphia, then 32 to end Milwaukee's 13-game losing streak. One year left on his deal, no extension."
   },
   "Jaime Jaquez Jr.": {
    "contract_year": true
@@ -39,14 +39,14 @@
    "contract_year": true
   },
   "Jaylen Brown": {
-   "note": "Hamstring; individual workouts only, no timetable."
+   "note": "Returned Nov 23 from a two-game hamstring absence."
   },
   "Kyle Kuzma": {
    "note": "On an expiring deal; Milwaukee have been trying to trade him since the offseason.",
    "contract_year": true
   },
   "Brandon Ingram": {
-   "note": "Cleared for his Clippers debut on Nov 23 vs Houston after May surgery for a partially torn Achilles."
+   "note": "Clippers debut Nov 23 after Achilles surgery: 16 and 7 in 27 minutes; minutes limited early."
   },
   "Darryn Peterson": {
    "note": "Five straight 20-point games for the 1-12 Jazz."
@@ -55,7 +55,7 @@
    "note": "Now with Portland; out with a left hamstring strain, targeting late November or early December."
   },
   "Anthony Davis": {
-   "note": "36 and 11 in Washington's win at Chicago; a max extension reportedly unlikely, so he is playing for a new deal."
+   "note": "27.7 points and 10.7 rebounds during Washington's three-game win streak; a max extension reportedly unlikely, so he is playing for a new deal."
   },
   "Domantas Sabonis": {
    "note": "Reported (Nov 2) to want out of Sacramento; on-court spat with Zach LaVine on Nov 18."
@@ -74,7 +74,7 @@
    "note": "Stepped away for his health; Warriors withholding salary and trying to trade him."
   },
   "Victor Wembanyama": {
-   "note": "50 points and 19 rebounds vs New Orleans, his second 50-point game this season."
+   "note": "Missed Nov 23 with back tightness; expected back Nov 25 at Portland."
   },
   "Trae Young": {
    "note": "Backs Brian Keefe ('it's all of us together'); 13 points after his first scoreless game."
@@ -113,7 +113,7 @@
    "note": "Contract year; double-digit rebounds in four straight games."
   },
   "Stephen Curry": {
-   "note": "Oblique tear; re-evaluated Nov 25."
+   "note": "Oblique tear (Nov 11); out at least two weeks, team bracing for close to a month."
   },
   "James Harden": {
    "note": "51 points vs Indiana on Nov 20, his 26th career 50-point game (passed Kobe for third all-time)."
@@ -125,13 +125,13 @@
    "note": "Starting with Edwards out; scored 30 vs Portland."
   },
   "Cooper Flagg": {
-   "note": "33 points in the rout of Golden State."
+   "note": "Game-winning free throws at Utah; said Dallas 'got complacent' after blowing an 18-point lead."
   },
   "Caleb Wilson": {
-   "note": "Fractured right hand; surgery expected, out about four to six weeks."
+   "note": "Broken right hand."
   },
   "Cade Cunningham": {
-   "note": "Probable for Nov 20 after missing one game with right knee soreness."
+   "note": "Playing through right-knee soreness; 5 points in a 4th-quarter collapse at Atlanta (third straight loss)."
   },
   "Zion Williamson": {
    "note": "Late scratch Nov 21 with a left thigh contusion."
@@ -141,7 +141,7 @@
    "contract_year": true
   },
   "Evan Mobley": {
-   "note": "Sprained right big toe; out at least another 7-10 days (from Nov 16)."
+   "note": "Out with a sprained toe."
   },
   "Dejounte Murray": {
    "note": "Requested a trade on Nov 13; out with a left ankle sprain."
@@ -333,16 +333,16 @@
    "note": "Pulled early in the second half on Nov 20 with Giddey; Splitter questioned their body language."
   },
   "Norman Powell": {
-   "note": "Questionable with a hamstring strain; named an in-season trade candidate."
+   "note": "Mild right hamstring strain (Nov 20); shut down, re-evaluation pending."
   },
   "Pascal Siakam": {
    "note": "Questionable with a left hip issue."
   },
   "Nolan Traore": {
-   "note": "Brooklyn's starting point guard left the Nov 20 loss with a hamstring injury."
+   "note": "Right hamstring strain; out 8-10 weeks."
   },
   "Cameron Boozer": {
-   "note": "Right ankle sprain; out Nov 21, being evaluated."
+   "note": "Right ankle sprain; out at least four weeks."
   },
   "De'Aaron Fox": {
    "note": "Questionable (shin) for his return to Sacramento; shooting a career-low 26.5% from three."
@@ -358,6 +358,9 @@
   },
   "Quentin Grimes": {
    "note": "Career-high 47 vs Charlotte while starting for the injured Austin Reaves."
+  },
+  "Nikola Jokic": {
+   "note": "Seven straight 24-point games; 37-18-11 vs Chicago; seven triple-doubles behind Westbrook's record."
   }
  }
 }
