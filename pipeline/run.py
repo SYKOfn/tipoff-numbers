@@ -781,11 +781,16 @@ def main(demo=False, now=None, collect_data=True):
                 def sc(l):
                     rows = {r["player_id"]: r for team in byg.get(l["game"], {}).values() for r in team}
                     l["result"] = parlay.score_leg(l, fin_rows.get(l["game"]), rows)
+                gt_ids = {id(pr) for pr in pj.get("game_tickets", [])}
                 for pr in pj.get("parlays", []) + pj.get("game_tickets", []):
                     for l in pr["legs"]:
                         sc(l)
                     live_legs = [l for l in pr["legs"] if l["result"] != "void"]
                     pr["result"] = "hit" if live_legs and all(l["result"] == "hit" for l in live_legs) else "miss"
+                    # A game ticket is a Winamax MyMatch: one void leg voids the whole ticket (stake back). Cross-game
+                    # tickets are accumulators: a void leg counts at 1.00 and the rest settle.
+                    if id(pr) in gt_ids and len(live_legs) < len(pr["legs"]):
+                        pr["result"] = "void"
                 for l in pj.get("singles", []) + pj.get("board", []):
                     if l["game"] in fin_rows:
                         sc(l)
