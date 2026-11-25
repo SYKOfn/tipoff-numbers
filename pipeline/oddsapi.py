@@ -148,7 +148,9 @@ def collect(upcoming, now=None):
         daily = 15
     # data/settings.json can raise the daily cap without a workflow edit (room for the alternate lines)
     daily = max(daily, int((read_json(DATA / "settings.json", {}) or {}).get("odds_api_daily") or 0))
-    books = env("ODDS_API_BOOKS", "winamax_fr,pinnacle")
+    # Up to 10 books cost the same credits. Extra books are price references only (owner, Nov 2026: where does each bet
+    # pay best?): Betfair Exchange and Matchbook are exchanges near fair; the rest are EU books.
+    books = env("ODDS_API_BOOKS", "winamax_fr,pinnacle,betfair_ex_eu,matchbook,williamhill,unibet_eu,marathonbet,betsson,sport888")
     tips = sorted(datetime.fromisoformat(g["date"].replace("Z", "+00:00")) for g in upcoming if g.get("state") == "pre")
     soon = any(timedelta(0) <= t - now <= timedelta(minutes=75) for t in tips)
     last = datetime.fromisoformat(st["last_games"]) if st.get("last_games") else None
@@ -157,6 +159,10 @@ def collect(upcoming, now=None):
     snap = read_json(STATE / "odds_latest.json", {}) or {}
     if due and st["spent"] + 3 <= daily:
         data, used, remaining = _get("/odds", {"bookmakers": books, "markets": "h2h,spreads,totals", "oddsFormat": "decimal"})
+        if isinstance(data, dict) and data.get("error") and books.count(",") > 1:  # an unknown book key: fall back
+            books = "winamax_fr,pinnacle"
+            status["books"] = books
+            data, used, remaining = _get("/odds", {"bookmakers": books, "markets": "h2h,spreads,totals", "oddsFormat": "decimal"})
         st["spent"] += used or 3
         status["remaining"] = remaining
         if isinstance(data, list):
