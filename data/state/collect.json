@@ -1,1 +1,1 @@
-{"calls":35,"errors":[],"finished_seen":33,"upcoming":66,"summaries":5,"odds_api":{"enabled":true,"books":"winamax_fr,pinnacle","fetched":false,"book":"winamax_fr","menus":{"401909314":0,"401909315":0,"401909316":0}},"season_rest_at":"2026-11-24T22:01:54.091816+00:00"}
+{"calls":33,"errors":[],"finished_seen":24,"upcoming":66,"summaries":4,"odds_api":{"enabled":true,"books":"winamax_fr,pinnacle","fetched":true,"remaining":"15704","book":"winamax_fr","menus":{"401909314":0,"401909315":0,"401909316":0}},"season_rest_at":"2026-11-24T22:01:54.091816+00:00"}
