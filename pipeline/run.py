@@ -1083,3 +1083,9 @@ if __name__ == "__main__":
     ap.add_argument("--no-collect", action="store_true", help="rebuild from the stored data only")
     a = ap.parse_args()
     main(demo=a.demo, collect_data=not a.no_collect)
+    if not a.demo:
+        try:  # the X account: drafts unless X_POST_LIVE=1 (pipeline/xpost.py)
+            from . import xpost
+            xpost.run()
+        except Exception as e:
+            print("x posts skipped:", e)
