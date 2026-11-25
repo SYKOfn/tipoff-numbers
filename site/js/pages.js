@@ -137,7 +137,7 @@ async function home() {
   const top = (pl || []).filter(p => p.next_pts != null && ids.has(p.next_game)).sort((a, b) => b.next_pts - a.next_pts).slice(0, 8);
   const topHtml = top.length ? `<div><h2 style="font-size:28px;margin:0">Players to watch</h2><div class="listcard" style="margin-top:16px">${top.map(p => `<a class="row" href="#/player/${h(p.id)}">${mono(p.team, "sm")}<span class="grow"><b>${h(p.name)}</b><br><span class="muted">${h(T(p.team).short)}${p.status ? ` · ${h(p.status)}` : ""}</span></span><span class="val num">${fx(p.next_pts, 1)}</span><span class="muted">pts</span></a>`).join("")}</div></div>` : "";
 
-  app.innerHTML = `<div class="wrap tn">${demoBanner()}${hero}${tickets}${valueSec}${gamesSec}${lastHtml || topHtml ? `<section class="tn-sec duo2">${lastHtml}${topHtml}</section>` : ""}</div>`;
+  app.innerHTML = `<div class="wrap tn">${demoBanner()}${hero}${gamesSec}${lastHtml || topHtml ? `<section class="tn-sec duo2">${lastHtml}${topHtml}</section>` : ""}</div>`;
   tickClocks();
   const vm = document.getElementById("vbmore");
   if (vm) vm.onclick = () => { document.getElementById("vbrest").hidden = false; vm.remove(); };
@@ -574,7 +574,7 @@ async function accuracy() {
     <div class="grid"><div class="panel"><h3>Win chances</h3><p class="sub small">Brier score, lower is better</p>${duel(rowsFor(o), "brier", true, 4)}<p class="sub small" style="margin-top:12px">Winners called</p>${duel(rowsFor(o), "hit", false)}</div>
     <div class="panel"><h3>Margin</h3><p class="sub small">Average miss in points, lower is better</p>${duel(rowsFor(o), "mae_margin", true, 2)}<p class="sub small" style="margin-top:12px">Total points, average miss</p>${duel(rowsFor(o), "mae_total", true, 2)}</div>
     ${cal ? `<div class="panel"><h3>Calibration</h3><p class="sub small">When the favourite was given X%, how often did it win? Dots on the line = honest chances.</p>${calibSvg(cal)}</div>` : ""}</div></section>` : "";
-  app.innerHTML = `<div class="wrap tn" style="padding-bottom:0"><section class="tn-hero" style="padding-bottom:28px"><div class="lead"><p class="eyebrow">Frozen at tip-off · scored after the buzzer</p><h1>Track record</h1><nav class="daytabs seg" aria-label="Whose record"><a href="#/accuracy" aria-current="page">The model</a><a href="#/you" aria-current="false">Your bets</a></nav>
+  app.innerHTML = `<div class="wrap tn" style="padding-bottom:0"><section class="tn-hero" style="padding-bottom:28px"><div class="lead"><p class="eyebrow">Frozen at tip-off · scored after the buzzer</p><h1>Track record</h1>
     <p class="sublede">Every estimate is locked before the game and checked afterwards, against simpler methods, including the same model without its psychological layer.</p></div></section>
     <section class="rec-tiles">
       <div class="tile big"><p class="k">Live record · winners called</p>${a.live && a.live.n ? `<p class="v num">${Math.round(a.live.hit * a.live.n)}/${a.live.n}</p><p class="s">${pct(a.live.hit)} · frozen estimates only</p>` : `<p class="v" style="font-size:30px;line-height:1.15">Starts tonight</p><p class="s">The first frozen estimates are scored after tonight's games.</p>`}</div>

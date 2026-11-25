@@ -4,11 +4,11 @@
 
 /* ---------------------------------------------------------------- search & routing */
 /* search: players, teams, tonight's games and every page, fully usable from the keyboard (an ARIA combobox) */
-const PAGES = [["Tonight", "#/", "Tonight's games and the best picks"], ["Tickets", "#/parlay", "Tonight's game tickets"],
+const PAGES = [["Tonight", "#/", "Tonight's games, chances and projections"],
   ["Games", "#/games", "Every upcoming game"], ["Players", "#/players", "Every player, projections and lines"],
-  ["Record", "#/results", "How the tickets did"], ["The Ladder", "#/ladder", "One bet a day at 2.00-2.10, level by level"], ["Standings", "#/standings", "Both conferences"], ["Teams", "#/teams", "All 30 teams"],
+  ["Standings", "#/standings", "Both conferences"], ["Teams", "#/teams", "All 30 teams"],
   ["Model accuracy", "#/accuracy", "How often the chances came true"], ["Mind ranking", "#/mind", "Psychological edges by team"],
-  ["Your bets", "#/you", "Tickets you recorded"], ["How it works", "#/about", "Methods and tests"]];
+  ["How it works", "#/about", "Methods and tests"]];
 function searchHits(q, ps, games) {
   const has = (...xs) => xs.join(" ").toLowerCase().includes(q);
   const out = [];
@@ -102,11 +102,8 @@ async function route() {
       else if (page === "players") await playersPage();
       else if (page === "player") await player(arg);
       else if (page === "mind") await mind();
-      else if (page === "parlay") await parlayPage();
+      else if (["parlay", "results", "ladder", "you"].includes(page)) { location.hash = "#/"; return; }  // predictions only since Nov 2026
       else if (page === "accuracy") await accuracy();
-      else if (page === "results") await results();
-      else if (page === "ladder") await ladderPage();
-      else if (page === "you") await yourBets();
       else if (page === "about") await about();
       else await home();
       startLive();
