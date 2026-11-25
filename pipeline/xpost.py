@@ -86,6 +86,11 @@ def run(now=None, season=None):
             S["keys"].append(key)
             S["n"] += 1
 
+    once = st.setdefault("_once", [])
+    if "intro" not in once and S["n"] < CAP:  # owner-approved first post, 2026-11-25
+        if _send("👋 Tip-Off Numbers is live.\nEvery NBA night: our model's win chances before tip-off, player projections, "
+                 "injury updates, and an honest scorecard after the buzzer ✅❌\nTonight's first board drops soon. #NBA"):
+            once.append("intro"); S["n"] += 1
     games = _games(day, season)
     if games and et.hour >= 10:
         fav = sorted(games, key=lambda g: -_fav(g[1])[1])
@@ -147,6 +152,6 @@ def run(now=None, season=None):
         chunks = [rows[i:i + 6] for i in range(0, len(rows), 6)][:NIGHT_CAP]
         for i, c in enumerate(chunks):
             post(f"night:{y}:{i}", (head if i == 0 else "") + "\n".join(c) + ("\n#NBA" if i == len(chunks) - 1 else ""), "night:", NIGHT_CAP)
-    for k in [k for k in st if k < (et.date() - timedelta(days=3)).isoformat()]:
+    for k in [k for k in st if k[0].isdigit() and k < (et.date() - timedelta(days=3)).isoformat()]:
         st.pop(k)
     STATE.write_text(json.dumps(st))
