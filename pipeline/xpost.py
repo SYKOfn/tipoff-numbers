@@ -56,6 +56,10 @@ def _games(day, season):
     return sorted(out, key=lambda x: x[1].get("tip") or "")
 
 
+def pct(w):
+    return f"{round(w * 100)}%"
+
+
 def _fav(p):
     w = (p.get("est") or {}).get("win_home") or 0.5
     return (p["home"]["abbr"], w) if w >= 0.5 else (p["away"]["abbr"], 1 - w)
@@ -74,7 +78,7 @@ def run(now=None, season=None):
     S = st.setdefault(day, {"n": 0, "keys": [], "snap": {}})
 
     def post(key, text, cap_key=None, cap=None):
-        if key in S["keys"] or S["n"] >= CAP or len(text) > 280:
+        if key in S["keys"] or S["n"] >= CAP or len(text) > 270:
             return
         if cap_key and sum(k.startswith(cap_key) for k in S["keys"]) >= cap:
             return
@@ -84,8 +88,17 @@ def run(now=None, season=None):
 
     games = _games(day, season)
     if games and et.hour >= 10:
-        lines = [f"{_fav(p)[0]} {round(_fav(p)[1] * 100)}% ({p['away']['abbr']} at {p['home']['abbr']})" for _, p in games]
-        post("morning", "Tonight in the NBA, the model's favourite and its chance to win:\n" + "\n".join(lines) + "\n#NBA")
+        fav = sorted(games, key=lambda g: -_fav(g[1])[1])
+        t0, w0 = _fav(fav[0][1]); tc, wc = _fav(fav[-1][1])
+        head = (f"🏀 {len(games)} NBA games tonight. Our model's calls:\n"
+                f"🔒 Biggest favourite: {t0} {pct(w0)}\n🪙 Closest call: {fav[-1][1]['away']['abbr']}-{fav[-1][1]['home']['abbr']}, {tc} {pct(wc)}\n")
+        body = ""
+        for _, p in games:
+            ln = f"{p['away']['abbr']} @ {p['home']['abbr']}: {_fav(p)[0]} {pct(_fav(p)[1])}\n"
+            if len(head + body + ln) > 255:
+                break
+            body += ln
+        post("morning", head + body + "#NBA")
         if not S["snap"]:
             S["snap"] = {str(d["game_id"]): {n: x.get("pts") for n, x in _proj(p).items()} for d, p in games}
     for d, p in games:
@@ -99,35 +112,41 @@ def run(now=None, season=None):
             for s_ in ("pts", "reb", "ast"):  # three different players
                 b = max((x for x in pl if x["name"] not in used), key=lambda x: x.get(s_) or 0)
                 best.append(b); used.add(b["name"])
-            key_ = ", ".join(f"{b['name']} {b.get(s, 0):.1f} {s}" for b, s in zip(best, ("pts", "reb", "ast")))
-            post(f"pre:{gid}", f"{p['away']['short']} at {p['home']['short']}, {tip.astimezone(ET):%-I:%M %p} ET\n"
-                 f"Model: {t} {round(w * 100)}% to win, projected {p['away']['abbr']} {e.get('away_pts', 0):.0f}-"
-                 f"{e.get('home_pts', 0):.0f} {p['home']['abbr']}\nKey projections: {key_}\n#NBA")
+            hook = ("🪙 Coin flip" if w < 0.56 else "👀 Upset watch" if w < 0.65 else "🔒 Strong favourite" if w >= 0.75 else "📊 Edge")
+            tags = " ".join("#" + "".join(ch for ch in p[s]["short"] if ch.isalnum()) for s in ("away", "home"))
+            key_ = "\n".join(f"{b['name']}: {b.get(s, 0):.1f} {s}" for b, s in zip(best, ("pts", "reb", "ast")))
+            post(f"pre:{gid}", f"{hook}: {p['away']['short']} @ {p['home']['short']} ({tip.astimezone(ET):%-I:%M %p} ET)\n"
+                 f"Our model: {t} {pct(w)} to win, {p['away']['abbr']} {e.get('away_pts', 0):.0f}-{e.get('home_pts', 0):.0f} {p['home']['abbr']}\n"
+                 f"Projections:\n{key_}\n#NBA {tags}")
         snap = S["snap"].get(gid) or {}
         now_p = _proj(p)
         for name, pts in snap.items():
             if (pts or 0) >= 12 and name not in now_p and tip > now:
                 moved = sorted(((n, x.get("pts") or 0, snap.get(n) or 0) for n, x in now_p.items() if n in snap),
                                key=lambda r: r[2] - r[1])[:2]
-                mv = "; ".join(f"{n} now {a:.1f} pts (was {b:.1f})" for n, a, b in moved if a - b >= 0.5)
-                post(f"news:{gid}:{name}", f"{name} is out tonight ({p['away']['abbr']} at {p['home']['abbr']})."
-                     + (f" Model update: {mv}." if mv else "") + " #NBA", "news:", NEWS_CAP)
+                mv = "\n".join(f"📈 {n}: {a:.1f} pts (was {b:.1f})" for n, a, b in moved if a - b >= 0.5)
+                post(f"news:{gid}:{name}", f"🚨 {name} is OUT tonight ({p['away']['abbr']} @ {p['home']['abbr']}).\n"
+                     + (f"Who picks up the slack, per our model:\n{mv}\n" if mv else "") + "#NBA", "news:", NEWS_CAP)
     # night: the previous ET day's finals, once all are in
     y = (et.date() - timedelta(days=1)).isoformat()
     yg = _games(y, season)
     if yg and all(d.get("result") for d, _ in yg):
-        rows, hits = [], 0
+        rows, hits, ups = [], 0, []
         for d, p in yg:
             r = d["result"]
             t, w = _fav(p)
             won = (r["home_pts"] > r["away_pts"]) == (t == p["home"]["abbr"])
             hits += won
-            rows.append(f"{p['away']['abbr']} {r['away_pts']}-{r['home_pts']} {p['home']['abbr']} "
-                        f"(model: {t} {round(w * 100)}%) {'✓' if won else '✗'}")
+            if not won:
+                ups.append((w, p))
+            rows.append(f"{'✅' if won else '❌'} {p['away']['abbr']} {r['away_pts']}-{r['home_pts']} {p['home']['abbr']} ({t} {pct(w)})")
+        head = f"Our model went {hits}/{len(rows)} last night" + (" 🔥" if hits / len(rows) >= 0.7 else ".") + "\n"
+        if ups:
+            w, p = max(ups, key=lambda u: u[0])
+            head += f"Biggest upset: {_fav(p)[0]} lost at {pct(w)}.\n"
         chunks = [rows[i:i + 6] for i in range(0, len(rows), 6)][:NIGHT_CAP]
         for i, c in enumerate(chunks):
-            head = f"Last night: the model's favourite won {hits} of {len(rows)}.\n" if i == 0 else ""
-            post(f"night:{y}:{i}", head + "\n".join(c) + ("\n#NBA" if i == len(chunks) - 1 else ""), "night:", NIGHT_CAP)
+            post(f"night:{y}:{i}", (head if i == 0 else "") + "\n".join(c) + ("\n#NBA" if i == len(chunks) - 1 else ""), "night:", NIGHT_CAP)
     for k in [k for k in st if k < (et.date() - timedelta(days=3)).isoformat()]:
         st.pop(k)
     STATE.write_text(json.dumps(st))
