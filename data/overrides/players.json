@@ -39,7 +39,7 @@
    "contract_year": true
   },
   "Jaylen Brown": {
-   "note": "Returned Nov 23 from a two-game hamstring absence."
+   "note": "Returned from a two-game hamstring absence with 20 points."
   },
   "Kyle Kuzma": {
    "note": "On an expiring deal; Milwaukee have been trying to trade him since the offseason.",
@@ -68,13 +68,13 @@
    "contract_year": true
   },
   "Kevin Durant": {
-   "note": "Faces former team Golden State; within about 900 points of passing Kobe for 4th all-time; taking a career-low 12.3 shots a game."
+   "note": "Faces former team Phoenix in a must-win Cup game for Houston; season-high 32 on Nov 23."
   },
   "Kristaps Porzingis": {
    "note": "Stepped away for his health; Warriors withholding salary and trying to trade him."
   },
   "Victor Wembanyama": {
-   "note": "Missed Nov 23 with back tightness; expected back Nov 25 at Portland."
+   "note": "Missed Nov 23 with low back tightness (first missed game); questionable Nov 25 at Portland."
   },
   "Trae Young": {
    "note": "Backs Brian Keefe ('it's all of us together'); 13 points after his first scoreless game."
@@ -83,7 +83,7 @@
    "note": "Scored 36 against his former team, Philadelphia, in a 22-point win."
   },
   "Karl-Anthony Towns": {
-   "note": "Reportedly motivated by not being extended; called the 4-year, $200M offer unreasonable; can opt out next summer."
+   "note": "Questionable vs Cleveland (right knee inflammation); double-double in all 16 games; reportedly motivated by not being extended and can opt out next summer."
   },
   "Kyrie Irving": {
    "note": "Back after 19 months out after knee surgery, averaging about 22 points."
@@ -113,7 +113,7 @@
    "note": "Contract year; double-digit rebounds in four straight games."
   },
   "Stephen Curry": {
-   "note": "Oblique tear (Nov 11); out at least two weeks, team bracing for close to a month."
+   "note": "Out since Nov 11 with an oblique tear; re-evaluated Friday Nov 27."
   },
   "James Harden": {
    "note": "51 points vs Indiana on Nov 20, his 26th career 50-point game (passed Kobe for third all-time)."
@@ -137,7 +137,7 @@
    "note": "Late scratch Nov 21 with a left thigh contusion."
   },
   "Ty Jerome": {
-   "note": "Upgraded to probable after a hip impingement; averaging about 25 points.",
+   "note": "Back from a hip impingement; 29 points with seven threes vs Charlotte.",
    "contract_year": true
   },
   "Evan Mobley": {
@@ -150,7 +150,7 @@
    "note": "Hit the buzzer-beating three to beat Portland on Nov 21 after a long slump."
   },
   "Jalen Green": {
-   "note": "Discussed in a swap for Dejounte Murray that reportedly has zero traction."
+   "note": "Faces former team Houston; 25 points in Monday's OT win at New Orleans."
   },
   "Santi Aldama": {
    "note": "Back from knee surgery; minutes limit lifted, calls it an \"in-season training camp\"."
@@ -191,7 +191,7 @@
    "note": "Re-strained his left hamstring; out at least four more weeks."
   },
   "Joel Embiid": {
-   "note": "26 points, 17 rebounds and 9 assists vs Milwaukee on Nov 21."
+   "note": "Doubtful vs Miami with illness after missing Monday's loss to Portland."
   },
   "Paolo Banchero": {
    "note": "Missed 12 games with a 'complex' ankle sprain; hopes to return in the next few weeks."
@@ -333,7 +333,7 @@
    "note": "Pulled early in the second half on Nov 20 with Giddey; Splitter questioned their body language."
   },
   "Norman Powell": {
-   "note": "Mild right hamstring strain (Nov 20); shut down, re-evaluation pending."
+   "note": "Out a third straight game with a mild hamstring strain."
   },
   "Pascal Siakam": {
    "note": "Questionable with a left hip issue."
@@ -342,7 +342,7 @@
    "note": "Right hamstring strain; out 8-10 weeks."
   },
   "Cameron Boozer": {
-   "note": "Right ankle sprain; out at least four weeks."
+   "note": "Out at least a month with a right ankle sprain."
   },
   "De'Aaron Fox": {
    "note": "Questionable (shin) for his return to Sacramento; shooting a career-low 26.5% from three."
@@ -361,6 +361,18 @@
   },
   "Nikola Jokic": {
    "note": "Seven straight 24-point games; 37-18-11 vs Chicago; seven triple-doubles behind Westbrook's record."
+  },
+  "Giannis Antetokounmpo": {
+   "note": "Now with Miami; questionable vs Philadelphia (right groin tendinitis) after missing Sunday's win; Heat on a seven-game win streak."
+  },
+  "OG Anunoby": {
+   "note": "Out a third straight game with a left calf strain."
+  },
+  "Devin Booker": {
+   "note": "Called the Rockets game a Cup game 'that we need', citing 'some history' with Houston."
+  },
+  "Myles Turner": {
+   "note": "Reached 10,000 career points with 27 and 11 in Toronto."
   }
  }
 }
