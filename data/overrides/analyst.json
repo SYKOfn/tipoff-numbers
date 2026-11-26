@@ -1,76 +1,71 @@
 {
  "_about": "Optional written view per upcoming game, keyed by ESPN game id: {\"text\": \"...\", \"sources\": [urls], \"written_at\": ISO}. Shown on the game page as 'Analyst view' (locker-room news, trade rumours, a player facing his former team...). Never mixed into the numbers.",
  "games": {
-  "401909317": {
-   "text": "Miami arrive on a seven-game winning streak and clinch East Group B of the NBA Cup with a win, but Giannis Antetokounmpo is questionable with right groin tendinitis after missing Sunday's win over OKC. Philadelphia lost 128-111 to Portland on Monday without Joel Embiid, who is now doubtful with illness, though Jaylen Brown is back from his hamstring injury. The Sixers are trying to avoid their first losing skid and their Cup life is on the line. With both big men in doubt, the stakes lean slightly Philadelphia, but the Heat's form keeps it close.",
+  "401909326": {
+   "text": "The Knicks (1-2 in the Cup) can still reach the knockout round, but only by beating Miami by at least seven and getting a Philadelphia loss at Indiana, so expect them to push to the final whistle. Miami are 2-1 with a +25 differential and already hold the first wild-card spot. New York's health is the worry: OG Anunoby (calf) is day-to-day after three missed games, and Jalen Brunson was questionable with an illness on Wednesday. The motivation edge leans New York; the injury list leans Miami.",
    "sources": [
-    "https://fieldlevelmedia.com/nba/heat-hope-to-stay-hot-vs-76ers-clinch-nba-cup-east-group-b/",
-    "https://heavy.com/sports/nba/miami-heat/giannis-antetokounmpo-questionable-injury-76ers-game/"
+    "https://web.matrixnews.in/news/iqps2kfvo4h4q/knicks-can-advance-in-nba-cup-with-win-over-miami-and-a-76ers-loss",
+    "https://www.si.com/nba/updated-nba-cup-standings-bracket-heading-into-final-night-group-stage",
+    "https://www.yardbarker.com/nba/articles/knicks_dealt_concerning_jalen_brunson_news_on_wednesday/s1_17355_44618273"
    ],
-   "written_at": "2026-11-25T06:42:53Z"
+   "written_at": "2026-11-26T07:05:00Z"
   },
-  "401909318": {
-   "text": "Charlotte have lost five straight and 11 of 12, with coverage questioning Charles Lee's rotations, and Ryan Kalkbrenner (hip) is doubtful while Grayson Allen (concussion) is questionable. Chicago are still without leading scorer Norman Powell (hamstring) but are buoyed by Monday's 122-108 win over Cleveland, which Tre Jones called 'a big step' for the group. The mood clearly favours Chicago, so the angle leans Bulls despite the missing scorer.",
+  "401909327": {
+   "text": "Cade Cunningham was a late scratch on Tuesday with right-knee soreness, and J.B. Bickerstaff would only say he is 'battling through a lot'; he is day-to-day for Friday. Detroit showed they can cope, beating Orlando 104-86 without him behind 21 from Isaiah Joe. Milwaukee only just ended a 13-game losing streak. Even if Cunningham sits again, the spot leans Detroit.",
    "sources": [
-    "https://www.thesportsleader.com/2026/11/24/bulls-take-big-step-ahead-of-game-vs-sinking-hornets/",
-    "https://si.com/nba/hornets/onsi/charles-lee-s-comments-on-hornets-loss-feel-like-a-long-season-incoming"
+    "https://heavy.com/sports/nba/detroit-pistons/bad-news-about-cade-cunningham/",
+    "https://sports.yahoo.com/nba/breaking-news/article/nba-cup-2026-pistons-deny-a-magic-clinch-without-cade-cunningham-who-was-a-late-scratch-022057113.html"
    ],
-   "written_at": "2026-11-25T06:42:53Z"
+   "written_at": "2026-11-26T07:05:00Z"
   },
-  "401909319": {
-   "text": "New York have won five straight, but OG Anunoby (calf) and Jordan Clarkson are out and Karl-Anthony Towns (knee), Josh Hart (shoulder) and Miles McBride (adductor) are all questionable. Cleveland are still without Evan Mobley and can be eliminated from the NBA Cup with a loss, and they won the last meeting 115-107 behind 32 from James Harden. Cup desperation and the Knicks' thin injury list lean this one slightly Cleveland on the news angle.",
+  "401909328": {
+   "text": "Tyrese Haliburton practised on Wednesday after missing 14 straight games with a hamstring strain, and Rick Carlisle answered 'stay tuned' when asked about Friday. Indiana come in off a 125-120 win over Oklahoma City. Philadelphia (2-1) are playing for East Group B, while Joel Embiid has been out ill. A Haliburton return or another Embiid absence would tilt a near coin-flip towards Indiana; check the late injury report.",
    "sources": [
-    "https://cavaliersnation.com/2026/11/24/cavs-release-full-injury-report-ahead-of-nba-cup-game-vs-knicks/",
-    "https://sports.yahoo.com/nba/articles/knicks-hit-more-alarming-og-013718029.html"
+    "https://wisevoter.com/world/us/in/indianapolis/2026/11/25/haliburton-returns-pacers-practice-hamstring",
+    "https://heavy.com/sports/nba/indiana-pacers/coach-drops-announcement-about-haliburtons-return",
+    "https://bvmsports.com/2026/11/25/pacers-hold-off-thunder-as-haliburton-nears-return-face-76ers/"
    ],
-   "written_at": "2026-11-25T06:42:53Z"
+   "written_at": "2026-11-26T07:05:00Z"
   },
-  "401909320": {
-   "text": "Minnesota are 2-0 in West Group B and have won nine of 11, with the league's top-rated defence; a win effectively secures the group. Oklahoma City are 2-1 after losing to the Clippers, have lost two straight on their third game in four nights, and are still without Jalen Williams, Chet Holmgren and Cason Wallace. OKC have the must-win motivation, but Minnesota's form and OKC's missing pieces lean this one Minnesota.",
+  "401909329": {
+   "text": "Kawhi Leonard (left-knee swelling) is out at least another week, with Dec 1 against Houston the earliest return. Toronto are also without RJ Barrett, and Brooklyn lost rookie Nolan Traore for 8-10 weeks. With both rosters thin, nothing in the news changes the numbers' lean towards Toronto at home.",
    "sources": [
-    "https://wisevoter.com/world/us/mn/minneapolis/2026/11/25/timberwolves-thunder-nba-cup-west-group-b",
-    "https://fansided.com/nba/updated-nba-cup-standings-heading-into-the-final-week-of-group-play"
+    "https://www.yardbarker.com/nba/articles/raptors_kawhi_leonard_still_at_least_a_week_from_return_from_knee_swelling/s1_17668_44615629"
    ],
-   "written_at": "2026-11-25T06:42:53Z"
+   "written_at": "2026-11-26T07:05:00Z"
   },
-  "401909321": {
-   "text": "Memphis have won six of seven and are 9-1 on the road, but are now without Cameron Boozer (ankle, at least a month) and Jerami Grant (calf, at least two weeks); Ty Jerome is back and scored 29 on Monday. The Clippers have lost four straight and Brandon Ingram is still on a minutes limit after his debut. Memphis's confidence outweighs their injuries, so the angle leans Memphis.",
+  "401909330": {
+   "text": "This decides East Group C: Boston are 3-0 with a +68 differential, and Atlanta are 2-1 on a four-game winning streak, so both sides have plenty to play for. Jayson Tatum is rolling (41 against Washington on Tuesday). Atlanta are without CJ McCollum (calf), and Jock Landale (hip) is a game-time call. Motivation is even, so the lean stays slightly Boston at home.",
    "sources": [
-    "https://www.640wxsm.com/2026/11/24/surging-grizzlies-deal-with-key-injuries-as-skidding-clippers-await/"
+    "https://www.si.com/nba/updated-nba-cup-standings-bracket-heading-into-final-night-group-stage",
+    "https://www.sportsmole.co.uk/basketball/boston-celtics/preview/atlanta-hawks-vs-boston-celtics-player-props-injury-report-and-prediction--nba-cup_609820.html"
    ],
-   "written_at": "2026-11-25T06:42:53Z"
+   "written_at": "2026-11-26T07:05:00Z"
   },
-  "401909322": {
-   "text": "Milwaukee snapped a 13-game losing streak in Toronto behind Tyler Herro (32 points, a second straight 30-plus game) and Myles Turner, who reached 10,000 career points, and they have a clean injury report. Brooklyn have lost five straight, the last 142-116 at Minnesota, and coach Jordi Fernandez says there is 'a lot' to clean up; Nolan Traore is out for 8-10 weeks. Relief and a healthy roster lean this one Milwaukee.",
+  "401909332": {
+   "text": "Very little is at stake: Dallas clinched West Group A when Phoenix lost 116-104 to Houston on Wednesday, which also eliminated the Suns. The Mavericks are still without Dereck Lively II (foot). With nothing riding on the result for either side, watch for lighter minutes from Dallas's regulars. That leans slightly Phoenix at home.",
    "sources": [
-    "https://fieldlevelmedia.com/nba/woeful-bucks-have-shot-at-back-to-back-wins-with-nets-visiting/"
+    "https://www.nba.com/news/emirates-nba-cup-2026-clinching-scenarios",
+    "https://wire.report/article/mavericks-clinch-nba-cup-quarterfinal-berth-after-suns-loss-2026-11-26"
    ],
-   "written_at": "2026-11-25T06:42:53Z"
+   "written_at": "2026-11-26T07:05:00Z"
   },
-  "401909323": {
-   "text": "Houston must win by at least five to keep NBA Cup hopes alive, and Kevin Durant faces the Suns again after a season-high 32 on Monday. Phoenix are chasing a 5-0 road trip, Devin Booker called this a Cup game 'that we need' and noted 'some history' with Houston, and Jalen Green and Dillon Brooks also face their former team. Both sides are highly motivated; Houston's 8-1 home record and margin-driven urgency lean slightly Rockets.",
+  "401909333": {
+   "text": "The Lakers can advance with a win in their last Cup group game, and JJ Redick framed the moment bluntly: 'We're either going to be contenders or we're going to be a fake team.' Austin Reaves (heel) had his first full practice on Wednesday, and Friday is undecided. San Antonio's 12-game winning streak ended at Portland on Wednesday, and De'Aaron Fox and Dylan Harper are still out. The urgency leans Lakers, more so if Reaves plays.",
    "sources": [
-    "https://www.cbssports.com/nba/news/suns-chase-5-0-road-trip-against-kevin-durant-rockets/",
-    "https://sports.yahoo.com/articles/suns-devin-booker-makes-guarantee-181902725.html",
-    "https://ca.sports.yahoo.com/news/rockets-avoid-nba-cup-elimination-234453968.html"
+    "https://espn.com/nba/story/_/id/50597465/austin-reaves-rejoins-lakers-full-practice-tbd-face-spurs",
+    "https://sports.yahoo.com/nba/articles/lakers-coach-sends-defiant-message-031046898.html",
+    "https://www.nba.com/news/emirates-nba-cup-2026-clinching-scenarios"
    ],
-   "written_at": "2026-11-25T06:42:53Z"
+   "written_at": "2026-11-26T07:05:00Z"
   },
-  "401909324": {
-   "text": "Golden State are still without Stephen Curry (oblique tear, re-evaluated Friday) and Jimmy Butler, with Steve Kerr saying there is 'a different vibe' when Curry is around. Sacramento are 2-15, Domantas Sabonis is slumping amid speculation he may want out, and the roster is depleted. Two teams with off-court noise; home court gives a slight lean to Golden State.",
+  "401909336": {
+   "text": "Stephen Curry (oblique tear) is re-evaluated on Friday, but that is a checkpoint, not a return date, and he will need a ramp-up first. Jimmy Butler and Moses Moody are also out, and Golden State are 1-4 since Curry got hurt, with Draymond Green and Brandin Podziemski carrying more of the ball-handling. The news leans clearly Portland.",
    "sources": [
-    "https://www.yardbarker.com/nba/articles/warriors_stephen_curry_to_be_re_evaluated_friday_for_oblique_tear/s1_17668_44615539",
-    "https://bleacherreport.com/articles/25528554-trade-packages-and-landing-spots-sacramento-kings-star-domantas-sabonis"
+    "https://sports.yahoo.com/nba/articles/warriors-key-stephen-curry-injury-042849961.html",
+    "https://www.yardbarker.com/nba/articles/stephen_currys_oblique_tear_what_fridays_re_evaluation_means_and_how_the_warriors_get_by_without_him/s1_17668_44619597"
    ],
-   "written_at": "2026-11-25T06:42:53Z"
-  },
-  "401909325": {
-   "text": "Victor Wembanyama (low back tightness) and De'Aaron Fox (shin) are both questionable after missing Monday, though San Antonio won anyway behind Stephon Castle and are 8-0 on the road. Portland open a seven-game homestand still without Ja Morant and Shaedon Sharpe, and lost 125-103 to the Spurs earlier this month. Even with the two stars uncertain, the angle leans San Antonio.",
-   "sources": [
-    "https://www.cbssports.com/nba/news/spurs-visit-trail-blazers-in-nba-cup-as-victor-wembanyama-eyes-return/",
-    "https://airalamo.com/spurs-vs-trail-blazers-injury-report-wembanyama-and-fox-s-status-plus-why-portland-wants-this-one"
-   ],
-   "written_at": "2026-11-25T06:42:53Z"
+   "written_at": "2026-11-26T07:05:00Z"
   }
  }
 }
