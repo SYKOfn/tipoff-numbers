@@ -39,14 +39,14 @@
    "contract_year": true
   },
   "Jaylen Brown": {
-   "note": "Returned from a two-game hamstring absence with 20 points."
+   "note": "Re-injured his left hamstring on Nov 25 after missing two games; out Nov 27 at Indiana."
   },
   "Kyle Kuzma": {
    "note": "On an expiring deal; Milwaukee have been trying to trade him since the offseason.",
    "contract_year": true
   },
   "Brandon Ingram": {
-   "note": "Clippers debut Nov 23 after Achilles surgery: 16 and 7 in 27 minutes; minutes limited early."
+   "note": "Back after missing the first 15 games; Ty Lue reshuffling the lineup around him."
   },
   "Darryn Peterson": {
    "note": "Five straight 20-point games for the 1-12 Jazz."
@@ -113,7 +113,7 @@
    "note": "Contract year; double-digit rebounds in four straight games."
   },
   "Stephen Curry": {
-   "note": "Oblique tear (Nov 11); re-evaluated Fri Nov 27, which is a checkpoint, not a return date. Warriors 1-4 without him."
+   "note": "Oblique tear; re-evaluated Nov 27, but a ramp-up is still needed before a return."
   },
   "James Harden": {
    "note": "51 points vs Indiana on Nov 20, his 26th career 50-point game (passed Kobe for third all-time)."
@@ -156,7 +156,7 @@
    "note": "Back from knee surgery; minutes limit lifted, calls it an \"in-season training camp\"."
   },
   "Lauri Markkanen": {
-   "note": "Out at least a month with a non-displaced fracture in his right hand."
+   "note": "Out with a right hand injury; estimated return early January."
   },
   "Gary Trent Jr.": {
    "note": "The NBA is investigating whether his Milwaukee deal circumvents the salary cap."
@@ -178,7 +178,7 @@
    "note": "29 points and the go-ahead layup to end Toronto's six-game skid."
   },
   "Fred VanVleet": {
-   "note": "Back from a torn ACL and starting: 'I'm appreciating every minute.'",
+   "note": "Back from the ACL tear that cost him last season; unrestricted free agent next summer.",
    "contract_year": true
   },
   "Damian Lillard": {
@@ -191,13 +191,13 @@
    "note": "Re-strained his left hamstring; out at least four more weeks."
   },
   "Joel Embiid": {
-   "note": "Doubtful vs Miami with illness after missing Monday's loss to Portland."
+   "note": "Questionable with an illness after missing two straight games."
   },
   "Paolo Banchero": {
    "note": "Missed 12 games with a 'complex' ankle sprain; hopes to return in the next few weeks."
   },
   "Austin Reaves": {
-   "note": "Left heel bruise; first full practice Nov 25, status vs Spurs undecided."
+   "note": "Questionable vs San Antonio (heel bone bruise) after five missed games; full practice Nov 25."
   },
   "Dylan Harper": {
    "note": "Left hip strain; out 1-3 weeks (from Nov 19)."
@@ -286,7 +286,7 @@
    "note": "Knee tendinopathy; upgraded to questionable after missing six games."
   },
   "Shai Gilgeous-Alexander": {
-   "note": "Out Nov 23 at Indiana with a back injury; missed his first game of the season Nov 22."
+   "note": "Called OKC's slide (7 losses in 9) 'motivation'; says he must be more aggressive early with Holmgren and J. Williams out."
   },
   "DeMar DeRozan": {
    "note": "Former Bull returning to Chicago on a one-year deal with Denver.",
@@ -363,7 +363,7 @@
    "note": "Seven straight 24-point games; 37-18-11 vs Chicago; seven triple-doubles behind Westbrook's record."
   },
   "Giannis Antetokounmpo": {
-   "note": "Now with Miami; questionable vs Philadelphia (right groin tendinitis) after missing Sunday's win; Heat on a seven-game win streak."
+   "note": "Probable (groin tendinitis); first game in New York as a Heat player."
   },
   "OG Anunoby": {
    "note": "Left calf strain; day-to-day after missing three straight games."
@@ -379,6 +379,12 @@
   },
   "Jalen Duren": {
    "note": "Out since Oct 23 with a right hamstring strain; assigned to the G League to ramp up."
+  },
+  "Chet Holmgren": {
+   "note": "Small tear in the patellar tendon; return expected around New Year."
+  },
+  "LaMelo Ball": {
+   "note": "Carried off with an ankle sprain vs OKC on Nov 25; questionable for the Cup decider vs Memphis."
   }
  }
 }
