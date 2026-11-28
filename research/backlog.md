@@ -36,6 +36,14 @@ Read with care: tickets land below stated in 8 of 9 seasons (3,158 landed vs 3,2
 | 8 | Ladder market weight at real main lines (MARKET_W) | Run 2026-11-24, see Rejected: the numbers pass, but only by leaving the 2.00-2.10 window. | - | rejected |
 | 9 | Conviction level (Low / Medium / High) on the Ladder and game tickets (owner, 2026-11-24) | Run 2026-11-24, see Rejected: tickets fail the z and order bars; the Ladder replay can never show a High (L3 is impossible without real Winamax prices); (b) loses units. | - | rejected |
 
+### 2c: p_play calibration rule (pre-registered 2026-11-28, owner-approved, written before any run)
+Switch PPLAY_CAL=1 replaces p_play = recent participation x LOCK_PLAY with a measured table: the share who actually
+played, by lock status (unlisted, Probable, Questionable, Doubtful) x recent participation (0, (0,0.4], (0.4,0.8],
+(0.8,1]), fitted ONLY on 2019-20 to 2022-23 lock lists. Same table live (player_engine ~line 391) and in the replay
+(lock_side). SCALE_HI stays 1.05; no other change. Baseline: tag _n3.
+Pass, judged on 2023-24 to 2026-27 (not fitted): (a) pooled paired ticket sign test p < 0.01 in favour; (b) no season,
+of all 9, more than 3 tickets below _n3; (c) tickets still honest: pooled landed/stated within 0.98-1.02. One try only.
+
 ### 9: Conviction rule (pre-registered 2026-11-24, written before any run; no thresholds fitted except where stated)
 Conviction is a label next to the stated chance, not a new chance: stated chances stay as they are. Every test must be known at the lock (no final minutes, closing lines or results).
 Ladder candidate tests (each candidate the Ladder could pick):
