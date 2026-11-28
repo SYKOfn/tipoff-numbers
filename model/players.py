@@ -543,6 +543,19 @@ def over_prob(stat, line, mu, disp):
     return max(0.0, min(1.0, 1.0 - cdf))
 
 
+def quant_range(stat, mu, disp, lo=0.1, hi=0.9):
+    """The middle 80% of the same negative binomial as over_prob: [10th, 90th] percentile, whole numbers."""
+    mu = max(float(mu), 0.05)
+    d = max(disp.get(stat, 1.5) if isinstance(disp, dict) else float(disp), 1.02)
+    r, q = mu / (d - 1.0), 1.0 / d
+    pk = math.exp(r * math.log(q)); cdf = pk; k = 0; a = None
+    while cdf < hi and k < 200:
+        if a is None and cdf >= lo:
+            a = k
+        pk *= (k + r) / (k + 1) * (1 - q); k += 1; cdf += pk
+    return [a if a is not None else k, k]
+
+
 # The lines Winamax lists for NBA player markets ("X+" = over X - 0.5). Every player line on the site and in the
 # tickets is one of these, so every leg can be placed as shown.
 WINAMAX_LADDER = {

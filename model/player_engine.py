@@ -402,5 +402,6 @@ def project_game(pt, pe, disp, g, ctx, injuries, notes, news=True, exp_margin=No
                 continue
             r["disp"] = {k: round(v, 3) for k, v in P.player_disp(pt.p[r["id"]], disp).items()}
             r["lines"] = {st: P.lines_for(st, r[st], r["disp"]) for st in ("pts", "reb", "ast", "tpm", "pra")}
+            r["rng"] = {st: P.quant_range(st, r[st], r["disp"]) for st in ("pts", "reb", "ast", "pra")}  # middle 80%
         out[side] = lst
     return out

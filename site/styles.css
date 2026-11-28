@@ -1409,3 +1409,4 @@ h2 .sub, h2 .sub2 { text-wrap: pretty; }
 @media (max-width: 560px) { .lh { grid-template-columns: 1fr; } .lh-level { justify-self: start; display: flex; align-items: baseline; gap: 10px; padding: 12px 18px; } .lh-level .v { font-size: 48px; }
   .lsteps li { grid-template-columns: 34px 1fr; } .ls-r { grid-column: 2; } }
 .lpast .rec-tiles { margin: 12px 0; }
+.rg { display: block; font-size: .72em; color: var(--muted); font-weight: 400; white-space: nowrap; }
